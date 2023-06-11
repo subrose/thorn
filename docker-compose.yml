@@ -1,0 +1,53 @@
+version: "3.11.1"
+services:
+  api:
+    environment:
+      - VAULT_DB_HOST=keydb
+      - VAULT_DB_PORT=6379
+      - VAULT_DB_USER=default
+      - VAULT_DB_PASSWORD=
+      - VAULT_API_HOST=0.0.0.0
+      - VAULT_API_PORT=3001
+      - VAULT_ADMIN_ACCESS_KEY=admin
+      - VAULT_ADMIN_ACCESS_SECRET=admin
+      - VAULT_DEV_MODE=false
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: deploy
+    entrypoint: ./api --configFile conf.toml
+    ports:
+      - 3001:3001
+    depends_on:
+      - test
+      - keydb
+  keydb:
+    image: eqalpha/keydb:arm64_v5.3.3
+    container_name: keydb
+    command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    volumes:
+      - ./keydb/redis.conf:/etc/keydb/redis.conf
+      - ./keydb/data:/data
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: build
+    environment:
+      - KEYDB_CONN_STRING=keydb:6379
+      - VAULT_DB_HOST=keydb
+      - VAULT_DB_PORT=6379
+      - VAULT_DB_USER=default
+      - VAULT_DB_PASSWORD=
+    working_dir: /code
+    depends_on:
+      - keydb
+    command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
+    volumes:
+      - "./:/code"
+volumes:
+  data:
+    driver: local
