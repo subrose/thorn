@@ -6,6 +6,17 @@ import requests
 VAULT_URL = "http://localhost:3000"
 
 
+def auth_guard(fn):
+    def auth_check(self, *args, **kwargs):
+        if not self.token:
+            raise Exception(
+                "Attempted to call a protected method without authentication"
+            )
+        return fn(self, *args, **kwargs)
+
+    return auth_check
+
+
 class Actor:
     def __init__(self, vault_url: str, name: str, access_key: str, secret_key: str):
         self.name = name
@@ -13,16 +24,6 @@ class Actor:
         self.secret_key = secret_key
         self.vault_url = vault_url
         self.token = None
-
-    def auth_guard(fn, **args):
-        def auth_check(self, *args, **kwargs):
-            if not self.token:
-                raise Exception(
-                    "Attempted to call a protected method without authentication"
-                )
-            return fn(self, *args, **kwargs)
-
-        return auth_check
 
     def authenticate(self):
         response = requests.post(
