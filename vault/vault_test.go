@@ -9,7 +9,6 @@ import (
 	"github.com/go-playground/assert/v2"
 )
 
-// Elia's MVP usecase:
 // I have customer PII in my database which I want to move to a PII vault.
 // The customer object looks like this: {first_name: "John", last_name: "Crawford", "email": "john.crawford@gmail.com", "phone": "1234567890""}
 // I want to store the customer object in the vault and get back a unique ID.
