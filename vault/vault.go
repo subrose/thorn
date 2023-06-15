@@ -133,7 +133,6 @@ func (vault Vault) CreateCollection(ctx context.Context, principal Principal, co
 }
 
 func (vault Vault) CreateRecords(ctx context.Context, principal Principal, collectionName string, records []Record) ([]string, error) {
-	fmt.Println("CreateRecords", principal, collectionName, records)
 	allowed, err := vault.ValidateAction(
 		ctx,
 		Action{principal, PolicyActionWrite, fmt.Sprintf("collections/%s/records/", collectionName)},

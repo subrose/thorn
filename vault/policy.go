@@ -119,8 +119,6 @@ func EvaluateAction(ctx context.Context, a Action, pm PolicyManager) (bool, erro
 		return false, err
 	}
 	for _, p := range principalPolicies {
-		fmt.Printf("Matching %s %s %s\n", p.Resource, p.Action, p.Effect)
-		fmt.Printf("Against %s %s %s\n", a.Resource, a.Action, a.Principal)
 
 		// Remove trailing slash
 		if len(a.Resource) > 0 && a.Resource[len(a.Resource)-1] == '/' {
