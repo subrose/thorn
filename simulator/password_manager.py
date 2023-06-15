@@ -25,7 +25,7 @@ alice_read_policy = admin.create_policy(
         "policy_id": "alice-read-own-passwords",
         "effect": "allow",
         "action": "read",
-        "resource": "collections/passwords/records/alice",
+        "resource": "collections/alice-passwords/records",
     }
 )
 
@@ -34,7 +34,7 @@ alice_write_policy = admin.create_policy(
         "policy_id": "alice-write-own-passwords",
         "effect": "allow",
         "action": "write",
-        "resource": "collections/paswords/records/alice",
+        "resource": "collections/alice-passwords/records",
     }
 )
 
@@ -43,7 +43,7 @@ bob_read_policy = admin.create_policy(
         "policy_id": "bob-read-own-passwords",
         "effect": "allow",
         "action": "read",
-        "resource": "collections/passwords/records/bob",
+        "resource": "collections/bob-passwords/records/bob",
     }
 )
 
@@ -52,7 +52,7 @@ bob_write_policy = admin.create_policy(
         "policy_id": "bob-write-own-passwords",
         "effect": "allow",
         "action": "write",
-        "resource": "collections/passwords/records/bob",
+        "resource": "collections/bob-passwords/records/bob",
     }
 )
 
@@ -79,7 +79,7 @@ bob.authenticate()
 
 # 2) Alice adds a password
 alice_password = alice.create_records(
-    "passwords", [{"service": "email", "password": "alice_password_1"}]
+    "alice-passwords", [{"service": "email", "password": "alice_password_1"}]
 )
 if alice_password is None:
     raise Exception("Failed to create password for Alice")

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -106,6 +107,7 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	if err := c.BodyParser(records); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
+	fmt.Println(principal, collectionName, records)
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
 	if err != nil {
