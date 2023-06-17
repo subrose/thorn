@@ -122,8 +122,8 @@ func (vault Vault) CreateCollection(ctx context.Context, principal Principal, co
 		return "", ErrForbidden
 	}
 
-	if len(col.Name) < 3 {
-		return "", newValueError(fmt.Errorf("collection name must be at least 3 characters"))
+	if !ValidateCollectionName(col.Name) {
+		return "", newValueError(fmt.Errorf("collection name must be 1-64 characters long, and only contain alphanumeric characters, dashes and underscores"))
 	}
 	collectionId, err := vault.Db.CreateCollection(ctx, col)
 	if err != nil {
