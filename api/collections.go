@@ -14,7 +14,7 @@ type CollectionFieldModel struct {
 }
 
 type CollectionModel struct {
-	Name   string                          `json:"name" validate:"required,alphanum,min=3,max=20,excludesall= "`
+	Name   string                          `json:"name" validate:"required,collectionName"`
 	Fields map[string]CollectionFieldModel `json:"fields" validate:"required"`
 }
 
@@ -109,6 +109,7 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
 	if err != nil {
+		core.logger.Error("An error occurred creating a record", err)
 		var valueErr *_vault.ValueError
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())

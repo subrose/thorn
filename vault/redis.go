@@ -132,7 +132,7 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
 	dbCol, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, redis.Nil) {
 			return []string{}, ErrNotFound
 		}
 		return []string{}, err

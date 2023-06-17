@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/go-playground/assert/v2"
+	"github.com/stretchr/testify/assert"
 )
 
 func MakePM() PolicyManager {
@@ -81,35 +81,81 @@ func TestPolicyAllowed(t *testing.T) {
 	}
 }
 
+var pm = MakePM()
+
+func TestEvaluateAction(t *testing.T) {
+	testCases := []struct {
+		name     string
+		action   Action
+		expected bool
+	}{
+		{
+			"PolicyNotSpecified",
+			Action{
+				makePrincipal(),
+				PolicyActionRead,
+				"very very secret",
+			},
+			false,
+		},
+		{
+			"PolicyDenied",
+			Action{
+				makePrincipal(),
+				PolicyActionRead,
+				"restricted-resource",
+			},
+			false,
+		},
+		{
+			"PolicyDeniedPrefixed",
+			Action{
+				makePrincipal(),
+				PolicyActionRead,
+				"aallowed-resource",
+			},
+			false,
+		},
+		{
+			"PolicyAllowed",
+			Action{
+				makePrincipal(),
+				PolicyActionRead,
+				"allowed-resource/123",
+			},
+			true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := EvaluateAction(context.Background(), tc.action, pm)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestMatch(t *testing.T) {
-	assert.Equal(
-		t,
-		false,
-		Match("/asd*", "asd"),
-	)
-	assert.Equal(
-		t,
-		false,
-		Match("/asd/*/asd/*", "asd"),
-	)
-	assert.Equal(
-		t,
-		true,
-		Match("/asd*", "/asd"),
-	)
-	assert.Equal(
-		t,
-		true,
-		Match("/asd/*/asd/*", "/asd/aksjdhaks/dajksd/asdk/asdjas/asd/jdjdjsiisad/sdkjsd"),
-	)
-	assert.Equal(
-		t,
-		true,
-		Match("exact-match", "exact-match"),
-	)
-	assert.Equal(
-		t,
-		true,
-		Match("*", "asd"),
-	)
+	testCases := []struct {
+		pattern  string
+		str      string
+		expected bool
+	}{
+		{"/asd*", "asd", false},
+		{"/asd*", "/asd/", true},
+		{"/asd/*/asd", "/asd/asd/asd", true},
+		{"/asd/*/asd/*", "asd", false},
+		{"/asd*", "/asd", true},
+		{"/asd/*/asd/*", "/asd/aksjdhaks/dajksd/asdk/asdjas/asd/jdjdjsiisad/sdkjsd", true},
+		{"exact-match", "exact-match", true},
+		{"*", "asd", true},
+		{"*", "asd/asd/asd", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.pattern, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Match(tc.pattern, tc.str))
+		})
+	}
 }

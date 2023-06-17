@@ -1,6 +1,6 @@
 """ Client with helpers for similating vault usecases """
 
-from typing import List
+from typing import Tuple, Optional, Dict, Any, List
 import requests
 
 VAULT_URL = "http://localhost:3000"
@@ -25,86 +25,91 @@ class Actor:
         self.vault_url = vault_url
         self.token = None
 
-    def authenticate(self):
+    def authenticate(self) -> Tuple[Optional[bool], int, Optional[str]]:
         response = requests.post(
             f"{self.vault_url}/auth/token",
             auth=(self.access_key, self.secret_key),
         )
         if response.status_code == 200:
             self.token = response.json()["access_token"]
-            return True
-        print("Authentication failed", response.status_code, response.text)
-        return None
+            return True, response.status_code, None
+        return None, response.status_code, "Authentication failed"
 
     @auth_guard
-    def create_principal(self, name: str, description: str, policies: list[str]):
+    def create_principal(
+        self, name: str, description: str, policies: List[str]
+    ) -> Tuple[Optional[Dict[str, Any]], int, Optional[str]]:
         response = requests.post(
             f"{self.vault_url}/principals",
             json={"name": name, "description": description, "policies": policies},
             headers={"Authorization": f"Bearer {self.token}"},
         )
         if response.status_code == 201:
-            return response.json()
-        print("Create principal failed", response.status_code, response.text)
-        return None
+            return response.json(), response.status_code, None
+        return None, response.status_code, "Create principal failed"
 
     @auth_guard
-    def create_collection(self, schema: dict):
+    def create_collection(
+        self, schema: Dict[str, Any]
+    ) -> Tuple[Optional[bool], int, Optional[str]]:
         response = requests.post(
             f"{self.vault_url}/collections",
             json=schema,
             headers={"Authorization": f"Bearer {self.token}"},
         )
         if response.status_code == 201:
-            return True
-        print("Create collection failed", response.status_code, response.text)
-        return None
+            return True, response.status_code, None
+        return None, response.status_code, response.json()
 
     @auth_guard
-    def create_records(self, collection: str, record: List[dict]):
+    def create_records(
+        self, collection: str, record: List[Dict[str, Any]]
+    ) -> Tuple[Optional[List[str]], int, Optional[str]]:
         response = requests.post(
             f"{self.vault_url}/collections/{collection}/records",
             json=record,
             headers={"Authorization": f"Bearer {self.token}"},
         )
         if response.status_code == 201:
-            return response.json()
-        print("Create record failed", response.status_code, response.text)
-        return None
+            return response.json(), response.status_code, None
+        return None, response.status_code, "Create record failed"
 
     @auth_guard
-    def get_record(self, collection: str, record_id: str):
+    def get_record(
+        self, collection: str, record_id: str
+    ) -> Tuple[Optional[Dict[str, Any]], int, Optional[str]]:
         response = requests.get(
             f"{self.vault_url}/collections/{collection}/records/{record_id}",
             headers={"Authorization": f"Bearer {self.token}"},
         )
         if response.status_code == 200:
-            return response.json()
-        print("Get record failed", response.status_code, response.text)
-        return None
+            return response.json(), response.status_code, None
+        return None, response.status_code, "Get record failed"
 
     @auth_guard
-    def create_policy(self, policy: dict):
+    def create_policy(
+        self, policy: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], int, Optional[str]]:
         response = requests.post(
             f"{self.vault_url}/policies",
             headers={"Authorization": f"Bearer {self.token}"},
             json=policy,
         )
         if response.status_code == 201:
-            return response.json()
-        print("Create policy failed", response.status_code, response.text)
-        return None
+            return response.json(), response.status_code, None
+        return None, response.status_code, "Create policy failed"
 
     @auth_guard
-    def get_policy(self, policy_id: str):
+    def get_policy(
+        self, policy_id: str
+    ) -> Tuple[Optional[Dict[str, Any]], int, Optional[str]]:
         response = requests.get(
             f"{self.vault_url}/policies/{policy_id}",
             headers={"Authorization": f"Bearer {self.token}"},
         )
         if response.status_code == 200:
-            return response.json()
-        print("Get policy failed", response.status_code, response.text)
-        return None
+            return response.json(), response.status_code, None
+        return None, response.status_code, "Get policy failed"
 
 
 if __name__ == "__main__":
@@ -144,19 +149,3 @@ if __name__ == "__main__":
             "resource": "collections/users/",
         }
     )
-
-    # record = admin.get_record("users", rec[0])
-    # print(record)
-
-    alice_res = admin.create_principal(
-        "alice", "Alice", ["alice-read-users-records", "alice-read-users-collection"]
-    )
-    alice = Actor(
-        VAULT_URL, "alice", alice_res["access_key"], alice_res["access_secret"]
-    )
-    alice.authenticate()
-
-    alice.get_record("users", rec[0])
-
-    # rec = alice.get_record("users", rec[0])
-    # print(rec)

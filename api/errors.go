@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 
+	"regexp"
+
 	"github.com/go-playground/validator/v10"
 )
 
@@ -12,7 +14,18 @@ type ErrorResponse struct {
 	Errors  []*interface{} `json:"errors"`
 }
 
-var validate = validator.New()
+func ValidateCollectionName(fl validator.FieldLevel) bool {
+	// Kafka topic regex
+	reg := "^[a-zA-Z0-9._-]{1,249}$"
+	match, _ := regexp.MatchString(reg, fl.Field().String())
+
+	// Check for prohibited values: single period and double underscore
+	if fl.Field().String() == "." || fl.Field().String() == "__" {
+		return false
+	}
+
+	return match
+}
 
 type ValidationError struct {
 	FailedField string `json:"failed_field"`
@@ -23,6 +36,9 @@ type ValidationError struct {
 // Validate validates the input struct
 func Validate(payload interface{}) []*ValidationError {
 	var errors []*ValidationError
+	var validate = validator.New()
+	validate.RegisterValidation("collectionName", ValidateCollectionName)
+
 	err := validate.Struct(payload)
 
 	if err != nil {
