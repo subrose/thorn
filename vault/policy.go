@@ -119,15 +119,6 @@ func EvaluateAction(ctx context.Context, a Action, pm PolicyManager) (bool, erro
 		return false, err
 	}
 	for _, p := range principalPolicies {
-
-		// Remove trailing slash
-		if len(a.Resource) > 0 && a.Resource[len(a.Resource)-1] == '/' {
-			a.Resource = a.Resource[:len(a.Resource)-1]
-		}
-		if len(p.Resource) > 0 && p.Resource[len(p.Resource)-1] == '/' {
-			p.Resource = p.Resource[:len(p.Resource)-1]
-		}
-
 		matched := Match(p.Resource, a.Resource)
 		matched = (matched && p.Action == a.Action)
 		if !matched {
