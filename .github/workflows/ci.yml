@@ -32,7 +32,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.53
-          working-directory: .
+          working-directory: vault
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
