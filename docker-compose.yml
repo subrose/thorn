@@ -10,17 +10,19 @@ services:
       - VAULT_API_PORT=3001
       - VAULT_ADMIN_ACCESS_KEY=admin
       - VAULT_ADMIN_ACCESS_SECRET=admin
-      - VAULT_DEV_MODE=false
+      - VAULT_DEV_MODE=true
     build:
       context: .
       dockerfile: Dockerfile
-      target: deploy
-    entrypoint: ./api --configFile conf.toml
+      target: build
+    entrypoint: ["air", ".", "-c", "./.air.toml"]
     ports:
       - 3001:3001
     depends_on:
       - test
       - keydb
+    volumes:
+      - "./:/app"
   keydb:
     image: eqalpha/keydb:arm64_v5.3.3
     container_name: keydb
