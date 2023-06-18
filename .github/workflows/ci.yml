@@ -28,11 +28,18 @@ jobs:
         run: |
           if [ -n "$(gofmt -l .)" ]; then echo "Go code is not properly formatted:"; gofmt -d .; exit 1; fi
 
-      - name: Run Go linter
-        uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.53
-          working-directory: vault
+      # The below is a hack because the golangci-lint-action doesn't support go.work yet: https://github.com/golangci/golangci-lint/issues/2654
+      # - name: Run Go linter on vault
+      #   uses: golangci/golangci-lint-action@v3
+      #   with:
+      #     version: v1.53
+      #     working-directory: vault
+
+      # - name: Run Go linter on api
+      #   uses: golangci/golangci-lint-action@v3
+      #   with:
+      #     version: v1.53
+      #     working-directory: api
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
