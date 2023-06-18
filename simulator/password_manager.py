@@ -17,7 +17,7 @@ _, status_code, error = admin.create_collection(
         },
     }
 )
-if status_code not in [200, 409]:
+if status_code not in [201, 409]:
     raise Exception(f"Failed to create collection: {status_code}, {error}")
 
 _, status_code, error = admin.create_collection(
@@ -30,7 +30,7 @@ _, status_code, error = admin.create_collection(
     }
 )
 
-if status_code not in [200, 409]:
+if status_code not in [201, 409]:
     raise Exception(f"Failed to create collection: {status_code}, {error}")
 
 
