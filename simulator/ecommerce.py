@@ -17,7 +17,7 @@ assert admin.authenticate()[0] is True
 # Step 1: Create collections
 _, status_code, error = admin.create_collection(
     {
-        "name": "user-collection",
+        "name": "customer-collection",
         "fields": {
             "name": {"type": "string", "indexed": False},
             "email": {"type": "string", "indexed": False},
@@ -26,7 +26,7 @@ _, status_code, error = admin.create_collection(
         },
     }
 )
-if status_code not in [200, 409]:
+if status_code not in [201, 409]:
     raise Exception(f"Failed to create collection: {status_code}, {error}")
 
 _, status_code, error = admin.create_collection(
@@ -39,7 +39,7 @@ _, status_code, error = admin.create_collection(
         },
     }
 )
-if status_code not in [200, 409]:
+if status_code not in [201, 409]:
     raise Exception(f"Failed to create collection: {status_code}, {error}")
 
 # Step 2: Create policies
@@ -49,7 +49,7 @@ _, status_code, error = admin.create_policy(
         "effect": "allow",
         "action": ["read", "write"],
         "resource": [
-            "collections/user-collection/*",
+            "collections/customer-collection/*",
             "collections/credit-card-collection/*",
         ],
     }
@@ -62,7 +62,7 @@ _, status_code, error = admin.create_policy(
         "policy_id": "marketing-policy",
         "effect": "allow",
         "action": "read",
-        "resource": "collections/user-collection/email",
+        "resource": "collections/customer-collection/email",
     }
 )
 if error:
@@ -74,8 +74,8 @@ _, status_code, error = admin.create_policy(
         "effect": "allow",
         "action": ["read", "update"],
         "resource": [
-            "collections/user-collection/email",
-            "collections/user-collection/phone",
+            "collections/customer-collection/email",
+            "collections/customer-collection/phone",
         ],
     }
 )
