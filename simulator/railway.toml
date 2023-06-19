@@ -1,9 +1,0 @@
-[build]
-builder = "NIXPACKS"
-
-[deploy]
-startCommand = "locust -H https://vault-nursery.up.railway.app --autostart -u 1 -r 1 -P $PORT"
-healthcheckPath = "/"
-restartPolicyType = "ON_FAILURE"
-healthcheckTimeout = 300
-restartPolicyMaxRetries = 10

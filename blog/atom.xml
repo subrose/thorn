@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://subrose.io/blog</id>
+    <title>Subrose Blog</title>
+    <updated>2022-03-31T00:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://subrose.io/blog"/>
+    <subtitle>Subrose Blog</subtitle>
+    <icon>https://subrose.io/img/favicon.ico</icon>
+    <entry>
+        <title type="html"><![CDATA[Subrose]]></title>
+        <id>https://subrose.io/blog/about</id>
+        <link href="https://subrose.io/blog/about"/>
+        <updated>2022-03-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[In recent years, data privacy laws have become more stringent and complex, making it increasingly difficult for organisations to comply and protect their data without significant investments in tooling, training and workflows. The data privacy space is one of the few areas where regulators move faster than technologists as it’s fundamentally much easier to pass a laws than it is to overhaul architecture, address data proliferation and change the workflows and behaviour of an organisation.]]></summary>
+        <content type="html"><![CDATA[<p>In recent years, data privacy laws have become more stringent and complex, making it increasingly difficult for organisations to comply and protect their data without significant investments in tooling, training and workflows. The data privacy space is one of the few areas where regulators move faster than technologists as it’s fundamentally much easier to pass a laws than it is to overhaul architecture, address data proliferation and change the workflows and behaviour of an organisation.</p><p>Most organisations understand that privacy laws are good and most breaches of compliance happen due to mismanagement and a lack of good privacy engineering practices as opposed to malicious intent. We believe that lack of solutions specifically focussed on the technical layer of data privacy presents technology teams with a difficult compromise between data privacy and business requirements; both in terms of resources and data usability.</p><p>Subrose is on a mission to provide open and accessible data privacy engineering solutions that any organisation can use to become fully compliant with regulation and protect the data they are entrusted with from being compromised or misused. By providing a technical interpretation of regulation, software engineers can build <em>privacy by default</em> systems without having to compromise between business requirements and privacy.</p><p>Privacy is a human right which is intimately linked with many freedoms; we we want to enable every organisation entrusted with data to protect the privacy of their users at the technical layer, where it really matters. With Subrose, data privacy can become a seamless part of every organisation's technical infrastructure.</p>]]></content>
+        <author>
+            <name>Subrose</name>
+            <uri>https://github.com/subrose/vault</uri>
+        </author>
+        <category label="subrose" term="subrose"/>
+    </entry>
+</feed>
