@@ -256,7 +256,10 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, accessKey string) (Princi
 		return Principal{}, err
 	}
 
-	pipeRes[0].(*redis.MapStringStringCmd).Scan(&dbPrincipal)
+	err = pipeRes[0].(*redis.MapStringStringCmd).Scan(&dbPrincipal)
+	if err != nil {
+		return Principal{}, err
+	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.AccessKey == "" || dbPrincipal.AccessSecret == "" {
 		return Principal{}, ErrNotFound

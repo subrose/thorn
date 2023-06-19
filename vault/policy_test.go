@@ -13,8 +13,8 @@ func MakePM() PolicyManager {
 	dpm := DummyPolicyManager{
 		policies: make(map[string]Policy),
 	}
-	dpm.CreatePolicy(ctx, policies[0])
-	dpm.CreatePolicy(ctx, policies[1])
+	_, _ = dpm.CreatePolicy(ctx, policies[0])
+	_, _ = dpm.CreatePolicy(ctx, policies[1])
 
 	return dpm
 }

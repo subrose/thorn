@@ -57,7 +57,10 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 			return strings.ToLower(strings.TrimPrefix(s, envPrefix))
 		},
 	)
-	Config.Load(provider, nil)
+	err = Config.Load(provider, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	// Inject
 	conf.DB_HOST = Config.String("db_host")
@@ -127,15 +130,15 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 func (core *Core) Init() error {
 	ctx := context.Background()
 	if core.conf.DEV_MODE {
-		core.vault.Db.Flush(ctx)
+		_ = core.vault.Db.Flush(ctx)
 	}
-	core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
+	_, _ = core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
 		PolicyId: "admin-write",
 		Effect:   _vault.EffectAllow,
 		Action:   _vault.PolicyActionWrite,
 		Resource: "*",
 	})
-	core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
+	_, _ = core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
 		PolicyId: "admin-read",
 		Effect:   _vault.EffectAllow,
 		Action:   _vault.PolicyActionRead,

@@ -118,7 +118,7 @@ func (l Logger) WriteRequestLog(
 	requestId string,
 	dt float64,
 	status int,
-) error {
+) {
 	l.zeroLogger.Info().
 		Str("type", "system").
 		Str("method", method).
@@ -129,7 +129,6 @@ func (l Logger) WriteRequestLog(
 		Float64("duration", dt).
 		Int("status", status).
 		Msg("API request")
-	return nil
 }
 
 func (l Logger) WriteAuditLog(
@@ -144,7 +143,7 @@ func (l Logger) WriteAuditLog(
 	principalPolicies []string,
 	requestedRecords []string,
 	accessedRecords []string,
-) error {
+) {
 	l.zeroLogger.Info().
 		Str("type", "audit").
 		Str("method", method).
@@ -159,5 +158,4 @@ func (l Logger) WriteAuditLog(
 		Strs("requested-records", requestedRecords).
 		Strs("accessed-records", accessedRecords).
 		Msg("Record request")
-	return nil
 }

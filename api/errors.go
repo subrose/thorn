@@ -37,7 +37,7 @@ type ValidationError struct {
 func Validate(payload interface{}) []*ValidationError {
 	var errors []*ValidationError
 	var validate = validator.New()
-	validate.RegisterValidation("collectionName", ValidateCollectionName)
+	_ = validate.RegisterValidation("collectionName", ValidateCollectionName)
 
 	err := validate.Struct(payload)
 

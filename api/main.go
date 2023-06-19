@@ -12,7 +12,7 @@ import (
 func ApiLogger(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		t1 := time.Now()
-		ctx.Next()
+		_ = ctx.Next()
 		t2 := time.Now()
 		dt := float64(t2.Sub(t1))
 		core.logger.WriteRequestLog(
@@ -55,7 +55,7 @@ func JwtGuard(core *Core) fiber.Handler {
 		// Set principal in context
 		ctx.Locals("principal", principal)
 		// Continue stack
-		ctx.Next()
+		_ = ctx.Next()
 
 		return nil
 	}
@@ -123,6 +123,9 @@ func main() {
 	app := SetupApi(core)
 	listenAddr := fmt.Sprintf("%s:%v", coreConfig.API_HOST, coreConfig.API_PORT)
 	fmt.Println("Listening on", listenAddr)
-	app.Listen(listenAddr)
+	err = app.Listen(listenAddr)
+	if err != nil {
+		panic(err)
+	}
 
 }
