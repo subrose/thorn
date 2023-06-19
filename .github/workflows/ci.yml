@@ -5,57 +5,59 @@ on:
   #   branches: [ main ]
   pull_request:
     branches: [ main ]
-
+    paths:
+      - '**'
+      - '!website/**'
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
 
-    # steps:
-    #   - name: Checkout code
-    #     uses: actions/checkout@v3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    #   - name: Install Go
-    #     uses: actions/setup-go@v4
-    #     with:
-    #       go-version: '1.20'
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
 
-    #   - name: Run Gosec Security Scanner
-    #     uses: securego/gosec@master
-    #     with:
-    #       args: ./...
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: ./...
 
-    #   - name: Check code formatting
-    #     run: |
-    #       if [ -n "$(gofmt -l .)" ]; then echo "Go code is not properly formatted:"; gofmt -d .; exit 1; fi
+      - name: Check code formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then echo "Go code is not properly formatted:"; gofmt -d .; exit 1; fi
 
-    #   # The below is a hack because the golangci-lint-action doesn't support go.work yet: https://github.com/golangci/golangci-lint/issues/2654
-    #   - name: Run Go linter on vault
-    #     uses: golangci/golangci-lint-action@v3
-    #     with:
-    #       version: v1.53
-    #       working-directory: vault
+      # The below is a hack because the golangci-lint-action doesn't support go.work yet: https://github.com/golangci/golangci-lint/issues/2654
+      - name: Run Go linter on vault
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
+          working-directory: vault
 
-    #   - name: Run Go linter on api
-    #     uses: golangci/golangci-lint-action@v3
-    #     with:
-    #       version: v1.53
-    #       working-directory: api
+      - name: Run Go linter on api
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.53
+          working-directory: api
 
-    #   - name: Set up Docker Buildx
-    #     uses: docker/setup-buildx-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    #   - name: Cache Docker layers
-    #     uses: actions/cache@v3
-    #     with:
-    #       path: /tmp/.buildx-cache
-    #       key: ${{ runner.os }}-buildx-${{ github.sha }}
-    #       restore-keys: |
-    #         ${{ runner.os }}-buildx-
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
-    #   - name: Docker Compose Build and Test
-    #     uses: isbang/compose-action@v1.4.1
-    #     with:
-    #       compose-file: "./docker-compose.yml"
-    #       down-flags: "--volumes"
-    #       services: |
-    #         test
+      - name: Docker Compose Build and Test
+        uses: isbang/compose-action@v1.4.1
+        with:
+          compose-file: "./docker-compose.yml"
+          down-flags: "--volumes"
+          services: |
+            test
