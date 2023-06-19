@@ -40,14 +40,14 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	var pm _vault.PolicyManager = db
 	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
 	bootstrapContext := context.Background()
-	vault.Db.Flush(bootstrapContext)
-	pm.CreatePolicy(bootstrapContext, _vault.Policy{
+	_ = vault.Db.Flush(bootstrapContext)
+	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
 		PolicyId: "admin-read",
 		Effect:   _vault.EffectAllow,
 		Action:   _vault.PolicyActionRead,
 		Resource: "*",
 	})
-	pm.CreatePolicy(bootstrapContext, _vault.Policy{
+	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
 		PolicyId: "admin-write",
 		Effect:   _vault.EffectAllow,
 		Action:   _vault.PolicyActionWrite,

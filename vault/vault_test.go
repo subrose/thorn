@@ -27,19 +27,19 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	var pm PolicyManager = db
-	pm.CreatePolicy(ctx, Policy{
+	_, _ = pm.CreatePolicy(ctx, Policy{
 		"admin-read",
 		EffectAllow,
 		PolicyActionRead,
 		"*",
 	})
-	pm.CreatePolicy(ctx, Policy{
+	_, _ = pm.CreatePolicy(ctx, Policy{
 		"admin-write",
 		EffectAllow,
 		PolicyActionWrite,
 		"*",
 	})
-	pm.CreatePolicy(ctx, Policy{
+	_, _ = pm.CreatePolicy(ctx, Policy{
 		"read-all-customers",
 		EffectAllow,
 		PolicyActionRead,
@@ -160,7 +160,7 @@ func TestVault(t *testing.T) {
 				IsIndexed: false,
 			},
 		}}
-		vault.CreateCollection(ctx, testPrincipal, col)
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
 		inputRecords := []Record{{"invalid_field": "John"}}
 		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
 		var valueErr *ValueError
@@ -228,7 +228,7 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Can create collection
-		vault.CreateCollection(ctx, testPrincipal, col)
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
 		record_ids, _ := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "John"},
 			{"first_name": "Jane"},
@@ -264,8 +264,8 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Can create collection
-		vault.CreateCollection(ctx, testPrincipal, col)
-		vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		_, _ = vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "John"},
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
@@ -289,8 +289,8 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Can create collection
-		vault.CreateCollection(ctx, testPrincipal, col)
-		vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		_, _ = vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "John"},
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
