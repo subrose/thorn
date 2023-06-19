@@ -18,13 +18,11 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          working-directory: website
           node-version: 18
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
-        
+
       - name: Build website
         run: npm run build
 
