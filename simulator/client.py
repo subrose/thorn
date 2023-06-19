@@ -3,7 +3,7 @@
 from typing import Tuple, Optional, Dict, Any, List
 import requests
 
-VAULT_URL = "http://localhost:3000"
+VAULT_URL = "http://localhost:3001"
 
 
 def auth_guard(fn):

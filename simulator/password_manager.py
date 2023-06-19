@@ -1,7 +1,7 @@
 from client import Actor
 
 # VAULT_URL from your client.py
-VAULT_URL = "http://localhost:3000"
+VAULT_URL = "http://localhost:3001"
 
 # Step 0: Initialize your actors
 admin = Actor(VAULT_URL, "admin", "admin", "admin")

@@ -4,9 +4,11 @@ WORKDIR /app
 
 COPY . ./
 RUN go mod download
+RUN go install github.com/cosmtrek/air@latest
 
 RUN cd vault && go build && cd ..
 RUN cd api && go build && cd ..
+
 
 ## Deploy
 FROM gcr.io/distroless/base-debian11 as deploy
