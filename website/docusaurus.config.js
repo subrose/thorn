@@ -19,7 +19,8 @@ const config = {
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: "subrose", // Usually your GitHub org/user name.
-  projectName: "subrose", // Usually your repo name.
+  projectName: "vault", // Usually your repo name.
+  deploymentBranch: "gh-pages",
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
@@ -92,7 +93,7 @@ const config = {
             items: [
               {
                 label: "Tutorial",
-                to: "/docs/intro",
+                to: "/docs",
               },
             ],
           },
