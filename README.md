@@ -7,7 +7,7 @@
 
 <h4 align="center">
   <a href="https://subrose.io">Website</a> | 
-  <a href="https://subrose.io/blog">Blog</a>
+  <a href="https://subrose.io/blog">Blog</a> | 
   <a href="https://subrose.io/docs">Docs</a>
 </h4>
 
