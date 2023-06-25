@@ -160,7 +160,13 @@ func (vault Vault) CreateRecords(ctx context.Context, principal Principal, colle
 	return vault.Db.CreateRecords(ctx, collectionName, encryptedRecords)
 }
 
-func (vault Vault) GetRecords(ctx context.Context, principal Principal, collectionName string, recordIDs []string) (map[string]Record, error) {
+func (vault Vault) GetRecords(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	recordIDs []string,
+	returnFormats map[string]string,
+) (map[string]Record, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
 		Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/records/", collectionName)},
@@ -198,7 +204,11 @@ func (vault Vault) GetRecords(ctx context.Context, principal Principal, collecti
 			if err != nil {
 				return nil, err
 			}
-			decryptedRecord[k], err = privValue.Get("plain") // TODO: change "plain" to getFormat[k]
+			returnFormat, found := returnFormats[k]
+			if !found {
+				returnFormat = "plain"
+			}
+			decryptedRecord[k], err = privValue.Get(returnFormat)
 			if err != nil {
 				return nil, err
 			}
@@ -208,14 +218,21 @@ func (vault Vault) GetRecords(ctx context.Context, principal Principal, collecti
 	return records, nil
 }
 
-func (vault Vault) GetRecordsFilter(ctx context.Context, principal Principal, collectionName string, fieldName string, value string) (map[string]Record, error) {
+func (vault Vault) GetRecordsFilter(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	fieldName string,
+	value string,
+	returnFormats map[string]string,
+) (map[string]Record, error) {
 	val, _ := vault.Priv.Encrypt(value)
 	recordIds, err := vault.Db.GetRecordsFilter(ctx, collectionName, fieldName, val)
 	if err != nil {
 		return nil, err
 	}
 
-	return vault.GetRecords(ctx, principal, collectionName, recordIds)
+	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
 }
 
 func (vault Vault) CreatePrincipal(
