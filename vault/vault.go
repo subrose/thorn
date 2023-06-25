@@ -204,7 +204,11 @@ func (vault Vault) GetRecords(
 			if err != nil {
 				return nil, err
 			}
-			decryptedRecord[k], err = privValue.Get(returnFormats[k])
+			returnFormat, found := returnFormats[k]
+			if !found {
+				returnFormat = "plain"
+			}
+			decryptedRecord[k], err = privValue.Get(returnFormat)
 			if err != nil {
 				return nil, err
 			}
