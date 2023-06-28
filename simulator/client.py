@@ -98,10 +98,12 @@ class Actor:
         self,
         collection: str,
         record_id: str,
+        fields: str,  # dict of params
         expected_statuses: Optional[list[int]] = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, dict[str, str]]:
         response = requests.get(
             f"{self.vault_url}/collections/{collection}/records/{record_id}",
+            params={"fields": fields},
             headers={"Authorization": f"Bearer {self.token}"},
         )
         check_expected_status(response, expected_statuses)

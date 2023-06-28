@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -129,8 +130,14 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 
 func parseFieldsQuery(fieldsQuery string) map[string]string {
 	fieldFormats := map[string]string{}
+	if fieldsQuery == "" {
+		return nil
+	}
 	for _, field := range strings.Split(fieldsQuery, ",") {
 		splitFieldFormat := strings.Split(field, ".")
+		if len(splitFieldFormat) != 2 {
+			continue
+		}
 		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
 	}
 
@@ -142,7 +149,13 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
 	// /records/users/<id>?fields=fname.plain,lname.masked
+	if c.Query("fields") == "" {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Fields query is required", nil})
+	}
 	fieldsQuery := parseFieldsQuery(c.Query("fields"))
+	fmt.Println(fieldsQuery)
+	// TODO: validate fields query and return error if invalid
+	// TODO: add default fields query to get all fields
 
 	if collectionName == "" {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Collection name is required", nil})

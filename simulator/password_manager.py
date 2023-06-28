@@ -114,25 +114,37 @@ bob_password_id = bob_password_res[0]
 
 # 5) Alice views her passwords
 alice_retrieved_password = alice.get_record(
-    collection="alice-passwords", record_id=alice_password_id, expected_statuses=[200]
+    collection="alice-passwords",
+    record_id=alice_password_id,
+    fields="service.plain,password.plain",
+    expected_statuses=[200],
 )
-print(alice_retrieved_password)
-assert alice_retrieved_password.values()["password"] == alice_password
+
+assert alice_retrieved_password[alice_password_id]["password"] == alice_password
 
 # 6) Bob views his passwords
 bob_retrieved_password = bob.get_record(
-    collection="bob-passwords", record_id=bob_password_id, expected_statuses=[200]
+    collection="bob-passwords",
+    record_id=bob_password_id,
+    expected_statuses=[200],
+    fields="service.plain,password.plain",
 )
-assert bob_retrieved_password.values[0] == bob_password
+assert bob_retrieved_password[bob_password_id]["password"] == bob_password
 
 # 7) Alice can't CRUD Bob's passwords
 alice.get_record(
-    "bob-passwords",
-    bob_password_id,
+    collection="bob-passwords",
+    record_id=bob_password_id,
+    fields="service.plain,password.plain",
     expected_statuses=[403],
 )
 
 # 8) Bob can't CRUD Alice's passwords
-bob.get_record("alice-passwords", alice_password_id, expected_statuses=[403])
+bob.get_record(
+    collection="alice-passwords",
+    record_id=alice_password_id,
+    fields="service.plain,password.plain",
+    expected_statuses=[403],
+)
 
 print("Password manager usecase ok!")
