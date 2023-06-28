@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
@@ -126,10 +127,22 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordIds)
 }
 
+func parseFieldsQuery(fieldsQuery string) map[string]string {
+	fieldFormats := map[string]string{}
+	for _, field := range strings.Split(fieldsQuery, ",") {
+		splitFieldFormat := strings.Split(field, ".")
+		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
+	}
+
+	return fieldFormats
+}
+
 func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
+	// /records/users/<id>?fields=fname.plain,lname.masked
+	fieldsQuery := parseFieldsQuery(c.Query("fields"))
 
 	if collectionName == "" {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Collection name is required", nil})
@@ -139,7 +152,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	}
 
 	recordIds := []string{recordId}
-	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds)
+	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, fieldsQuery)
 	if err != nil {
 		switch err {
 		case _vault.ErrNotFound:

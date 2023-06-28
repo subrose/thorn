@@ -104,20 +104,22 @@ func TestCollections(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// Test getting the record
-		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0], nil)
+		fieldFormats := "?fields=name.masked,phone_number.plain"
+		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+fieldFormats, nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, err = app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting record", err)
 		}
+		// Assertions
+		assert.Equal(t, res.StatusCode, http.StatusOK)
+
 		var returnedRecord map[string]_vault.Record // A map of the record id to the record
 		body, _ = io.ReadAll(res.Body)
 		err = json.Unmarshal(body, &returnedRecord)
 		if err != nil {
-			t.Error("Error parsing returned record", err)
+			t.Error("Error parsing returned record", err, string(body))
 		}
-		// Assertions
-		assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	})
 
