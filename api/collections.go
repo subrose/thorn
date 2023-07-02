@@ -50,8 +50,8 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 	collections, err := core.vault.GetCollections(c.Context(), principal)
 	if err != nil {
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		default:
@@ -91,8 +91,8 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		case _vault.ErrConflict:
@@ -120,8 +120,8 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		case _vault.ErrNotFound:
@@ -164,8 +164,8 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, fieldsQuery)
 	if err != nil {
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		case _vault.ErrNotFound:

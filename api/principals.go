@@ -28,8 +28,8 @@ func (core *Core) GetPrincipalById(c *fiber.Ctx) error {
 	principal, err := core.vault.GetPrincipal(c.Context(), sessionPrincipal, principalId)
 	if err != nil {
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		case _vault.ErrNotFound:
@@ -67,8 +67,8 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	)
 	if err != nil {
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); !ok {
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		}
 		switch err {
 		case _vault.ErrConflict:
