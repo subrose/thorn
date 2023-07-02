@@ -20,21 +20,21 @@ VAULT_URL = "http://localhost:3001"
 admin = Actor(VAULT_URL, name="admin", access_key="admin", secret_key="admin")
 admin.authenticate(expected_statuses=[200])
 
-# # Step 1: Create collections
-# _, status_code, error = admin.create_collection(
-#     schema={
-#         "name": "customers",
-#         "fields": {
-#             "name": {"type": "string", "indexed": False},
-#             "email": {"type": "string", "indexed": True},
-#             "phone": {"type": "string", "indexed": False},
-#             "credit-card": {"type": "credit-card", "indexed": False},
-#         },
-#     },
-#     expected_statuses=[201, 409],
-# )
+# Step 1: Create collections
+admin.create_collection(
+    schema={
+        "name": "customers",
+        "fields": {
+            "name": {"type": "name", "indexed": False},
+            "email": {"type": "email", "indexed": True},
+            "phone": {"type": "phone_number", "indexed": False},
+            "credit-card": {"type": "credit-card", "indexed": False},
+        },
+    },
+    expected_statuses=[201, 409],
+)
 
-# # Step 2: Create policies
+# Step 2: Create policies
 # admin.create_policy(
 #     policy={
 #         "id": "app",

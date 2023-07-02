@@ -3,8 +3,6 @@
 from typing import Any, Optional, List
 import requests
 
-VAULT_URL = "http://localhost:3001"
-
 
 def auth_guard(fn):
     def auth_check(self, *args, **kwargs):
