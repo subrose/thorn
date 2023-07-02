@@ -261,7 +261,7 @@ func TestVault(t *testing.T) {
 		}
 		vault, _, _ := initVault(t)
 		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{}, map[string]string{})
-		if err != ErrForbidden {
+		if _, ok := err.(ErrForbidden); !ok {
 			t.Fatal(err)
 		}
 	})

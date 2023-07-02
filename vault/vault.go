@@ -67,15 +67,13 @@ type Vault struct {
 }
 
 func (vault Vault) GetCollection(ctx context.Context, principal Principal, name string) (Collection, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/", name)},
-	)
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/", name)}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Collection{}, err
 	}
 	if !allowed {
-		return Collection{}, ErrForbidden
+		return Collection{}, ErrForbidden{action}
 	}
 
 	col, err := vault.Db.GetCollection(ctx, name)
@@ -92,15 +90,16 @@ func (vault Vault) GetCollection(ctx context.Context, principal Principal, name 
 
 func (vault Vault) GetCollections(ctx context.Context, principal Principal) ([]string, error) {
 	vault.Logger.Debug("A debug message for GetCollections")
+	action := Action{principal, PolicyActionRead, "collections/"}
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, "collections/"},
+		action,
 	)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, ErrForbidden
+		return nil, ErrForbidden{action}
 	}
 
 	cols, err := vault.Db.GetCollections(ctx)
@@ -111,15 +110,13 @@ func (vault Vault) GetCollections(ctx context.Context, principal Principal) ([]s
 }
 
 func (vault Vault) CreateCollection(ctx context.Context, principal Principal, col Collection) (string, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionWrite, "collections/"},
-	)
+	action := Action{principal, PolicyActionWrite, "collections/"}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return "", err
 	}
 	if !allowed {
-		return "", ErrForbidden
+		return "", ErrForbidden{action}
 	}
 
 	if len(col.Name) < 3 {
@@ -133,15 +130,13 @@ func (vault Vault) CreateCollection(ctx context.Context, principal Principal, co
 }
 
 func (vault Vault) CreateRecords(ctx context.Context, principal Principal, collectionName string, records []Record) ([]string, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionWrite, fmt.Sprintf("collections/%s/records/", collectionName)},
-	)
+	action := Action{principal, PolicyActionWrite, fmt.Sprintf("collections/%s/records/", collectionName)}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, ErrForbidden
+		return nil, ErrForbidden{action}
 	}
 
 	encryptedRecords := make([]Record, len(records))
@@ -167,15 +162,23 @@ func (vault Vault) GetRecords(
 	recordIDs []string,
 	returnFormats map[string]string,
 ) (map[string]Record, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/records/", collectionName)},
-	)
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/records/", collectionName)}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return nil, err
 	}
 	if !allowed {
-		return nil, ErrForbidden
+		return nil, ErrForbidden{action}
+	}
+	for field, format := range returnFormats {
+		action := Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/fields/%s/%s", collectionName, field, format)}
+		allowed, err := vault.ValidateAction(ctx, action)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, ErrForbidden{action}
+		}
 	}
 
 	col, err := vault.GetCollection(ctx, principal, collectionName)
@@ -244,15 +247,13 @@ func (vault Vault) CreatePrincipal(
 	description string,
 	policies []string,
 ) (Principal, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionWrite, "principals/"},
-	)
+	action := Action{principal, PolicyActionWrite, "principals/"}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Principal{}, err
 	}
 	if !allowed {
-		return Principal{}, ErrForbidden
+		return Principal{}, ErrForbidden{action}
 	}
 
 	hashedAccessSecret, _ := bcrypt.GenerateFromPassword([]byte(accessSecret), bcrypt.DefaultCost)
@@ -274,15 +275,13 @@ func (vault Vault) CreatePrincipal(
 }
 
 func (vault Vault) GetPrincipal(ctx context.Context, principal Principal, accessKey string) (Principal, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("principals/%s/", accessKey)},
-	)
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("principals/%s/", accessKey)}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Principal{}, err
 	}
 	if !allowed {
-		return Principal{}, ErrForbidden
+		return Principal{}, ErrForbidden{action}
 	}
 
 	return vault.PrincipalManager.GetPrincipal(ctx, accessKey)
@@ -291,40 +290,36 @@ func (vault Vault) GetPrincipal(ctx context.Context, principal Principal, access
 func (vault Vault) AuthenticateUser(ctx context.Context, accessKey, inputAccessSecret string) (Principal, error) {
 	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, accessKey)
 	if err != nil {
-		return Principal{}, ErrForbidden
+		return Principal{}, err
 	}
 	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.AccessSecret), []byte(inputAccessSecret))
 	if compareErr != nil {
-		return Principal{}, ErrForbidden
+		return Principal{}, compareErr
 	}
 	return dbUser, nil
 }
 
 func (vault Vault) CreatePolicy(ctx context.Context, principal Principal, p Policy) (string, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionWrite, "policies/"},
-	)
+	action := Action{principal, PolicyActionWrite, "policies/"}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return "", err
 	}
 	if !allowed {
-		return "", ErrForbidden
+		return "", ErrForbidden{action}
 	}
 
 	return vault.PolicyManager.CreatePolicy(ctx, p)
 }
 
 func (vault Vault) GetPolicy(ctx context.Context, principal Principal, policyId string) (Policy, error) {
-	allowed, err := vault.ValidateAction(
-		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("policies/%s", policyId)},
-	)
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("policies/%s", policyId)}
+	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Policy{}, err
 	}
 	if !allowed {
-		return Policy{}, ErrForbidden
+		return Policy{}, ErrForbidden{action}
 	}
 
 	return vault.PolicyManager.GetPolicy(ctx, policyId)

@@ -12,9 +12,11 @@ func (core *Core) GetPolicyById(c *fiber.Ctx) error {
 	sessionPrincipal := GetSessionPrincipal(c)
 	policy, err := core.vault.GetPolicy(c.Context(), sessionPrincipal, policyId)
 	if err != nil {
-		switch err {
-		case _vault.ErrForbidden:
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
+		switch err {
 		case _vault.ErrNotFound:
 			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Policy not found", nil})
 		default:
@@ -40,9 +42,11 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 	}
 	_, err := core.vault.CreatePolicy(c.Context(), sessionPrincipal, policy)
 	if err != nil {
-		switch err {
-		case _vault.ErrForbidden:
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
+		switch err {
 		case _vault.ErrConflict:
 			return c.Status(http.StatusConflict).JSON(ErrorResponse{http.StatusConflict, "Principal already exists", nil})
 		default:

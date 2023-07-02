@@ -16,6 +16,13 @@ const PRINCIPAL_PREFIX = "principal:"
 const POLICY_PREFIX = "policy:"
 const INDEX_PREFIX = "idx:"
 
+var (
+	Prefix = map[string]string{
+		"collection": COLLECTIONS_PREFIX,
+		"record":     RECORDS_PREFIX,
+	}
+)
+
 type RedisStore struct {
 	Client *redis.Client
 }

@@ -49,9 +49,11 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collections, err := core.vault.GetCollections(c.Context(), principal)
 	if err != nil {
-		switch err {
-		case _vault.ErrForbidden:
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
+		switch err {
 		default:
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
@@ -88,9 +90,11 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
-		switch err {
-		case _vault.ErrForbidden:
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
+		switch err {
 		case _vault.ErrConflict:
 			return c.Status(http.StatusConflict).JSON(ErrorResponse{http.StatusConflict, "Collection already exists", nil})
 		default:
@@ -115,9 +119,11 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
-		switch err {
-		case _vault.ErrForbidden:
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
+		switch err {
 		case _vault.ErrNotFound:
 			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Collection not found", nil})
 		default:
@@ -154,11 +160,13 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	recordIds := []string{recordId}
 	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, fieldsQuery)
 	if err != nil {
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); !ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+		}
 		switch err {
 		case _vault.ErrNotFound:
 			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Record not found", nil})
-		case _vault.ErrForbidden:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
 		default:
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
