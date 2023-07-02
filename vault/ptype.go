@@ -212,3 +212,12 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 		return String{value}, nil
 	}
 }
+
+func getFormat(fieldName string, returnFormats map[string]string) string {
+	val, ok := returnFormats[fieldName]
+	if !ok {
+		return "plain"
+	}
+
+	return val
+}

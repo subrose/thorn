@@ -134,6 +134,9 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 }
 
 func parseFieldsQuery(fieldsQuery string) map[string]string {
+	if len(fieldsQuery) == 0 {
+		return map[string]string{}
+	}
 	fieldFormats := map[string]string{}
 	for _, field := range strings.Split(fieldsQuery, ",") {
 		splitFieldFormat := strings.Split(field, ".")

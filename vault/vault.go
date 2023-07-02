@@ -154,7 +154,6 @@ func (vault Vault) CreateRecords(ctx context.Context, principal Principal, colle
 	}
 	return vault.Db.CreateRecords(ctx, collectionName, encryptedRecords)
 }
-
 func (vault Vault) GetRecords(
 	ctx context.Context,
 	principal Principal,
@@ -170,8 +169,14 @@ func (vault Vault) GetRecords(
 	if !allowed {
 		return nil, ErrForbidden{action}
 	}
-	for field, format := range returnFormats {
-		action := Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/fields/%s/%s", collectionName, field, format)}
+	col, err := vault.GetCollection(ctx, principal, collectionName)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, field := range col.Fields {
+		format := getFormat(field.Name, returnFormats)
+		action := Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/fields/%s/%s", collectionName, field.Name, format)}
 		allowed, err := vault.ValidateAction(ctx, action)
 		if err != nil {
 			return nil, err
@@ -179,11 +184,6 @@ func (vault Vault) GetRecords(
 		if !allowed {
 			return nil, ErrForbidden{action}
 		}
-	}
-
-	col, err := vault.GetCollection(ctx, principal, collectionName)
-	if err != nil {
-		return nil, err
 	}
 
 	encryptedRecords, err := vault.Db.GetRecords(ctx, recordIDs)
@@ -207,10 +207,7 @@ func (vault Vault) GetRecords(
 			if err != nil {
 				return nil, err
 			}
-			returnFormat, found := returnFormats[k]
-			if !found {
-				returnFormat = "plain"
-			}
+			returnFormat := getFormat(k, returnFormats)
 			decryptedRecord[k], err = privValue.Get(returnFormat)
 			if err != nil {
 				return nil, err
