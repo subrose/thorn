@@ -66,10 +66,17 @@ type Vault struct {
 	Logger           Logger
 }
 
+var (
+	COLLECTIONS = "/collections"
+	PRINCIPALS  = "/principals"
+	RECORDS     = "/records"
+	POLICIES    = "/policies"
+)
+
 func (vault Vault) GetCollection(ctx context.Context, principal Principal, name string) (Collection, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/", name)},
+		Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", COLLECTIONS, name)},
 	)
 	if err != nil {
 		return Collection{}, err
@@ -91,10 +98,9 @@ func (vault Vault) GetCollection(ctx context.Context, principal Principal, name 
 }
 
 func (vault Vault) GetCollections(ctx context.Context, principal Principal) ([]string, error) {
-	vault.Logger.Debug("A debug message for GetCollections")
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, "collections/"},
+		Action{principal, PolicyActionRead, COLLECTIONS},
 	)
 	if err != nil {
 		return nil, err
@@ -113,7 +119,7 @@ func (vault Vault) GetCollections(ctx context.Context, principal Principal) ([]s
 func (vault Vault) CreateCollection(ctx context.Context, principal Principal, col Collection) (string, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionWrite, "collections/"},
+		Action{principal, PolicyActionWrite, COLLECTIONS},
 	)
 	if err != nil {
 		return "", err
@@ -135,7 +141,7 @@ func (vault Vault) CreateCollection(ctx context.Context, principal Principal, co
 func (vault Vault) CreateRecords(ctx context.Context, principal Principal, collectionName string, records []Record) ([]string, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionWrite, fmt.Sprintf("collections/%s/records/", collectionName)},
+		Action{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS, collectionName, RECORDS)},
 	)
 	if err != nil {
 		return nil, err
@@ -169,7 +175,7 @@ func (vault Vault) GetRecords(
 ) (map[string]Record, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("collections/%s/records/", collectionName)},
+		Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS, collectionName, RECORDS)},
 	)
 	if err != nil {
 		return nil, err
@@ -246,7 +252,7 @@ func (vault Vault) CreatePrincipal(
 ) (Principal, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionWrite, "principals/"},
+		Action{principal, PolicyActionWrite, PRINCIPALS},
 	)
 	if err != nil {
 		return Principal{}, err
@@ -276,7 +282,7 @@ func (vault Vault) CreatePrincipal(
 func (vault Vault) GetPrincipal(ctx context.Context, principal Principal, accessKey string) (Principal, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("principals/%s/", accessKey)},
+		Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS, accessKey)},
 	)
 	if err != nil {
 		return Principal{}, err
@@ -301,9 +307,13 @@ func (vault Vault) AuthenticateUser(ctx context.Context, accessKey, inputAccessS
 }
 
 func (vault Vault) CreatePolicy(ctx context.Context, principal Principal, p Policy) (string, error) {
+	// Ensure resource starts with a slash
+	if !strings.HasPrefix(p.Resource, "/") {
+		return "", newValueError(fmt.Errorf("resource must start with a slash"))
+	}
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionWrite, "policies/"},
+		Action{principal, PolicyActionWrite, POLICIES},
 	)
 	if err != nil {
 		return "", err
@@ -318,7 +328,7 @@ func (vault Vault) CreatePolicy(ctx context.Context, principal Principal, p Poli
 func (vault Vault) GetPolicy(ctx context.Context, principal Principal, policyId string) (Policy, error) {
 	allowed, err := vault.ValidateAction(
 		ctx,
-		Action{principal, PolicyActionRead, fmt.Sprintf("policies/%s", policyId)},
+		Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES, policyId)},
 	)
 	if err != nil {
 		return Policy{}, err

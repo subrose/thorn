@@ -30,7 +30,7 @@ func TestPolicies(t *testing.T) {
 					"policy_id": "%s",
 					"effect": "allow",
 					"action": "read",
-					"resource": "policies/%s"
+					"resource": "/policies/%s"
 				}`,
 				testPolicyId,
 				testPolicyId,
@@ -77,6 +77,6 @@ func TestPolicies(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, _vault.EffectAllow, returnedPolicy.Effect)
 		assert.Equal(t, _vault.PolicyActionRead, returnedPolicy.Action)
-		assert.Equal(t, fmt.Sprintf("policies/%s", testPolicyId), returnedPolicy.Resource)
+		assert.Equal(t, fmt.Sprintf("/policies/%s", testPolicyId), returnedPolicy.Resource)
 	})
 }

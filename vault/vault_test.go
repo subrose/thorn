@@ -44,7 +44,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		"read-all-customers",
 		EffectAllow,
 		PolicyActionRead,
-		"collections/customers*",
+		"/collections/customers*",
 	})
 	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
 	return vault, db, priv
