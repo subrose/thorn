@@ -18,6 +18,7 @@ tmp
 testdata
 # Python
 venv
+.venv
 __pycache__/
 .python-version
 .DS_Store

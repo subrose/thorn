@@ -31,7 +31,7 @@ export default function Home(): JSX.Element {
   return (
     <Layout
       title={`Open Source Data Privacy Vault`}
-      description="Subrose is an open-source, data privacy vault to store and manage PII in a fully compliant manner.">
+      description="Subrose: an open-source, data privacy vault to store and manage PII in a compliant manner.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />
