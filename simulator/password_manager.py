@@ -37,7 +37,7 @@ admin.create_policy(
         "policy_id": "alice-read-own-passwords",
         "effect": "allow",
         "action": "read",
-        "resource": "collections/alice-passwords/*",
+        "resource": "/collections/alice-passwords/*",
     },
     expected_statuses=[201, 409],
 )
@@ -47,7 +47,7 @@ admin.create_policy(
         "policy_id": "alice-write-own-passwords",
         "effect": "allow",
         "action": "write",
-        "resource": "collections/alice-passwords/*",
+        "resource": "/collections/alice-passwords/*",
     },
     expected_statuses=[201, 409],
 )
@@ -58,7 +58,7 @@ admin.create_policy(
         "policy_id": "bob-read-own-passwords",
         "effect": "allow",
         "action": "read",
-        "resource": "collections/bob-passwords/*",
+        "resource": "/collections/bob-passwords/*",
     },
     expected_statuses=[201, 409],
 )
@@ -68,7 +68,7 @@ admin.create_policy(
         "policy_id": "bob-write-own-passwords",
         "effect": "allow",
         "action": "write",
-        "resource": "collections/bob-passwords/*",
+        "resource": "/collections/bob-passwords/*",
     },
     expected_statuses=[201, 409],
 )
