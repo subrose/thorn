@@ -39,7 +39,7 @@ admin.create_policy(
         "policy_id": "backend-read-collections",
         "effect": "allow",
         "action": "read",
-        "resource": "/collections/customers/records",  # This allows you to see if a record exists or not
+        "resource": "/collections/customers/records",  # allow checking if record exists
     },
     expected_statuses=[201, 409],
 )
@@ -97,14 +97,34 @@ record = ecomm.create_records(
     expected_statuses=[201, 409],
 )
 
-fetched_record = ecomm.get_record(
+ecomm.get_record(
     collection="customers",
     record_id="12345",
     fields="email.plain",
-    expected_statuses=[200, 404],
+    expected_statuses=[404],
 )
 
-print(fetched_record)
+ecomm.get_record(
+    collection="customers",
+    record_id="12345",
+    fields="name.plain",
+    expected_statuses=[403],
+)
+
+ecomm.get_record(
+    collection="customers",
+    record_id=record[0],
+    fields="name.plain",
+    expected_statuses=[403],
+)
+
+ecomm.get_record(
+    collection="customers",
+    record_id=record[0],
+    fields="email.plain",
+    expected_statuses=[200],
+)
+
 
 # admin.create_policy(
 #     policy={
