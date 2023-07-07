@@ -200,10 +200,10 @@ func (vault Vault) GetRecords(
 		format := getFormat(field.Name, returnFormats)
 		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS, collectionName, RECORDS, field.Name, format)}
 		if format == REDACTED_FORMAT {
+			// Redacted fields don't expose any information so we can skip the check and default to them being allowed
 			continue
 		}
 		allowed, err := vault.ValidateAction(ctx, action) // TODO: This is a lot of calls to ValidateAction - can we batch them?
-		fmt.Println(action, allowed, err)
 		if err != nil {
 			return nil, err
 		}

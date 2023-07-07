@@ -99,7 +99,7 @@ record = ecomm.create_records(
 
 fetched_record = ecomm.get_record(
     collection="customers",
-    record_id=record[0],
+    record_id="12345",
     fields="email.plain",
     expected_statuses=[200, 404],
 )

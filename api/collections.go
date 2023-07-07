@@ -155,17 +155,18 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	recordId := c.Params("id")
 	// /records/users/<id>?fields=fname.plain,lname.masked
 	if c.Query("fields") == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Fields query is required", nil})
+		return core.SendErrorResponse(c, http.StatusBadRequest, "Fields query is required", nil)
 	}
 	fieldsQuery := parseFieldsQuery(c.Query("fields"))
-	// TODO: validate fields query and return error if invalid
-	// TODO: add default fields query to get all fields
 
+	if fieldsQuery == nil {
+		return core.SendErrorResponse(c, http.StatusBadRequest, "Fields query is required", nil)
+	}
 	if collectionName == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Collection name is required", nil})
+		return core.SendErrorResponse(c, http.StatusBadRequest, "Collection name is required", nil)
 	}
 	if recordId == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Record id is required", nil})
+		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
 	}
 
 	recordIds := []string{recordId}
@@ -177,10 +178,15 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		}
 		switch err {
 		case _vault.ErrNotFound:
-			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Record not found", nil})
+			return core.SendErrorResponse(c, http.StatusNotFound, "Record not found", err)
 		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+			return core.SendErrorResponse(c, http.StatusInternalServerError, "Something went wrong", err)
 		}
+	}
+
+	accessedFields := make([]string, 0, len(fieldsQuery))
+	for field := range fieldsQuery {
+		accessedFields = append(accessedFields, field+"."+fieldsQuery[field])
 	}
 
 	core.logger.WriteAuditLog(
@@ -195,7 +201,8 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		principal.Policies,
 		recordIds,
 		recordIds,
-		// TODO: Add fields
+		accessedFields,
 	)
+	// TODO: We should think about returning which fields were not redacted in the response
 	return c.Status(http.StatusOK).JSON(records)
 }

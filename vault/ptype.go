@@ -28,11 +28,11 @@ const (
 	REDACTED_FORMAT = "redacted"
 	MASKED_FORMAT   = "masked"
 	PLAIN_FORMAT    = "plain"
-	DEFAULT         = "default" // TODO!
+	DEFAULT         = "default" // TODO! Should come from config
 )
 
 const (
-	REDACTED_VALUE = "***REDACTED***"
+	REDACTED_VALUE = "[REDACTED]"
 )
 
 type PType interface {
@@ -183,7 +183,7 @@ func (c CreditCard) Get(format string) (string, error) {
 	case REDACTED_FORMAT:
 		return REDACTED_VALUE, nil
 	default:
-		return "", nil
+		return "", ErrNotSupported
 	}
 }
 

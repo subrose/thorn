@@ -185,6 +185,9 @@ func (rs RedisStore) GetRecords(ctx context.Context, recordIDs []string) (map[st
 	for _, recordID := range recordIDs {
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordID)
 		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
+		if record == nil {
+			return nil, ErrNotFound
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordID, err)
 		}

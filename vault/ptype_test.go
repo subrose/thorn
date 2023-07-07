@@ -13,9 +13,11 @@ func TestStringPType(t *testing.T) {
 
 	plain, _ := str.Get("plain")
 	masked, _ := str.Get("masked")
+	redacted, _ := str.Get("redacted")
 
 	assert.Equal(t, plain, value)
 	assert.Equal(t, masked, "****")
+	assert.Equal(t, redacted, REDACTED_VALUE)
 
 }
 
@@ -26,9 +28,11 @@ func TestNamePType(t *testing.T) {
 
 	plain, _ := name.Get("plain")
 	masked, _ := name.Get("masked")
+	redacted, _ := name.Get("redacted")
 
 	assert.Equal(t, plain, value)
 	assert.Equal(t, masked, "*** ***")
+	assert.Equal(t, redacted, REDACTED_VALUE)
 }
 
 func TestPhonePType(t *testing.T) {
@@ -39,9 +43,11 @@ func TestPhonePType(t *testing.T) {
 
 	plain, _ := pn.Get("plain")
 	masked, _ := pn.Get("masked")
+	redacted, _ := pn.Get("redacted")
 
 	assert.Equal(t, plain, "+447112223333")
 	assert.Equal(t, masked, "+4411111111111")
+	assert.Equal(t, redacted, REDACTED_VALUE)
 }
 
 func TestInvalidPhonePType(t *testing.T) {
@@ -60,9 +66,11 @@ func TestEmailPType(t *testing.T) {
 
 	plain, _ := em.Get("plain")
 	masked, _ := em.Get("masked")
+	redacted, _ := em.Get("redacted")
 
 	assert.Equal(t, plain, value)
 	assert.Equal(t, masked, "****@something.com")
+	assert.Equal(t, redacted, REDACTED_VALUE)
 }
 
 func TestInvalidEmailPType(t *testing.T) {
