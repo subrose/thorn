@@ -129,7 +129,7 @@ func (l Logger) WriteRequestLog(
 		Str("request-id", requestId).
 		Float64("duration", dt).
 		Int("status", status).
-		Msg("API request")
+		Msg("Request")
 }
 
 func (l Logger) WriteAuditLog(
@@ -160,5 +160,5 @@ func (l Logger) WriteAuditLog(
 		Strs("requested-records", requestedRecords).
 		Strs("accessed-records", accessedRecords).
 		Strs("fields", fields).
-		Msg("Record request")
+		Msg("Record Access")
 }
