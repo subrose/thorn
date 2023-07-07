@@ -15,7 +15,7 @@ type CollectionFieldModel struct {
 }
 
 type CollectionModel struct {
-	Name   string                          `json:"name" validate:"required,collectionName"`
+	Name   string                          `json:"name" validate:"required,vaultResourceNames"`
 	Fields map[string]CollectionFieldModel `json:"fields" validate:"required"`
 }
 

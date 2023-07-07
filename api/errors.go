@@ -14,8 +14,8 @@ type ErrorResponse struct {
 	Errors  []*interface{} `json:"errors"`
 }
 
-func ValidateCollectionName(fl validator.FieldLevel) bool {
-	// Kafka topic regex
+func ValidateResourceName(fl validator.FieldLevel) bool {
+	// Validation for vault internal resource names
 	reg := "^[a-zA-Z0-9._-]{1,249}$"
 	match, _ := regexp.MatchString(reg, fl.Field().String())
 
@@ -37,7 +37,7 @@ type ValidationError struct {
 func Validate(payload interface{}) []*ValidationError {
 	var errors []*ValidationError
 	var validate = validator.New()
-	_ = validate.RegisterValidation("collectionName", ValidateCollectionName)
+	_ = validate.RegisterValidation("vaultResourceNames", ValidateResourceName)
 
 	err := validate.Struct(payload)
 

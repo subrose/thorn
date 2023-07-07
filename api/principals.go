@@ -9,7 +9,7 @@ import (
 )
 
 type PrincipalModel struct {
-	Name        string   `json:"name" validate:"required,alphanum,min=3,max=20,excludesall= "`
+	Name        string   `json:"name" validate:"required,vaultResourceNames,min=3,max=20,excludesall= "`
 	Description string   `json:"description"`
 	Policies    []string `json:"policies"`
 }

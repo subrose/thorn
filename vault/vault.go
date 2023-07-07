@@ -191,15 +191,15 @@ func (vault Vault) GetRecords(
 	if !allowed {
 		return nil, ErrForbidden{action}
 	}
-	col, err := vault.GetCollection(ctx, principal, collectionName)
+	col, err := vault.GetCollection(ctx, principal, collectionName) // TODO: Just use the DB directly here and validate properly the call above
 	if err != nil {
 		return nil, err
 	}
 
 	for _, field := range col.Fields {
 		format := getFormat(field.Name, returnFormats)
-		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/%s/%s/%s", COLLECTIONS, collectionName, FIELDS, field.Name, format)}
-		allowed, err := vault.ValidateAction(ctx, action)
+		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS, collectionName, FIELDS, field.Name, format)}
+		allowed, err := vault.ValidateAction(ctx, action) // TODO: This is a lot of calls to ValidateAction - can we batch them?
 		if err != nil {
 			return nil, err
 		}
