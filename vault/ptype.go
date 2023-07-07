@@ -24,6 +24,17 @@ const (
 	RegexType       PTypeName = "regex"
 )
 
+const (
+	REDACTED_FORMAT = "redacted"
+	MASKED_FORMAT   = "masked"
+	PLAIN_FORMAT    = "plain"
+	DEFAULT         = "default" // TODO!
+)
+
+const (
+	REDACTED_VALUE = "***REDACTED***"
+)
+
 type PType interface {
 	Get(format string) (string, error)
 	// New(val string) (PType, error)
@@ -35,10 +46,12 @@ type String struct {
 
 func (s String) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return s.val, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return s.GetMasked(), nil
+	case REDACTED_FORMAT:
+		return REDACTED_VALUE, nil // TODO: make this configurable
 	default:
 		return "", ErrNotSupported
 	}
@@ -58,10 +71,12 @@ type Name struct {
 
 func (n Name) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return n.val, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return n.GetMasked(), nil
+	case REDACTED_FORMAT:
+		return REDACTED_VALUE, nil
 	default:
 		return "", ErrNotSupported
 	}
@@ -90,10 +105,12 @@ type PhoneNumber struct {
 
 func (pn PhoneNumber) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return phonenumbers.Format(pn.val, phonenumbers.E164), nil
-	case "masked":
+	case MASKED_FORMAT:
 		return pn.GetMasked(), nil
+	case REDACTED_FORMAT:
+		return REDACTED_VALUE, nil
 	default:
 		return "", ErrNotSupported
 	}
@@ -123,10 +140,12 @@ type Email struct {
 
 func (em Email) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return em.GetPlain(), nil
-	case "masked":
+	case MASKED_FORMAT:
 		return em.GetMasked(), nil
+	case REDACTED_FORMAT:
+		return REDACTED_VALUE, nil
 	default:
 		return "", ErrNotSupported
 	}
@@ -157,10 +176,12 @@ type CreditCard struct {
 func (c CreditCard) Get(format string) (string, error) {
 	// This needs to be exported as an object since it contains other things.
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return c.cardNumber.Number, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return c.GetMasked(), nil
+	case REDACTED_FORMAT:
+		return REDACTED_VALUE, nil
 	default:
 		return "", nil
 	}
@@ -216,7 +237,7 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 func getFormat(fieldName string, returnFormats map[string]string) string {
 	val, ok := returnFormats[fieldName]
 	if !ok {
-		return "plain"
+		return REDACTED_FORMAT
 	}
 
 	return val
