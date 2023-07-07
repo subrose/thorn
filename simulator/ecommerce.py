@@ -34,13 +34,12 @@ admin.create_collection(
     expected_statuses=[201, 409],
 )
 
-# TODO: Do the below 2 policies make sense?!
 admin.create_policy(
     policy={
         "policy_id": "backend-read-collections",
         "effect": "allow",
         "action": "read",
-        "resource": "/collections/customers/records",
+        "resource": "/collections/customers/records",  # This allows you to see if a record exists or not
     },
     expected_statuses=[201, 409],
 )
