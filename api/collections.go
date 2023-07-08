@@ -153,15 +153,9 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
-	// /records/users/<id>?fields=fname.plain,lname.masked
-	if c.Query("fields") == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "Fields query is required", nil)
-	}
-	fieldsQuery := parseFieldsQuery(c.Query("fields"))
+	format := c.Params("format")
+	// /collections/:name/records/:id/:format
 
-	if fieldsQuery == nil {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "Fields query is required", nil)
-	}
 	if collectionName == "" {
 		return core.SendErrorResponse(c, http.StatusBadRequest, "Collection name is required", nil)
 	}
@@ -169,8 +163,12 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
 	}
 
+	if format == "" {
+		return core.SendErrorResponse(c, http.StatusBadRequest, "format is required", nil)
+	}
+
 	recordIds := []string{recordId}
-	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, fieldsQuery)
+	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, format)
 	if err != nil {
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
 		if _, ok := err.(_vault.ErrForbidden); ok {
@@ -179,14 +177,19 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		switch err {
 		case _vault.ErrNotFound:
 			return core.SendErrorResponse(c, http.StatusNotFound, "Record not found", err)
+		case &_vault.ValueError{}:
+			return core.SendErrorResponse(c, http.StatusBadRequest, err.Error(), err)
 		default:
 			return core.SendErrorResponse(c, http.StatusInternalServerError, "Something went wrong", err)
 		}
 	}
 
-	accessedFields := make([]string, 0, len(fieldsQuery))
-	for field := range fieldsQuery {
-		accessedFields = append(accessedFields, field+"."+fieldsQuery[field])
+	// Loop through the record and figure out which fields were accessed
+	accessedFields := []string{}
+	for _, record := range records {
+		for fieldName := range record {
+			accessedFields = append(accessedFields, fieldName)
+		}
 	}
 
 	core.logger.WriteAuditLog(
