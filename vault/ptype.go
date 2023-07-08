@@ -24,6 +24,11 @@ const (
 	RegexType       PTypeName = "regex"
 )
 
+const (
+	MASKED_FORMAT = "masked"
+	PLAIN_FORMAT  = "plain"
+)
+
 type PType interface {
 	Get(format string) (string, error)
 	// New(val string) (PType, error)
@@ -35,9 +40,9 @@ type String struct {
 
 func (s String) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return s.val, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return s.GetMasked(), nil
 	default:
 		return "", ErrNotSupported
@@ -58,9 +63,9 @@ type Name struct {
 
 func (n Name) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return n.val, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return n.GetMasked(), nil
 	default:
 		return "", ErrNotSupported
@@ -90,9 +95,9 @@ type PhoneNumber struct {
 
 func (pn PhoneNumber) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return phonenumbers.Format(pn.val, phonenumbers.E164), nil
-	case "masked":
+	case MASKED_FORMAT:
 		return pn.GetMasked(), nil
 	default:
 		return "", ErrNotSupported
@@ -123,9 +128,9 @@ type Email struct {
 
 func (em Email) Get(format string) (string, error) {
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return em.GetPlain(), nil
-	case "masked":
+	case MASKED_FORMAT:
 		return em.GetMasked(), nil
 	default:
 		return "", ErrNotSupported
@@ -157,12 +162,12 @@ type CreditCard struct {
 func (c CreditCard) Get(format string) (string, error) {
 	// This needs to be exported as an object since it contains other things.
 	switch format {
-	case "plain":
+	case PLAIN_FORMAT:
 		return c.cardNumber.Number, nil
-	case "masked":
+	case MASKED_FORMAT:
 		return c.GetMasked(), nil
 	default:
-		return "", nil
+		return "", ErrNotSupported
 	}
 }
 
@@ -216,7 +221,7 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 func getFormat(fieldName string, returnFormats map[string]string) string {
 	val, ok := returnFormats[fieldName]
 	if !ok {
-		return "plain"
+		return PLAIN_FORMAT
 	}
 
 	return val

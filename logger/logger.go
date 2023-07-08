@@ -36,6 +36,7 @@ type ILogger interface {
 		principalPolicies []string,
 		requestedRecords []string,
 		accessedRecords []string,
+		fields []string,
 	) error
 }
 
@@ -128,7 +129,7 @@ func (l Logger) WriteRequestLog(
 		Str("request-id", requestId).
 		Float64("duration", dt).
 		Int("status", status).
-		Msg("API request")
+		Msg("Request")
 }
 
 func (l Logger) WriteAuditLog(
@@ -143,6 +144,7 @@ func (l Logger) WriteAuditLog(
 	principalPolicies []string,
 	requestedRecords []string,
 	accessedRecords []string,
+	fields []string,
 ) {
 	l.zeroLogger.Info().
 		Str("type", "audit").
@@ -157,5 +159,6 @@ func (l Logger) WriteAuditLog(
 		Strs("principal-policies", principalPolicies).
 		Strs("requested-records", requestedRecords).
 		Strs("accessed-records", accessedRecords).
-		Msg("Record request")
+		Strs("fields", fields).
+		Msg("Record Access")
 }
