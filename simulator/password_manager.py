@@ -30,7 +30,6 @@ admin.create_collection(
     expected_statuses=[201, 409],
 )
 
-
 # Step 3: Create policies using admin role
 admin.create_policy(
     policy={
@@ -116,7 +115,7 @@ bob_password_id = bob_password_res[0]
 alice_retrieved_password = alice.get_record(
     collection="alice-passwords",
     record_id=alice_password_id,
-    fields="service.plain,password.plain",
+    format="plain",
     expected_statuses=[200],
 )
 
@@ -126,8 +125,8 @@ assert alice_retrieved_password[alice_password_id]["password"] == alice_password
 bob_retrieved_password = bob.get_record(
     collection="bob-passwords",
     record_id=bob_password_id,
+    format="plain",
     expected_statuses=[200],
-    fields="service.plain,password.plain",
 )
 assert bob_retrieved_password[bob_password_id]["password"] == bob_password
 
@@ -135,7 +134,7 @@ assert bob_retrieved_password[bob_password_id]["password"] == bob_password
 alice.get_record(
     collection="bob-passwords",
     record_id=bob_password_id,
-    fields="service.plain,password.plain",
+    format="plain",
     expected_statuses=[403],
 )
 
@@ -143,7 +142,7 @@ alice.get_record(
 bob.get_record(
     collection="alice-passwords",
     record_id=alice_password_id,
-    fields="service.plain,password.plain",
+    format="plain",
     expected_statuses=[403],
 )
 
