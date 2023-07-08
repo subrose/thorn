@@ -199,10 +199,6 @@ func (vault Vault) GetRecords(
 	for _, field := range col.Fields {
 		format := getFormat(field.Name, returnFormats)
 		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS, collectionName, RECORDS, field.Name, format)}
-		if format == REDACTED_FORMAT {
-			// Redacted fields don't expose any information so we can skip the check and default to them being allowed
-			continue
-		}
 		allowed, err := vault.ValidateAction(ctx, action) // TODO: This is a lot of calls to ValidateAction - can we batch them?
 		if err != nil {
 			return nil, err
@@ -235,7 +231,7 @@ func (vault Vault) GetRecords(
 			}
 			returnFormat, found := returnFormats[k]
 			if !found {
-				returnFormat = REDACTED_FORMAT
+				returnFormat = PLAIN_FORMAT
 			}
 			decryptedRecord[k], err = privValue.Get(returnFormat)
 			if err != nil {
