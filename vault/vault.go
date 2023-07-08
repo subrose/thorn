@@ -67,12 +67,12 @@ type Vault struct {
 }
 
 // TODO: These probably should be renamed to have _PATH
-var (
-	COLLECTIONS = "/collections"
-	PRINCIPALS  = "/principals"
-	RECORDS     = "/records"
-	POLICIES    = "/policies"
-	FIELDS      = "/fields"
+const (
+	COLLECTIONS_PPATH = "/collections"
+	PRINCIPALS_PPATH  = "/principals"
+	RECORDS_PPATH     = "/records"
+	POLICIES_PPATH    = "/policies"
+	FIELDS_PPATH      = "/fields"
 )
 
 func (vault Vault) GetCollection(
@@ -80,7 +80,7 @@ func (vault Vault) GetCollection(
 	principal Principal,
 	name string,
 ) (Collection, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s", COLLECTIONS, name)}
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Collection{}, err
@@ -105,7 +105,7 @@ func (vault Vault) GetCollections(
 	ctx context.Context,
 	principal Principal,
 ) ([]string, error) {
-	action := Action{principal, PolicyActionRead, COLLECTIONS}
+	action := Action{principal, PolicyActionRead, COLLECTIONS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (vault Vault) CreateCollection(
 	principal Principal,
 	col Collection,
 ) (string, error) {
-	action := Action{principal, PolicyActionWrite, COLLECTIONS}
+	action := Action{principal, PolicyActionWrite, COLLECTIONS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return "", err
@@ -151,7 +151,7 @@ func (vault Vault) CreateRecords(
 	collectionName string,
 	records []Record,
 ) ([]string, error) {
-	action := Action{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS, collectionName, RECORDS)}
+	action := Action{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func (vault Vault) GetRecords(
 	recordIDs []string,
 	returnFormats map[string]string,
 ) (map[string]Record, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS, collectionName, RECORDS)}
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (vault Vault) GetRecords(
 
 	for _, field := range col.Fields {
 		format := getFormat(field.Name, returnFormats)
-		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS, collectionName, RECORDS, field.Name, format)}
+		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, field.Name, format)}
 		allowed, err := vault.ValidateAction(ctx, action) // TODO: This is a lot of calls to ValidateAction - can we batch them?
 		if err != nil {
 			return nil, err
@@ -269,7 +269,7 @@ func (vault Vault) CreatePrincipal(
 	description string,
 	policies []string,
 ) (Principal, error) {
-	action := Action{principal, PolicyActionWrite, PRINCIPALS}
+	action := Action{principal, PolicyActionWrite, PRINCIPALS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Principal{}, err
@@ -301,7 +301,7 @@ func (vault Vault) GetPrincipal(
 	principal Principal,
 	accessKey string,
 ) (Principal, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS, accessKey)}
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, accessKey)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Principal{}, err
@@ -334,7 +334,7 @@ func (vault Vault) CreatePolicy(
 	principal Principal,
 	p Policy,
 ) (string, error) {
-	action := Action{principal, PolicyActionWrite, POLICIES}
+	action := Action{principal, PolicyActionWrite, POLICIES_PPATH}
 	// Ensure resource starts with a slash
 	if !strings.HasPrefix(p.Resource, "/") {
 		return "", newValueError(fmt.Errorf("resource must start with a slash"))
@@ -355,7 +355,7 @@ func (vault Vault) GetPolicy(
 	principal Principal,
 	policyId string,
 ) (Policy, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES, policyId)}
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Policy{}, err
