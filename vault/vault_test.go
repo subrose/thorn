@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/go-playground/assert/v2"
@@ -133,14 +132,8 @@ func TestVault(t *testing.T) {
 			t.Fatalf("Expected %d records to be created, got %d", len(inputRecords), len(ids))
 		}
 
-		formats := map[string]string{
-			"first_name":   "plain",
-			"last_name":    "masked",
-			"email":        "plain",
-			"phone_number": "plain",
-		}
 		// Can get records
-		vaultRecords, err := vault.GetRecords(ctx, testPrincipal, col.Name, ids, formats)
+		vaultRecords, err := vault.GetRecords(ctx, testPrincipal, col.Name, ids, "plain")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,9 +145,6 @@ func TestVault(t *testing.T) {
 
 			for k, v := range inputRecord {
 				val := v
-				if k == "last_name" {
-					val = strings.Repeat("*", len(v))
-				}
 				if val != vaultRecord[k] {
 					t.Fatalf("Expected %s to be %s, got %s", k, v, vaultRecord[k])
 				}
@@ -245,8 +235,7 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		formats := map[string]string{"first_name": "plain"}
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "customers", record_ids, formats)
+		_, err := vault.GetRecords(ctx, limitedPrincipal, "customers", record_ids, "plain")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +249,7 @@ func TestVault(t *testing.T) {
 			Description:  "test principal",
 		}
 		vault, _, _ := initVault(t)
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{}, map[string]string{})
+		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, "plain")
 		if _, ok := err.(ErrForbidden); !ok {
 			t.Fatal(err)
 		}
@@ -282,8 +271,7 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		formats := map[string]string{"first_name": "plain"}
-		res, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", formats)
+		res, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
 		assert.Equal(t, err, nil)
 		assert.Equal(
 			t,
@@ -308,8 +296,7 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		formats := map[string]string{"first_name": "plain"}
-		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", formats)
+		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
 		assert.Equal(t, err, ErrIndexError)
 	})
 }

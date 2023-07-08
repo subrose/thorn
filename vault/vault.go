@@ -181,31 +181,30 @@ func (vault Vault) GetRecords(
 	principal Principal,
 	collectionName string,
 	recordIDs []string,
-	returnFormats map[string]string,
+	format string,
 ) (map[string]Record, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
-	allowed, err := vault.ValidateAction(ctx, action)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, ErrForbidden{action}
-	}
-	col, err := vault.Db.GetCollection(ctx, collectionName)
-	if err != nil {
-		return nil, err
+
+	if format != PLAIN_FORMAT && format != MASKED_FORMAT {
+		return nil, newValueError(fmt.Errorf("invalid format: %s", format))
 	}
 
-	for _, field := range col.Fields {
-		format := getFormat(field.Name, returnFormats)
-		action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, field.Name, format)}
-		allowed, err := vault.ValidateAction(ctx, action) // TODO: This is a lot of calls to ValidateAction - can we batch them?
+	if len(recordIDs) == 0 {
+		return nil, newValueError(fmt.Errorf("record ids must be provided"))
+	}
+	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
+	for _, recordID := range recordIDs {
+		_action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format)}
+		allowed, err := vault.ValidateAction(ctx, _action)
 		if err != nil {
 			return nil, err
 		}
 		if !allowed {
-			return nil, ErrForbidden{action}
+			return nil, ErrForbidden{_action}
 		}
+	}
+	col, err := vault.Db.GetCollection(ctx, collectionName)
+	if err != nil {
+		return nil, err
 	}
 
 	encryptedRecords, err := vault.Db.GetRecords(ctx, recordIDs)
@@ -229,11 +228,7 @@ func (vault Vault) GetRecords(
 			if err != nil {
 				return nil, err
 			}
-			returnFormat, found := returnFormats[k]
-			if !found {
-				returnFormat = PLAIN_FORMAT
-			}
-			decryptedRecord[k], err = privValue.Get(returnFormat)
+			decryptedRecord[k], err = privValue.Get(format)
 			if err != nil {
 				return nil, err
 			}
@@ -249,7 +244,7 @@ func (vault Vault) GetRecordsFilter(
 	collectionName string,
 	fieldName string,
 	value string,
-	returnFormats map[string]string,
+	format string,
 ) (map[string]Record, error) {
 	val, _ := vault.Priv.Encrypt(value)
 	recordIds, err := vault.Db.GetRecordsFilter(ctx, collectionName, fieldName, val)
@@ -257,7 +252,7 @@ func (vault Vault) GetRecordsFilter(
 		return nil, err
 	}
 
-	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
+	return vault.GetRecords(ctx, principal, collectionName, recordIds, format)
 }
 
 func (vault Vault) CreatePrincipal(
