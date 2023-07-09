@@ -1,5 +1,6 @@
 package main
 
+// TODO: These will be deleted once validation is moved to the vault.
 import (
 	"strings"
 
@@ -9,9 +10,9 @@ import (
 )
 
 type ErrorResponse struct {
-	Code    int            `json:"code"`
-	Message string         `json:"message"`
-	Errors  []*interface{} `json:"errors"`
+	Code    int           `json:"code"`
+	Message string        `json:"message"`
+	Errors  []interface{} `json:"errors"`
 }
 
 func ValidateResourceName(fl validator.FieldLevel) bool {

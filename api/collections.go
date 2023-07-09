@@ -62,12 +62,8 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 
 func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
-	inputCollection := new(CollectionModel)
+	inputCollection := new(_vault.Collection)
 	if err := c.BodyParser(inputCollection); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(err)
-	}
-
-	if err := Validate(inputCollection); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
@@ -88,6 +84,15 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 		var valueErr *_vault.ValueError
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
+		}
+
+		var validationErrs *_vault.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			errs := make([]interface{}, len(validationErrs.Errs))
+			for i, v := range validationErrs.Errs {
+				errs[i] = v
+			}
+			return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Validation error", errs})
 		}
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
 		if _, ok := err.(_vault.ErrForbidden); ok {

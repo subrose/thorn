@@ -10,14 +10,14 @@ import (
 )
 
 type Field struct {
-	Name      string `redis:"name"`
-	Type      string `redis:"type"`
-	IsIndexed bool   `redis:"is_indexed"`
+	Name      string `redis:"name" validate:"required"`
+	Type      string `redis:"type" validate:"required"`
+	IsIndexed bool   `redis:"is_indexed" validate:"required, boolean"`
 }
 
 type Collection struct {
-	Name   string           `redis:"name"`
-	Fields map[string]Field `redis:"fields"`
+	Name   string           `redis:"name" json:"name" validate:"required,min=3,max=60,vaultResourceNames"`
+	Fields map[string]Field `redis:"fields" validate:"required"`
 }
 
 type Record map[string]string // field name -> value
@@ -135,9 +135,10 @@ func (vault Vault) CreateCollection(
 		return "", ErrForbidden{action}
 	}
 
-	if len(col.Name) < 3 {
-		return "", newValueError(fmt.Errorf("collection name must be at least 3 characters"))
+	if errs := Validate(col); errs != nil {
+		return "", newValidationErrors(errs)
 	}
+
 	collectionId, err := vault.Db.CreateCollection(ctx, col)
 	if err != nil {
 		return "", err

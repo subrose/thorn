@@ -36,3 +36,24 @@ func newValueError(err error) *ValueError {
 		Err: err,
 	}
 }
+
+type ValidationErrors struct {
+	Errs []ValidationError
+	Msg  string
+}
+
+func newValidationErrors(errs []*ValidationError) *ValidationErrors {
+	ve := []ValidationError{}
+	for _, err := range errs {
+		ve = append(ve, *err)
+	}
+	return &ValidationErrors{
+		Errs: ve,
+		Msg:  "validation errors",
+	}
+
+}
+
+func (ve *ValidationErrors) Error() string {
+	return fmt.Sprintf("validation errors: %s", ve.Msg)
+}

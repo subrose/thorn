@@ -23,7 +23,7 @@ admin.authenticate(expected_statuses=[200])
 # Step 1: Create collections
 admin.create_collection(
     schema={
-        "name": "customers",
+        "name": "c",
         "fields": {
             "name": {"type": "name", "indexed": False},
             "email": {"type": "email", "indexed": True},
@@ -34,96 +34,96 @@ admin.create_collection(
     expected_statuses=[201, 409],
 )
 
-admin.create_policy(
-    policy={
-        "policy_id": "backend-read-collections",
-        "effect": "allow",
-        "action": "read",
-        "resource": "/collections/customers/records",  # allow checking if record exists
-    },
-    expected_statuses=[201, 409],
-)
+# admin.create_policy(
+#     policy={
+#         "policy_id": "backend-read-collections",
+#         "effect": "allow",
+#         "action": "read",
+#         "resource": "/collections/customers/records",  # allow checking if record exists
+#     },
+#     expected_statuses=[201, 409],
+# )
 
-admin.create_policy(
-    policy={
-        "policy_id": "backend-read",
-        "effect": "allow",
-        "action": "read",
-        "resource": "/collections/customers/*/email.plain",
-    },
-    expected_statuses=[201, 409],
-)
+# admin.create_policy(
+#     policy={
+#         "policy_id": "backend-read",
+#         "effect": "allow",
+#         "action": "read",
+#         "resource": "/collections/customers/*/email.plain",
+#     },
+#     expected_statuses=[201, 409],
+# )
 
-admin.create_policy(
-    policy={
-        "policy_id": "backend-write",
-        "effect": "allow",
-        "action": "write",
-        "resource": "/collections/customers/*",
-    },
-    expected_statuses=[201, 409],
-)
+# admin.create_policy(
+#     policy={
+#         "policy_id": "backend-write",
+#         "effect": "allow",
+#         "action": "write",
+#         "resource": "/collections/customers/*",
+#     },
+#     expected_statuses=[201, 409],
+# )
 
-# Step 3: Create principals
-ecomm_principal = admin.create_principal(
-    name="ecom-backend-service",
-    description="ecom-backend-service",
-    policies=["backend-read", "backend-read-collections", "backend-write"],
-    expected_statuses=[201, 409],
-)
+# # Step 3: Create principals
+# ecomm_principal = admin.create_principal(
+#     name="ecom-backend-service",
+#     description="ecom-backend-service",
+#     policies=["backend-read", "backend-read-collections", "backend-write"],
+#     expected_statuses=[201, 409],
+# )
 
-assert ecomm_principal is not None
+# assert ecomm_principal is not None
 
-ecomm = Actor(
-    VAULT_URL,
-    "ecomm-backend",
-    ecomm_principal["access_key"],
-    ecomm_principal["access_secret"],
-)
-ecomm.authenticate(expected_statuses=[200])
+# ecomm = Actor(
+#     VAULT_URL,
+#     "ecomm-backend",
+#     ecomm_principal["access_key"],
+#     ecomm_principal["access_secret"],
+# )
+# ecomm.authenticate(expected_statuses=[200])
 
-# Step 4: Simulate application events
-# 1) User signs up
-record = ecomm.create_records(
-    collection="customers",
-    records=[
-        {
-            "name": "Alice",
-            "email": "alice@alice.com",
-            "phone": "+447123456789",
-            "credit-card": "4242424242424242",
-        }
-    ],
-    expected_statuses=[201, 409],
-)
+# # Step 4: Simulate application events
+# # 1) User signs up
+# record = ecomm.create_records(
+#     collection="customers",
+#     records=[
+#         {
+#             "name": "Alice",
+#             "email": "alice@alice.com",
+#             "phone": "+447123456789",
+#             "credit-card": "4242424242424242",
+#         }
+#     ],
+#     expected_statuses=[201, 409],
+# )
 
-ecomm.get_record(
-    collection="customers",
-    record_id="12345",
-    fields="email.plain",
-    expected_statuses=[404],
-)
+# ecomm.get_record(
+#     collection="customers",
+#     record_id="12345",
+#     fields="email.plain",
+#     expected_statuses=[404],
+# )
 
-ecomm.get_record(
-    collection="customers",
-    record_id="12345",
-    fields="name.plain",
-    expected_statuses=[403],
-)
+# ecomm.get_record(
+#     collection="customers",
+#     record_id="12345",
+#     fields="name.plain",
+#     expected_statuses=[403],
+# )
 
-ecomm.get_record(
-    collection="customers",
-    record_id=record[0],
-    fields="name.plain",
-    expected_statuses=[403],
-)
+# ecomm.get_record(
+#     collection="customers",
+#     record_id=record[0],
+#     fields="name.plain",
+#     expected_statuses=[403],
+# )
 
-ecomm.get_record(
-    collection="customers",
-    record_id=record[0],
-    fields="email.plain",
-    expected_statuses=[200],
-)
+# ecomm.get_record(
+#     collection="customers",
+#     record_id=record[0],
+#     fields="email.plain",
+#     expected_statuses=[200],
+# )
 
 
 # admin.create_policy(
