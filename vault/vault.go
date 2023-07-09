@@ -136,7 +136,7 @@ func (vault Vault) CreateCollection(
 	}
 
 	if errs := Validate(col); errs != nil {
-		return "", newValidationErrors(errs)
+		return "", errs
 	}
 
 	collectionId, err := vault.Db.CreateCollection(ctx, col)

@@ -22,15 +22,9 @@ func ValidateResourceName(fl validator.FieldLevel) bool {
 	return match
 }
 
-type ValidationError struct {
-	FailedField string `json:"failed_field"`
-	Tag         string `json:"tag"`
-	Value       string `json:"value"`
-}
-
 // Validate validates the input struct
-func Validate(payload interface{}) []*ValidationError {
-	var errors []*ValidationError
+func Validate(payload interface{}) error {
+	var errors []ValidationError
 	var validate = validator.New()
 	_ = validate.RegisterValidation("vaultResourceNames", ValidateResourceName)
 
@@ -42,8 +36,11 @@ func Validate(payload interface{}) []*ValidationError {
 			element.FailedField = strings.ToLower(err.StructField())
 			element.Tag = err.Tag()
 			element.Value = err.Param()
-			errors = append(errors, &element)
+			errors = append(errors, element)
 		}
 	}
-	return errors
+	if len(errors) > 0 {
+		return newValidationErrors(errors)
+	}
+	return nil
 }

@@ -37,23 +37,33 @@ func newValueError(err error) *ValueError {
 	}
 }
 
+type ValidationError struct {
+	FailedField string `json:"failed_field"`
+	Tag         string `json:"tag"`
+	Value       string `json:"value"`
+}
+
+func (ve *ValidationError) Error() string {
+	return fmt.Sprintf("Validation failed on field '%s': condition '%s' for value '%s'",
+		ve.FailedField, ve.Tag, ve.Value)
+}
+
 type ValidationErrors struct {
 	Errs []ValidationError
 	Msg  string
 }
 
-func newValidationErrors(errs []*ValidationError) *ValidationErrors {
-	ve := []ValidationError{}
-	for _, err := range errs {
-		ve = append(ve, *err)
-	}
+func newValidationErrors(errs []ValidationError) *ValidationErrors {
 	return &ValidationErrors{
-		Errs: ve,
+		Errs: errs,
 		Msg:  "validation errors",
 	}
-
 }
 
 func (ve *ValidationErrors) Error() string {
-	return fmt.Sprintf("validation errors: %s", ve.Msg)
+	msg := ve.Msg
+	for _, err := range ve.Errs {
+		msg += "\n" + err.Error()
+	}
+	return msg
 }

@@ -92,7 +92,7 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 			for i, v := range validationErrs.Errs {
 				errs[i] = v
 			}
-			return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Validation error", errs})
+			return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, validationErrs.Error(), errs})
 		}
 		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
 		if _, ok := err.(_vault.ErrForbidden); ok {
