@@ -50,6 +50,18 @@ services:
     command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
     volumes:
       - "./:/code"
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: simulator
+    working_dir: /code
+    depends_on:
+      - api
+    command: sh -c "cd simulator && python password_manager.py"
+    volumes:
+      - "./:/code"
+
 volumes:
   data:
     driver: local

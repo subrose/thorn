@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/env"
@@ -95,7 +96,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	c.conf = conf
 
 	// Logger
-	apiLogger, err := _logger.NewLogger("API", conf.LOG_OUTPUT, conf.LOG_LEVEL, true)
+	apiLogger, err := _logger.NewLogger("API", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
 	var policyManager _vault.PolicyManager = db
 	var principalManager _vault.PrincipalManager = db
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, true)
+	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: principalManager, PolicyManager: policyManager, Logger: vaultLogger}
 
 	c.vault = vault
@@ -152,4 +153,11 @@ func (core *Core) Init() error {
 	_, err := core.vault.CreatePrincipal(ctx, adminPrincipal, "admin", adminPrincipal.AccessKey, adminPrincipal.AccessSecret, adminPrincipal.Description, adminPrincipal.Policies)
 
 	return err
+}
+
+func (core *Core) SendErrorResponse(c *fiber.Ctx, status int, message string, err error) error {
+	if err != nil {
+		core.logger.Error("", err)
+	}
+	return c.Status(status).JSON(ErrorResponse{status, message, nil})
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
@@ -15,7 +14,7 @@ type CollectionFieldModel struct {
 }
 
 type CollectionModel struct {
-	Name   string                          `json:"name" validate:"required,collectionName"`
+	Name   string                          `json:"name" validate:"required,vaultResourceNames"`
 	Fields map[string]CollectionFieldModel `json:"fields" validate:"required"`
 }
 
@@ -49,9 +48,11 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collections, err := core.vault.GetCollections(c.Context(), principal)
 	if err != nil {
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		}
 		switch err {
-		case _vault.ErrForbidden:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
 		default:
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
@@ -88,9 +89,11 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		}
 		switch err {
-		case _vault.ErrForbidden:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
 		case _vault.ErrConflict:
 			return c.Status(http.StatusConflict).JSON(ErrorResponse{http.StatusConflict, "Collection already exists", nil})
 		default:
@@ -115,9 +118,11 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 		if errors.As(err, &valueErr) {
 			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
 		}
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		}
 		switch err {
-		case _vault.ErrForbidden:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
 		case _vault.ErrNotFound:
 			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Collection not found", nil})
 		default:
@@ -127,51 +132,46 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordIds)
 }
 
-func parseFieldsQuery(fieldsQuery string) map[string]string {
-	fieldFormats := map[string]string{}
-	if fieldsQuery == "" {
-		return nil
-	}
-	for _, field := range strings.Split(fieldsQuery, ",") {
-		splitFieldFormat := strings.Split(field, ".")
-		if len(splitFieldFormat) != 2 {
-			continue
-		}
-		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
-	}
-
-	return fieldFormats
-}
-
 func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
-	// /records/users/<id>?fields=fname.plain,lname.masked
-	if c.Query("fields") == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Fields query is required", nil})
-	}
-	fieldsQuery := parseFieldsQuery(c.Query("fields"))
-	// TODO: validate fields query and return error if invalid
-	// TODO: add default fields query to get all fields
+	format := c.Params("format")
+	// /collections/:name/records/:id/:format
 
 	if collectionName == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Collection name is required", nil})
+		return core.SendErrorResponse(c, http.StatusBadRequest, "collection name is required", nil)
 	}
 	if recordId == "" {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Record id is required", nil})
+		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
+	}
+
+	if format == "" {
+		return core.SendErrorResponse(c, http.StatusBadRequest, "format is required", nil)
 	}
 
 	recordIds := []string{recordId}
-	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, fieldsQuery)
+	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, format)
 	if err != nil {
+		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
+		if _, ok := err.(_vault.ErrForbidden); ok {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		}
 		switch err {
 		case _vault.ErrNotFound:
-			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Record not found", nil})
-		case _vault.ErrForbidden:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Forbidden", nil})
+			return core.SendErrorResponse(c, http.StatusNotFound, "Record not found", err)
+		case &_vault.ValueError{}:
+			return core.SendErrorResponse(c, http.StatusBadRequest, err.Error(), err)
 		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+			return core.SendErrorResponse(c, http.StatusInternalServerError, "Something went wrong", err)
+		}
+	}
+
+	// Loop through the record and figure out which fields were accessed
+	accessedFields := []string{}
+	for _, record := range records {
+		for fieldName := range record {
+			accessedFields = append(accessedFields, fieldName)
 		}
 	}
 
@@ -187,7 +187,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		principal.Policies,
 		recordIds,
 		recordIds,
-		// TODO: Add fields
+		accessedFields,
 	)
 	return c.Status(http.StatusOK).JSON(records)
 }

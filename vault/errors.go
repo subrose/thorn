@@ -5,10 +5,18 @@ import (
 	"fmt"
 )
 
-var ErrNotFound = errors.New("not found")
-var ErrConflict = errors.New("conflict")
-var ErrForbidden = errors.New("forbidden")
-var ErrIndexError = errors.New("index")
+var (
+	ErrNotFound = errors.New("not found")
+	ErrConflict = errors.New("conflict")
+	// ErrForbidden  = errors.New("forbidden")
+	ErrIndexError = errors.New("index")
+)
+
+type ErrForbidden struct{ action Action }
+
+func (f ErrForbidden) Error() string {
+	return fmt.Sprintf("forbidden: principal %s doing %s on %s", f.action.Principal.Name, f.action.Action, f.action.Resource)
+}
 
 type ValueError struct {
 	Err error

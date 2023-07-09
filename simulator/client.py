@@ -25,7 +25,7 @@ def check_expected_status(
             f"""Request failed:
             path={response.request.path_url}, body={response.request.body}
             {response.status_code} not in {expected_status_codes=} 
-            {response.reason}, {response.json()}
+            {response.reason}, {response.text}
             """
         )
 
@@ -96,12 +96,11 @@ class Actor:
         self,
         collection: str,
         record_id: str,
-        fields: str,  # dict of params
+        format: str,  # dict of params
         expected_statuses: Optional[list[int]] = None,
     ) -> dict[str, dict[str, str]]:
         response = requests.get(
-            f"{self.vault_url}/collections/{collection}/records/{record_id}",
-            params={"fields": fields},
+            f"{self.vault_url}/collections/{collection}/records/{record_id}/{format}",
             headers={"Authorization": f"Bearer {self.token}"},
         )
         check_expected_status(response, expected_statuses)
