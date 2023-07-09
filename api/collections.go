@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
@@ -133,22 +132,6 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordIds)
 }
 
-func parseFieldsQuery(fieldsQuery string) map[string]string {
-	fieldFormats := map[string]string{}
-	if fieldsQuery == "" {
-		return nil
-	}
-	for _, field := range strings.Split(fieldsQuery, ",") {
-		splitFieldFormat := strings.Split(field, ".")
-		if len(splitFieldFormat) != 2 {
-			continue
-		}
-		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
-	}
-
-	return fieldFormats
-}
-
 func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -157,7 +140,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	// /collections/:name/records/:id/:format
 
 	if collectionName == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "Collection name is required", nil)
+		return core.SendErrorResponse(c, http.StatusBadRequest, "collection name is required", nil)
 	}
 	if recordId == "" {
 		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
@@ -206,6 +189,5 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		recordIds,
 		accessedFields,
 	)
-	// TODO: We should think about returning which fields were not redacted in the response
 	return c.Status(http.StatusOK).JSON(records)
 }
