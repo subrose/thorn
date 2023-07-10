@@ -104,8 +104,7 @@ func TestCollections(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// Test getting the record
-		fieldFormats := "?fields=name.masked,phone_number.plain"
-		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+fieldFormats, nil)
+		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+"/plain", nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, err = app.Test(req, -1)
 		if err != nil {
