@@ -86,7 +86,7 @@ func (vault Vault) GetCollection(
 		return Collection{}, err
 	}
 	if !allowed {
-		return Collection{}, ErrForbidden{action}
+		return Collection{}, &ForbiddenError{action}
 	}
 
 	col, err := vault.Db.GetCollection(ctx, name)
@@ -95,7 +95,7 @@ func (vault Vault) GetCollection(
 	}
 
 	if col.Name == "" {
-		return Collection{}, ErrNotFound
+		return Collection{}, &NotFoundError{name}
 	}
 
 	return col, nil
@@ -111,7 +111,7 @@ func (vault Vault) GetCollections(
 		return nil, err
 	}
 	if !allowed {
-		return nil, ErrForbidden{action}
+		return nil, &ForbiddenError{action}
 	}
 
 	cols, err := vault.Db.GetCollections(ctx)
@@ -132,7 +132,7 @@ func (vault Vault) CreateCollection(
 		return "", err
 	}
 	if !allowed {
-		return "", ErrForbidden{action}
+		return "", &ForbiddenError{action}
 	}
 
 	if len(col.Name) < 3 {
@@ -157,7 +157,7 @@ func (vault Vault) CreateRecords(
 		return nil, err
 	}
 	if !allowed {
-		return nil, ErrForbidden{action}
+		return nil, &ForbiddenError{action}
 	}
 
 	encryptedRecords := make([]Record, len(records))
@@ -199,7 +199,7 @@ func (vault Vault) GetRecords(
 			return nil, err
 		}
 		if !allowed {
-			return nil, ErrForbidden{_action}
+			return nil, &ForbiddenError{_action}
 		}
 	}
 	col, err := vault.Db.GetCollection(ctx, collectionName)
@@ -213,7 +213,7 @@ func (vault Vault) GetRecords(
 	}
 
 	if len(encryptedRecords) == 0 {
-		return nil, ErrNotFound
+		return nil, &NotFoundError{recordIDs[0]} //TODO: specify the records that were not found...
 	}
 
 	records := make(map[string]Record, len(encryptedRecords))
@@ -270,7 +270,7 @@ func (vault Vault) CreatePrincipal(
 		return Principal{}, err
 	}
 	if !allowed {
-		return Principal{}, ErrForbidden{action}
+		return Principal{}, &ForbiddenError{action}
 	}
 
 	hashedAccessSecret, _ := bcrypt.GenerateFromPassword([]byte(accessSecret), bcrypt.DefaultCost)
@@ -302,7 +302,7 @@ func (vault Vault) GetPrincipal(
 		return Principal{}, err
 	}
 	if !allowed {
-		return Principal{}, ErrForbidden{action}
+		return Principal{}, &ForbiddenError{action}
 	}
 
 	return vault.PrincipalManager.GetPrincipal(ctx, accessKey)
@@ -339,7 +339,7 @@ func (vault Vault) CreatePolicy(
 		return "", err
 	}
 	if !allowed {
-		return "", ErrForbidden{action}
+		return "", &ForbiddenError{action}
 	}
 
 	return vault.PolicyManager.CreatePolicy(ctx, p)
@@ -356,7 +356,7 @@ func (vault Vault) GetPolicy(
 		return Policy{}, err
 	}
 	if !allowed {
-		return Policy{}, ErrForbidden{action}
+		return Policy{}, &ForbiddenError{action}
 	}
 
 	return vault.PolicyManager.GetPolicy(ctx, policyId)
