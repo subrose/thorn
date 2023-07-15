@@ -6,16 +6,25 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("not found")
-	ErrConflict = errors.New("conflict")
-	// ErrForbidden  = errors.New("forbidden")
 	ErrIndexError = errors.New("index")
 )
 
-type ErrForbidden struct{ action Action }
+type ForbiddenError struct{ action Action }
 
-func (f ErrForbidden) Error() string {
-	return fmt.Sprintf("forbidden: principal %s doing %s on %s", f.action.Principal.Name, f.action.Action, f.action.Resource)
+func (e *ForbiddenError) Error() string {
+	return fmt.Sprintf("forbidden: principal %s doing %s on %s", e.action.Principal.Name, e.action.Action, e.action.Resource)
+}
+
+type NotFoundError struct{ resourceName string }
+
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("not found: %s", e.resourceName)
+}
+
+type ConflictError struct{ resourceName string }
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("conflict: %s", e.resourceName)
 }
 
 type ValueError struct {

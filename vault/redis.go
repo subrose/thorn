@@ -69,7 +69,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 		return dbCol, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
 	}
 	if len(col) == 0 {
-		return dbCol, ErrNotFound
+		return dbCol, &NotFoundError{colId}
 	}
 	pipe := rs.Client.Pipeline()
 	for _, v := range col {
@@ -100,7 +100,7 @@ func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string
 	}
 
 	if exists == 1 {
-		return c.Name, ErrConflict
+		return c.Name, &ConflictError{colId}
 	}
 
 	pipe := rs.Client.Pipeline()
@@ -140,7 +140,7 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	dbCol, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
-			return []string{}, ErrNotFound
+			return []string{}, &NotFoundError{colId}
 		}
 		return []string{}, err
 	}
@@ -186,7 +186,7 @@ func (rs RedisStore) GetRecords(ctx context.Context, recordIDs []string) (map[st
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordID)
 		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
 		if record == nil {
-			return nil, ErrNotFound
+			return nil, &NotFoundError{redisKey}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordID, err)
@@ -223,7 +223,7 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) (
 	}
 
 	if exists == 1 {
-		return Principal{}, ErrConflict
+		return Principal{}, &ConflictError{principalId}
 	}
 
 	pipe := rs.Client.Pipeline()
@@ -261,7 +261,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, accessKey string) (Princi
 	pipeRes, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return Principal{}, ErrNotFound
+			return Principal{}, &NotFoundError{principalId}
 		}
 		return Principal{}, err
 	}
@@ -272,7 +272,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, accessKey string) (Princi
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.AccessKey == "" || dbPrincipal.AccessSecret == "" {
-		return Principal{}, ErrNotFound
+		return Principal{}, &NotFoundError{principalId}
 	}
 
 	return dbPrincipal, nil
@@ -283,7 +283,7 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, er
 	var policy Policy
 	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&policy); err != nil {
 		if err == redis.Nil {
-			return Policy{}, ErrNotFound
+			return Policy{}, &NotFoundError{polRedisId}
 		}
 		return Policy{}, err
 	}
@@ -297,11 +297,12 @@ func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Pol
 	for _, polId := range policyIds {
 		pol, err := rs.GetPolicy(ctx, polId)
 		if err != nil {
-			if err == ErrNotFound {
+			switch err.(type) {
+			case *NotFoundError:
 				// Tried to get a policy that doesn't exist, continue
-				continue
+			default:
+				return nil, err
 			}
-			return nil, err
 		}
 		policies = append(policies, pol)
 	}

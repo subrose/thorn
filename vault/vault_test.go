@@ -174,7 +174,9 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		// Can't get principals that don't exist:
 		_, err := vault.GetPrincipal(ctx, testPrincipal, testPrincipal.AccessKey)
-		if !errors.Is(err, ErrNotFound) {
+		switch err.(type) {
+		case *NotFoundError:
+		default:
 			t.Error("Should throw a not found error!", err)
 		}
 		// Can create a principal
@@ -206,7 +208,10 @@ func TestVault(t *testing.T) {
 		}
 
 		_, err2 := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Name, testPrincipal.AccessKey, testPrincipal.AccessSecret, "a test principal", []string{"read-all-customers"})
-		if !errors.Is(err2, ErrConflict) {
+		switch err2.(type) {
+		case *ConflictError:
+			// success
+		default:
 			t.Error("Should throw a conflict error when trying to create the same principal twice, got:", err2)
 		}
 	})
@@ -250,7 +255,10 @@ func TestVault(t *testing.T) {
 		}
 		vault, _, _ := initVault(t)
 		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, "plain")
-		if _, ok := err.(ErrForbidden); !ok {
+		switch err.(type) {
+		case *ForbiddenError:
+			// worked
+		default:
 			t.Fatal(err)
 		}
 	})

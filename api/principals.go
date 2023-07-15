@@ -27,12 +27,10 @@ func (core *Core) GetPrincipalById(c *fiber.Ctx) error {
 	sessionPrincipal := GetSessionPrincipal(c)
 	principal, err := core.vault.GetPrincipal(c.Context(), sessionPrincipal, principalId)
 	if err != nil {
-		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); ok {
+		switch err.(type) {
+		case *_vault.ForbiddenError:
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		}
-		switch err {
-		case _vault.ErrNotFound:
+		case *_vault.NotFoundError:
 			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Principal not found", nil})
 		default:
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
@@ -66,12 +64,10 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 		inputPrincipal.Policies,
 	)
 	if err != nil {
-		// TODO: After replacing all other custom errors with types, the switch should work again using: switch t := err.(type) {}
-		if _, ok := err.(_vault.ErrForbidden); ok {
+		switch err.(type) {
+		case *_vault.ForbiddenError:
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		}
-		switch err {
-		case _vault.ErrConflict:
+		case *_vault.ConflictError:
 			return c.Status(http.StatusConflict).JSON(ErrorResponse{http.StatusConflict, "Principal already exists", nil})
 		default:
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
