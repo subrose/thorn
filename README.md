@@ -41,7 +41,7 @@ And more.
 ## 🚀 Get started
 
 > **Warning**
-> Subrose is currently in alpha and not ready for usage, however contributions and discussions are more than welcome at this stage.
+> Subrose is currently in pre-alpha and not ready for usage, however contributions and discussions are more than welcome at this stage.
 
 To quickly get started, visit our [get started guide](https://subrose.io/docs/getting-started/introduction).
 
