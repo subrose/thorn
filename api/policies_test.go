@@ -29,8 +29,8 @@ func TestPolicies(t *testing.T) {
 				`{
 					"policy_id": "%s",
 					"effect": "allow",
-					"action": "read",
-					"resource": "/policies/%s"
+					"action": ["read"],
+					"resource": ["/policies/%s-0"]
 				}`,
 				testPolicyId,
 				testPolicyId,
@@ -40,7 +40,7 @@ func TestPolicies(t *testing.T) {
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, _ := app.Test(req, -1)
-		createdPolicy := _vault.Policy{}
+		var createdPolicy []_vault.Policy
 		body, _ := io.ReadAll(res.Body)
 		err := json.Unmarshal(body, &createdPolicy)
 
@@ -72,6 +72,7 @@ func TestPolicies(t *testing.T) {
 		if err != nil {
 			t.Error("Error parsing returned policy", err)
 		}
+		t.Error(string(body))
 
 		// Assertions
 		assert.Equal(t, http.StatusOK, res.StatusCode)
