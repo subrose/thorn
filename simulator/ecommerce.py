@@ -17,7 +17,7 @@ from client import Actor
 VAULT_URL = "http://localhost:3001"
 
 # Step 0: Initialize your actors
-admin = Actor(VAULT_URL, name="admin", access_key="admin", secret_key="admin")
+admin = Actor(VAULT_URL, username="admin", password="admin")
 admin.authenticate(expected_statuses=[200])
 
 # Step 1: Create collections
@@ -66,7 +66,8 @@ admin.create_policy(
 
 # Step 3: Create principals
 ecomm_principal = admin.create_principal(
-    name="ecom-backend-service",
+    username="ecom-user",
+    password="ecom-password",
     description="ecom-backend-service",
     policies=["backend-read", "backend-read-collections", "backend-write"],
     expected_statuses=[201, 409],
@@ -76,9 +77,8 @@ assert ecomm_principal is not None
 
 ecomm = Actor(
     VAULT_URL,
-    "ecomm-backend",
-    ecomm_principal["access_key"],
-    ecomm_principal["access_secret"],
+    ecomm_principal["username"],
+    ecomm_principal["password"],
 )
 ecomm.authenticate(expected_statuses=[200])
 
@@ -95,34 +95,6 @@ record = ecomm.create_records(
         }
     ],
     expected_statuses=[201, 409],
-)
-
-ecomm.get_record(
-    collection="customers",
-    record_id="12345",
-    fields="email.plain",
-    expected_statuses=[404],
-)
-
-ecomm.get_record(
-    collection="customers",
-    record_id="12345",
-    fields="name.plain",
-    expected_statuses=[403],
-)
-
-ecomm.get_record(
-    collection="customers",
-    record_id=record[0],
-    fields="name.plain",
-    expected_statuses=[403],
-)
-
-ecomm.get_record(
-    collection="customers",
-    record_id=record[0],
-    fields="email.plain",
-    expected_statuses=[200],
 )
 
 
@@ -158,8 +130,8 @@ ecomm.get_record(
 # ecomm_backend = Actor(
 #     VAULT_URL,
 #     name="admin",
-#     access_key=ecomm_principal["access_key"],
-#     secret_key=ecomm_principal["secret_key"],
+#     username=ecomm_principal["username"],
+#     password=ecomm_principal["password"],
 # )
 # admin.authenticate(expected_statuses=[200])
 

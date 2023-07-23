@@ -8,8 +8,8 @@ import (
 )
 
 type PrincipalModel struct {
-	Username    string   `json:"username" validate:"required,min=4,max=32"`
-	Password    string   `json:"password" validate:"required,min=4"`
+	Username    string   `json:"username" validate:"required,min=1,max=32"`
+	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
 	Description string   `json:"description"`
 	Policies    []string `json:"policies"`
 }

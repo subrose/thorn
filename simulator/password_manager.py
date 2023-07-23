@@ -4,7 +4,18 @@ from client import Actor
 VAULT_URL = "http://localhost:3001"
 
 # Step 0: Initialize your actors
-admin = Actor(VAULT_URL, name="admin", access_key="admin", secret_key="admin")
+
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin"
+
+ALICE_USERNAME = "alice"
+ALICE_PASSWORD = "alice-password"
+
+BOB_USERNAME = "bob"
+BOB_PASSWORD = "bob-password"
+
+
+admin = Actor(VAULT_URL, username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
 admin.authenticate(expected_statuses=[200])
 
 # Step 2: Create collection
@@ -72,24 +83,27 @@ admin.create_policy(
     expected_statuses=[201, 409],
 )
 
-alice_res = admin.create_principal(
-    "alice",
-    "alice",
-    ["alice-read-own-passwords", "alice-write-own-passwords"],
+admin.create_principal(
+    username=ALICE_USERNAME,
+    password=ALICE_PASSWORD,
+    description="alice",
+    policies=["alice-read-own-passwords", "alice-write-own-passwords"],
     expected_statuses=[201, 409],
 )
 
-assert alice_res is not None
 
-alice = Actor(VAULT_URL, "alice", alice_res["access_key"], alice_res["access_secret"])
+alice = Actor(VAULT_URL, ALICE_USERNAME, ALICE_PASSWORD)
 alice.authenticate(expected_statuses=[200])
 
-bob_res = admin.create_principal(
-    "bob", "bob", ["bob-read-own-passwords", "bob-write-own-passwords"]
+admin.create_principal(
+    username=BOB_USERNAME,
+    password=BOB_PASSWORD,
+    description="bob",
+    policies=["bob-read-own-passwords", "bob-write-own-passwords"],
+    expected_statuses=[201, 409],
 )
-assert bob_res is not None
 
-bob = Actor(VAULT_URL, "bob", bob_res["access_key"], bob_res["access_secret"])
+bob = Actor(VAULT_URL, BOB_USERNAME, BOB_PASSWORD)
 bob.authenticate(expected_statuses=[200])
 
 # 2) Alice adds a password
