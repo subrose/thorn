@@ -174,7 +174,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		c.Get("User-Agent"),
 		c.Get("X-Trace-Id"),
 		c.Response().StatusCode(),
-		principal.AccessKey,
+		principal.Username,
 		principal.Description,
 		principal.Policies,
 		recordIds,

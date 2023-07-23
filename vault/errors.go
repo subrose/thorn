@@ -12,7 +12,7 @@ var (
 type ForbiddenError struct{ action Action }
 
 func (e *ForbiddenError) Error() string {
-	return fmt.Sprintf("forbidden: principal %s doing %s on %s", e.action.Principal.Name, e.action.Action, e.action.Resource)
+	return fmt.Sprintf("forbidden: principal %s doing %s on %s", e.action.Principal.Username, e.action.Action, e.action.Resource)
 }
 
 type NotFoundError struct{ resourceName string }

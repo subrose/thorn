@@ -19,9 +19,9 @@ func TestAuth(t *testing.T) {
 
 	t.Run("can generate a valid JWT for a principal", func(t *testing.T) {
 		inputP := _vault.Principal{
-			AccessKey:    "test",
-			AccessSecret: "test",
-			Policies:     []string{"admin-read", "admin-write"},
+			Username: "test",
+			Password: "test",
+			Policies: []string{"admin-read", "admin-write"},
 		}
 		jwt, err := core.generateJWT(inputP)
 		if err != nil {
@@ -35,7 +35,7 @@ func TestAuth(t *testing.T) {
 		}
 
 		// Assertions
-		assert.Equal(t, inputP.AccessKey, outputP.AccessKey)
+		assert.Equal(t, inputP.Username, outputP.Username)
 		assert.Equal(t, inputP.Policies, outputP.Policies)
 
 	})
@@ -67,7 +67,7 @@ func TestAuth(t *testing.T) {
 		}
 
 		// Assertions
-		assert.Equal(t, core.conf.VAULT_ADMIN_ACCESS_KEY, outputP.AccessKey)
+		assert.Equal(t, core.conf.VAULT_ADMIN_ACCESS_KEY, outputP.Username)
 	})
 
 	t.Run("invalid principal can't get a token", func(t *testing.T) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,48 +18,51 @@ import (
 func TestPrincipals(t *testing.T) {
 	app, _, core := InitTestingVault(t)
 	adminJwt, _ := core.generateJWT(_vault.Principal{
-		AccessKey:    "test",
-		AccessSecret: "test",
-		Policies:     []string{"admin-read", "admin-write"},
+		Username:    "admin",
+		Password:    "admin",
+		Description: "admin principal",
+		Policies:    []string{"admin-read", "admin-write"},
 	})
 
+	principalToCreate := PrincipalModel{
+		Username:    "username",
+		Password:    "password",
+		Description: "test description",
+		Policies:    []string{"test-read", "test-write"},
+	}
+
 	t.Run("can create a principal", func(t *testing.T) {
-		principalJson := strings.NewReader(
-			`{
-					"name": "newprincipal",
-					"description": "A new principal",
-					"policies": ["test-read", "test-write"]
-			}`,
-		)
+		jsonData, err := json.Marshal(principalToCreate)
+		if err != nil {
+			t.Fatalf("Failed to marshal the principal: %v", err)
+		}
+
+		principalJson := bytes.NewReader(jsonData)
 		req := httptest.NewRequest(http.MethodPost, "/principals", principalJson)
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, _ := app.Test(req, -1)
-		createdPrincipal := NewPrincipal{}
-		body, _ := io.ReadAll(res.Body)
-		err := json.Unmarshal(body, &createdPrincipal)
-
-		if err != nil {
-			t.Error("Error creating principal", err)
-		}
-
-		// Assertions
 		assert.Equal(t, http.StatusCreated, res.StatusCode)
-		req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/principals/%s", createdPrincipal.AccessKey), nil)
+
+		// Can get principal
+		req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/principals/%s", principalToCreate.Username), nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, err = app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting prinipal", err)
 		}
 		var returnedPrincipal PrincipalModel
-		body, _ = io.ReadAll(res.Body)
+		body, _ := io.ReadAll(res.Body)
 		err = json.Unmarshal(body, &returnedPrincipal)
 		if err != nil {
-			t.Error("Error parsing returned collection", err)
+			t.Error("Error parsing returned principal", err)
 		}
 		// Assertions
 		assert.Equal(t, http.StatusOK, res.StatusCode)
-		assert.Equal(t, "newprincipal", returnedPrincipal.Name)
+		assert.Equal(t, principalToCreate.Username, returnedPrincipal.Username)
+		assert.Equal(t, principalToCreate.Description, returnedPrincipal.Description)
+		assert.Equal(t, principalToCreate.Policies, returnedPrincipal.Policies)
+		assert.NotEqual(t, principalToCreate.Password, returnedPrincipal.Password)
 	})
 
 	t.Run("can't create principals without assigned roles", func(t *testing.T) {

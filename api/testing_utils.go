@@ -53,8 +53,8 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 		Action:   _vault.PolicyActionWrite,
 		Resource: "*",
 	})
-	adminPrincipal := _vault.Principal{AccessKey: coreConfig.VAULT_ADMIN_ACCESS_KEY, AccessSecret: coreConfig.VAULT_ADMIN_ACCESS_SECRET, Policies: []string{"admin-write", "admin-read"}}
-	_, principalErr := vault.CreatePrincipal(bootstrapContext, adminPrincipal, "admin", coreConfig.VAULT_ADMIN_ACCESS_KEY, coreConfig.VAULT_ADMIN_ACCESS_SECRET, "admin principal", []string{"admin-write", "admin-read"})
+	adminPrincipal := _vault.Principal{Username: coreConfig.VAULT_ADMIN_ACCESS_KEY, Password: coreConfig.VAULT_ADMIN_ACCESS_SECRET, Policies: []string{"admin-write", "admin-read"}}
+	principalErr := vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_ACCESS_KEY, coreConfig.VAULT_ADMIN_ACCESS_SECRET, "admin principal", []string{"admin-write", "admin-read"})
 	if principalErr != nil {
 		t.Fatal("Failed to create admin principal", principalErr)
 	}

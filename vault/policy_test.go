@@ -21,7 +21,7 @@ func MakePM() PolicyManager {
 
 func makePrincipal() Principal {
 	return Principal{
-		AccessKey: "test",
+		Username: "test",
 		Policies: []string{
 			"test-allow",
 			"test-deny",
