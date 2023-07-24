@@ -29,8 +29,8 @@ func TestPolicies(t *testing.T) {
 				`{
 					"policy_id": "%s",
 					"effect": "allow",
-					"action": ["read"],
-					"resource": ["/policies/%s-0"]
+					"actions": ["read"],
+					"resources": ["/policies/%s"]
 				}`,
 				testPolicyId,
 				testPolicyId,
@@ -60,7 +60,7 @@ func TestPolicies(t *testing.T) {
 		}
 		jwt, _ := core.generateJWT(principal)
 
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s", testPolicyId), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-%d", testPolicyId, 0), nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+jwt)
 		res, err := app.Test(req, -1)
 		if err != nil {
