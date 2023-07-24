@@ -10,10 +10,10 @@ import (
 )
 
 type CompositePolicy struct {
-	PolicyId string                `json:"policy_id"`
-	Effect   _vault.PolicyEffect   `json:"effect"`
-	Action   []_vault.PolicyAction `json:"action"`
-	Resource []string              `json:"resource"`
+	PolicyId  string                `json:"policy_id"`
+	Effect    _vault.PolicyEffect   `json:"effect"`
+	Actions   []_vault.PolicyAction `json:"actions"`
+	Resources []string              `json:"resources"`
 }
 
 func (core *Core) GetPolicyById(c *fiber.Ctx) error {
@@ -36,18 +36,17 @@ func (core *Core) GetPolicyById(c *fiber.Ctx) error {
 
 func splitPolicies(policy CompositePolicy) []_vault.Policy {
 	var policies []_vault.Policy
-	for i, policyAction := range policy.Action {
-		for _, resource := range policy.Resource {
+	for i, action := range policy.Actions {
+		for _, resource := range policy.Resources {
 			p := _vault.Policy{
 				PolicyId: fmt.Sprintf("%s-%d", policy.PolicyId, i),
 				Effect:   policy.Effect,
-				Action:   policyAction,
+				Action:   action,
 				Resource: resource,
 			}
 
 			policies = append(policies, p)
 		}
-
 	}
 	return policies
 }
