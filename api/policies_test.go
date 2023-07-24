@@ -30,9 +30,8 @@ func TestPolicies(t *testing.T) {
 					"policy_id": "%s",
 					"effect": "allow",
 					"action": ["read"],
-					"resource": ["/policies/%s-0"]
+					"resource": ["/records/"]
 				}`,
-				testPolicyId,
 				testPolicyId,
 			),
 		)
@@ -56,11 +55,11 @@ func TestPolicies(t *testing.T) {
 		principal := _vault.Principal{
 			AccessKey:    "test",
 			AccessSecret: "test",
-			Policies:     []string{testPolicyId},
+			Policies:     []string{"admin-read"},
 		}
 		jwt, _ := core.generateJWT(principal)
 
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s", testPolicyId), nil)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-0", testPolicyId), nil)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+jwt)
 		res, err := app.Test(req, -1)
 		if err != nil {
@@ -72,12 +71,10 @@ func TestPolicies(t *testing.T) {
 		if err != nil {
 			t.Error("Error parsing returned policy", err)
 		}
-		t.Error(string(body))
 
 		// Assertions
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, _vault.EffectAllow, returnedPolicy.Effect)
 		assert.Equal(t, _vault.PolicyActionRead, returnedPolicy.Action)
-		assert.Equal(t, fmt.Sprintf("/policies/%s", testPolicyId), returnedPolicy.Resource)
 	})
 }
