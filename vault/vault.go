@@ -23,12 +23,11 @@ type Collection struct {
 type Record map[string]string // field name -> value
 
 type Principal struct {
-	Name         string   `redis:"name"`
-	AccessKey    string   `redis:"access_key"`
-	AccessSecret string   `redis:"access_secret"`
-	Description  string   `redis:"description"`
-	CreatedAt    string   `redis:"created_at"`
-	Policies     []string `redis:"policies"`
+	Username    string   `redis:"username"`
+	Password    string   `redis:"password"`
+	Description string   `redis:"description"`
+	CreatedAt   string   `redis:"created_at"`
+	Policies    []string `redis:"policies"`
 }
 
 type VaultDB interface {
@@ -47,8 +46,8 @@ type Privatiser interface {
 }
 
 type PrincipalManager interface {
-	CreatePrincipal(ctx context.Context, principal Principal) (Principal, error)
-	GetPrincipal(ctx context.Context, accessKey string) (Principal, error)
+	CreatePrincipal(ctx context.Context, principal Principal) error
+	GetPrincipal(ctx context.Context, username string) (Principal, error)
 }
 
 type Logger interface {
@@ -258,45 +257,42 @@ func (vault Vault) GetRecordsFilter(
 func (vault Vault) CreatePrincipal(
 	ctx context.Context,
 	principal Principal,
-	name,
-	accessKey,
-	accessSecret,
+	username,
+	password,
 	description string,
 	policies []string,
-) (Principal, error) {
+) error {
 	action := Action{principal, PolicyActionWrite, PRINCIPALS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
-		return Principal{}, err
+		return err
 	}
 	if !allowed {
-		return Principal{}, &ForbiddenError{action}
+		return &ForbiddenError{action}
 	}
 
-	hashedAccessSecret, _ := bcrypt.GenerateFromPassword([]byte(accessSecret), bcrypt.DefaultCost)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	dbPrincipal := Principal{
-		Name:         name,
-		AccessKey:    strings.ToLower(accessKey),
-		AccessSecret: string(hashedAccessSecret),
-		CreatedAt:    time.Now().Format(time.RFC3339),
-		Description:  description,
-		Policies:     policies,
+		Username:    username,
+		Password:    string(hashedPassword),
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		Description: description,
+		Policies:    policies,
 	}
 
-	newPrincipal, err := vault.PrincipalManager.CreatePrincipal(ctx, dbPrincipal)
+	err = vault.PrincipalManager.CreatePrincipal(ctx, dbPrincipal)
 	if err != nil {
-		return Principal{}, err
+		return err
 	}
-	newPrincipal.AccessSecret = accessSecret
-	return newPrincipal, nil
+	return nil
 }
 
 func (vault Vault) GetPrincipal(
 	ctx context.Context,
 	principal Principal,
-	accessKey string,
+	username string,
 ) (Principal, error) {
-	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, accessKey)}
+	action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
 	allowed, err := vault.ValidateAction(ctx, action)
 	if err != nil {
 		return Principal{}, err
@@ -305,19 +301,19 @@ func (vault Vault) GetPrincipal(
 		return Principal{}, &ForbiddenError{action}
 	}
 
-	return vault.PrincipalManager.GetPrincipal(ctx, accessKey)
+	return vault.PrincipalManager.GetPrincipal(ctx, username)
 }
 
 func (vault Vault) AuthenticateUser(
 	ctx context.Context,
-	accessKey,
+	username,
 	inputAccessSecret string,
 ) (Principal, error) {
-	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, accessKey)
+	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, username)
 	if err != nil {
 		return Principal{}, err
 	}
-	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.AccessSecret), []byte(inputAccessSecret))
+	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(inputAccessSecret))
 	if compareErr != nil {
 		return Principal{}, compareErr
 	}

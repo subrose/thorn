@@ -52,11 +52,10 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 func TestVault(t *testing.T) {
 	ctx := context.Background()
 	testPrincipal := Principal{
-		Name:         "test_user",
-		AccessKey:    "test_user",
-		AccessSecret: "test_password",
-		Policies:     []string{"admin-write", "admin-read"},
-		Description:  "test principal",
+		Username:    "test_user",
+		Password:    "test_password",
+		Policies:    []string{"admin-write", "admin-read"},
+		Description: "test principal",
 	}
 	t.Run("can store and get collections and records", func(t *testing.T) {
 		vault, _, _ := initVault(t)
@@ -173,41 +172,28 @@ func TestVault(t *testing.T) {
 	t.Run("can create and get principals", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		// Can't get principals that don't exist:
-		_, err := vault.GetPrincipal(ctx, testPrincipal, testPrincipal.AccessKey)
+		_, err := vault.GetPrincipal(ctx, testPrincipal, testPrincipal.Username)
 		switch err.(type) {
 		case *NotFoundError:
 		default:
 			t.Error("Should throw a not found error!", err)
 		}
 		// Can create a principal
-		vaultPrincipal, err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Name, testPrincipal.AccessKey, testPrincipal.AccessSecret, "a test principal, again", []string{"read-all-customers"})
+		err = vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal, again", []string{"read-all-customers"})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if vaultPrincipal.AccessKey != testPrincipal.AccessKey {
-			t.Fatalf("Expected principal name to be %s, got %s", testPrincipal.AccessKey, vaultPrincipal.AccessKey)
-		}
-
-		// Can get a principal
-		vaultPrincipal, err = vault.GetPrincipal(ctx, testPrincipal, testPrincipal.AccessKey)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if vaultPrincipal.AccessKey != testPrincipal.AccessKey {
-			t.Fatalf("Expected principal name to be %s, got %s", testPrincipal.AccessKey, vaultPrincipal.AccessKey)
-		}
 	})
 
 	t.Run("cant create the same principal twice", func(t *testing.T) {
 		vault, _, _ := initVault(t)
-		vaultPrincipal, err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Name, testPrincipal.AccessKey, testPrincipal.AccessSecret, "a test principal", []string{"read-all-customers"})
-		if vaultPrincipal.AccessKey != testPrincipal.AccessKey || err != nil {
-			t.Errorf("Created principal and test principal should match, got: %s want %s", vaultPrincipal.AccessKey, testPrincipal.AccessKey)
+		err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal", []string{"read-all-customers"})
+		if err != nil {
+			t.Fatal(err)
 		}
 
-		_, err2 := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Name, testPrincipal.AccessKey, testPrincipal.AccessSecret, "a test principal", []string{"read-all-customers"})
+		err2 := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal", []string{"read-all-customers"})
 		switch err2.(type) {
 		case *ConflictError:
 			// success
@@ -218,10 +204,10 @@ func TestVault(t *testing.T) {
 
 	t.Run("principal has access to customer records", func(t *testing.T) {
 		limitedPrincipal := Principal{
-			AccessKey:    "foo",
-			AccessSecret: "bar",
-			Policies:     []string{"read-all-customers"},
-			Description:  "test principal",
+			Username:    "foo",
+			Password:    "bar",
+			Policies:    []string{"read-all-customers"},
+			Description: "test principal",
 		}
 		vault, _, _ := initVault(t)
 		// TODO: Smelly test, make this DRY
@@ -248,10 +234,10 @@ func TestVault(t *testing.T) {
 
 	t.Run("principal does not have access to credit-card records", func(t *testing.T) {
 		limitedPrincipal := Principal{
-			AccessKey:    "foo",
-			AccessSecret: "bar",
-			Policies:     []string{"read-all-customers"},
-			Description:  "test principal",
+			Username:    "foo",
+			Password:    "bar",
+			Policies:    []string{"read-all-customers"},
+			Description: "test principal",
 		}
 		vault, _, _ := initVault(t)
 		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, "plain")

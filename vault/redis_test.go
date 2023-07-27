@@ -117,26 +117,26 @@ func TestRedisStore(t *testing.T) {
 		// Note: password is not encrypted when storing this way, but it's just for testing purposes.
 		// The principal object should be created at the vault level.
 		principal := Principal{
-			AccessKey:    "test",
-			AccessSecret: "test",
-			Description:  "test",
-			CreatedAt:    "0",
-			Policies:     []string{"read-customers", "write-credit-cards"},
+			Username:    "test",
+			Password:    "test",
+			Description: "test",
+			CreatedAt:   "0",
+			Policies:    []string{"read-customers", "write-credit-cards"},
 		}
 
 		// Can create principal
-		dbPrincipal, err := db.(PrincipalManager).CreatePrincipal(ctx, principal)
-		if err != nil || dbPrincipal.AccessKey != principal.AccessKey || dbPrincipal.AccessSecret != principal.AccessSecret || dbPrincipal.Description != principal.Description {
-			t.Fatal(err)
-		}
-
-		// Can get principal
-		dbPrincipalRead, err := db.(PrincipalManager).GetPrincipal(ctx, principal.AccessKey)
+		err = db.(PrincipalManager).CreatePrincipal(ctx, principal)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if dbPrincipalRead.AccessKey != principal.AccessKey || dbPrincipalRead.Description != principal.Description {
+		// Can get principal
+		dbPrincipalRead, err := db.(PrincipalManager).GetPrincipal(ctx, principal.Username)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if dbPrincipalRead.Username != principal.Username || dbPrincipalRead.Description != principal.Description {
 			t.Fatal("Principal props not matching.")
 		}
 

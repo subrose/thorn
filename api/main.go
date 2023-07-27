@@ -76,7 +76,7 @@ func SetupApi(core *Core) *fiber.App {
 
 	principalGroup := app.Group("/principals")
 	principalGroup.Use(JwtGuard(core))
-	principalGroup.Get(":principalId", core.GetPrincipalById)
+	principalGroup.Get(":username", core.GetPrincipal)
 	principalGroup.Post("", core.CreatePrincipal)
 
 	collectionsGroup := app.Group("/collections")
