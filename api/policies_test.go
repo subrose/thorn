@@ -59,8 +59,12 @@ func TestPolicies(t *testing.T) {
 		}
 		jwt, _ := core.generateJWT(principal)
 
+<<<<<<< HEAD
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-%d", testPolicyId, 0), nil)
+=======
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-0", testPolicyId), nil)
+>>>>>>> 22a682f (fixes)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+jwt)
 		res, err := app.Test(req, -1)
 		if err != nil {
