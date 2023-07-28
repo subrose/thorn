@@ -154,7 +154,7 @@ func (l Logger) WriteAuditLog(
 		Str("user-agent", userAgent).
 		Str("request-id", requestId).
 		Int("status", status).
-		Str("principal-access-key", principalAccessKey).
+		Str("principal-username", principalAccessKey).
 		Str("principal-description", principalDescription).
 		Strs("principal-policies", principalPolicies).
 		Strs("requested-records", requestedRecords).

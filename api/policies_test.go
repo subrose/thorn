@@ -17,9 +17,9 @@ import (
 func TestPolicies(t *testing.T) {
 	app, _, core := InitTestingVault(t)
 	adminJwt, _ := core.generateJWT(_vault.Principal{
-		AccessKey:    "test",
-		AccessSecret: "test",
-		Policies:     []string{"admin-read", "admin-write"},
+		Username: "test",
+		Password: "test",
+		Policies: []string{"admin-read", "admin-write"},
 	})
 	testPolicyId := "test-policy"
 

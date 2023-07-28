@@ -31,10 +31,9 @@ def check_expected_status(
 
 
 class Actor:
-    def __init__(self, vault_url: str, name: str, access_key: str, secret_key: str):
-        self.name = name
-        self.access_key = access_key
-        self.secret_key = secret_key
+    def __init__(self, vault_url: str, username: str, password: str):
+        self.username = username
+        self.password = password
         self.vault_url = vault_url
         self.token = None
 
@@ -43,7 +42,7 @@ class Actor:
     ) -> dict[str, str]:
         response = requests.post(
             f"{self.vault_url}/auth/token",
-            auth=(self.access_key, self.secret_key),
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
         self.token = response.json()["access_token"]
@@ -52,14 +51,20 @@ class Actor:
     @auth_guard
     def create_principal(
         self,
-        name: str,
+        username: str,
+        password: str,
         description: str,
         policies: List[str],
         expected_statuses: Optional[list[int]] = None,
     ) -> dict[str, str]:
         response = requests.post(
             f"{self.vault_url}/principals",
-            json={"name": name, "description": description, "policies": policies},
+            json={
+                "username": username,
+                "password": password,
+                "description": description,
+                "policies": policies,
+            },
             headers={"Authorization": f"Bearer {self.token}"},
         )
         check_expected_status(response, expected_statuses)

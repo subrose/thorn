@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -9,38 +8,10 @@ import (
 )
 
 type PrincipalModel struct {
-	Name        string   `json:"name" validate:"required,vaultResourceNames,min=3,max=20,excludesall= "`
+	Username    string   `json:"username" validate:"required,min=1,max=32"`
+	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
 	Description string   `json:"description"`
 	Policies    []string `json:"policies"`
-}
-
-type NewPrincipal struct {
-	Name         string   `json:"name"`
-	AccessKey    string   `json:"access_key"`
-	AccessSecret string   `json:"access_secret"`
-	Description  string   `json:"description"`
-	Policies     []string `json:"policies"`
-}
-
-func (core *Core) GetPrincipalById(c *fiber.Ctx) error {
-	principalId := c.Params("principalId")
-	sessionPrincipal := GetSessionPrincipal(c)
-	principal, err := core.vault.GetPrincipal(c.Context(), sessionPrincipal, principalId)
-	if err != nil {
-		switch err.(type) {
-		case *_vault.ForbiddenError:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		case *_vault.NotFoundError:
-			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Principal not found", nil})
-		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
-		}
-	}
-	return c.Status(http.StatusOK).JSON(PrincipalModel{
-		Name:        principal.Name,
-		Description: principal.Description,
-		Policies:    principal.Policies,
-	})
 }
 
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
@@ -52,14 +23,12 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	errors := Validate(inputPrincipal)
 	if errors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(errors)
-
 	}
 
 	sessionPrincipal := GetSessionPrincipal(c)
-	newPrincipal, err := core.vault.CreatePrincipal(c.Context(), sessionPrincipal,
-		inputPrincipal.Name,
-		fmt.Sprintf("%s-%s", inputPrincipal.Name, _vault.GenerateId()),
-		_vault.GenerateId(), // TODO: Is this random enough?!
+	err := core.vault.CreatePrincipal(c.Context(), sessionPrincipal,
+		inputPrincipal.Username,
+		inputPrincipal.Password,
 		inputPrincipal.Description,
 		inputPrincipal.Policies,
 	)
@@ -73,11 +42,27 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
 	}
-	return c.Status(http.StatusCreated).JSON(NewPrincipal{
-		Name:         newPrincipal.Name,
-		AccessKey:    newPrincipal.AccessKey,
-		AccessSecret: newPrincipal.AccessSecret,
-		Description:  newPrincipal.Description,
-		Policies:     newPrincipal.Policies,
+	return c.Status(http.StatusCreated).JSON(nil) // Return no content on purpose.
+}
+
+func (core *Core) GetPrincipal(c *fiber.Ctx) error {
+	username := c.Params("username")
+	sessionPrincipal := GetSessionPrincipal(c)
+	principal, err := core.vault.GetPrincipal(c.Context(), sessionPrincipal, username)
+	if err != nil {
+		switch err.(type) {
+		case *_vault.ForbiddenError:
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		case *_vault.NotFoundError:
+			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Principal not found", nil})
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+		}
+	}
+	// Note that we don't return the password hash.
+	return c.Status(http.StatusOK).JSON(PrincipalModel{
+		Username:    principal.Username,
+		Description: principal.Description,
+		Policies:    principal.Policies,
 	})
 }

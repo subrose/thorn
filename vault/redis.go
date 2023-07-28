@@ -214,16 +214,16 @@ func (rs RedisStore) GetRecordsFilter(ctx context.Context, collectionName string
 	return data, nil
 }
 
-func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) (Principal, error) {
-	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, principal.AccessKey)
+func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) error {
+	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, principal.Username)
 
 	exists, err := rs.Client.Exists(ctx, principalId).Result()
 	if err != nil {
-		return Principal{}, fmt.Errorf("failed to check principal existence: %w", err)
+		return fmt.Errorf("failed to check principal existence: %w", err)
 	}
 
 	if exists == 1 {
-		return Principal{}, &ConflictError{principalId}
+		return &ConflictError{principalId}
 	}
 
 	pipe := rs.Client.Pipeline()
@@ -231,9 +231,8 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) (
 	pipe.HSet(
 		context.Background(),
 		principalId,
-		"name", principal.Name,
-		"access_key", principal.AccessKey,
-		"access_secret", principal.AccessSecret,
+		"username", principal.Username,
+		"password", principal.Password,
 		"created_at", principal.CreatedAt,
 		"description", principal.Description,
 	)
@@ -241,18 +240,18 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) (
 	for _, policy := range principal.Policies {
 		// TODO: Is this a bad idea? The sets can get out of sync
 		pipe.SAdd(ctx, fmt.Sprintf("%s:policies", principalId), policy)
-		pipe.SAdd(ctx, fmt.Sprintf("%smembers:%s", POLICY_PREFIX, policy), principal.AccessKey)
+		pipe.SAdd(ctx, fmt.Sprintf("%smembers:%s", POLICY_PREFIX, policy), principal.Username)
 	}
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
-		return Principal{}, fmt.Errorf("failed to execute Redis pipeline: %w", err)
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
-	return principal, nil
+	return nil
 }
 
-func (rs RedisStore) GetPrincipal(ctx context.Context, accessKey string) (Principal, error) {
-	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, accessKey)
+func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Principal, error) {
+	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, username)
 	var dbPrincipal Principal
 
 	pipe := rs.Client.Pipeline()
@@ -271,7 +270,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, accessKey string) (Princi
 		return Principal{}, err
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
-	if dbPrincipal.AccessKey == "" || dbPrincipal.AccessSecret == "" {
+	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
 		return Principal{}, &NotFoundError{principalId}
 	}
 

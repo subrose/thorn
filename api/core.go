@@ -146,11 +146,11 @@ func (core *Core) Init() error {
 		Resource: "*",
 	})
 	adminPrincipal := _vault.Principal{
-		AccessKey:    core.conf.VAULT_ADMIN_ACCESS_KEY,
-		AccessSecret: core.conf.VAULT_ADMIN_ACCESS_SECRET,
-		Description:  "admin",
-		Policies:     []string{"admin-write", "admin-read"}} // TODO: Think about this, Admins shouldn't have read?
-	_, err := core.vault.CreatePrincipal(ctx, adminPrincipal, "admin", adminPrincipal.AccessKey, adminPrincipal.AccessSecret, adminPrincipal.Description, adminPrincipal.Policies)
+		Username:    core.conf.VAULT_ADMIN_ACCESS_KEY,
+		Password:    core.conf.VAULT_ADMIN_ACCESS_SECRET,
+		Description: "admin",
+		Policies:    []string{"admin-write", "admin-read"}} // TODO: Think about this, Admins shouldn't have read?
+	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
 
 	return err
 }

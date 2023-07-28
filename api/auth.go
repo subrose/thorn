@@ -38,7 +38,7 @@ func (core *Core) generateJWT(p _vault.Principal) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()), // TODO: Make this configurable
 			Issuer:    "subrose-vault",                // TODO: Vault namespace goes here or app name
-			Subject:   p.AccessKey,
+			Subject:   p.Username,
 			ID:        _vault.GenerateId(),
 		},
 	}
@@ -61,7 +61,7 @@ func (core *Core) validateJWT(tokenString string) (_vault.Principal, error) {
 	}
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
-		return _vault.Principal{AccessKey: claims.Subject, Policies: claims.Policies}, nil
+		return _vault.Principal{Username: claims.Subject, Policies: claims.Policies}, nil
 	}
 	return _vault.Principal{}, nil
 }
