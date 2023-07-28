@@ -292,18 +292,35 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, er
 
 func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
 	policies := []Policy{}
-	// TODO: Pipe and probably replace the single GetPolicy function
-	for _, polId := range policyIds {
-		pol, err := rs.GetPolicy(ctx, polId)
-		if err != nil {
-			switch err.(type) {
-			case *NotFoundError:
-				// Tried to get a policy that doesn't exist, continue
-			default:
+	pipeline := rs.Client.Pipeline()
+
+	// Prepare the commands
+	cmds := make([]*redis.MapStringStringCmd, len(policyIds))
+	for i, polId := range policyIds {
+		polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, polId)
+		cmds[i] = pipeline.HGetAll(ctx, polRedisId)
+	}
+
+	// Execute the pipeline
+	_, err := pipeline.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	// Process the results
+	for _, cmd := range cmds {
+		if err := cmd.Err(); err != nil {
+			if err != redis.Nil {
 				return nil, err
 			}
+			// Skip if not found
+			continue
 		}
-		policies = append(policies, pol)
+		var policy Policy
+		if err := cmd.Scan(&policy); err != nil {
+			return nil, err
+		}
+		policies = append(policies, policy)
 	}
 	return policies, nil
 }
