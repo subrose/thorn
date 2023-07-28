@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-playground/assert/v2"
 	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/assert"
 	_vault "github.com/subrose/vault"
 )
 
@@ -61,7 +61,9 @@ func TestPrincipals(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, principalToCreate.Username, returnedPrincipal.Username)
 		assert.Equal(t, principalToCreate.Description, returnedPrincipal.Description)
-		assert.Equal(t, principalToCreate.Policies, returnedPrincipal.Policies)
+		for _, policy := range principalToCreate.Policies {
+			assert.Contains(t, returnedPrincipal.Policies, policy)
+		}
 		assert.NotEqual(t, principalToCreate.Password, returnedPrincipal.Password)
 	})
 

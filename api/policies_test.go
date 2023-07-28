@@ -29,9 +29,10 @@ func TestPolicies(t *testing.T) {
 				`{
 					"policy_id": "%s",
 					"effect": "allow",
-					"action": ["read"],
-					"resource": ["/records/"]
+					"actions": ["read"],
+					"resources": ["/policies/%s"]
 				}`,
+				testPolicyId,
 				testPolicyId,
 			),
 		)
@@ -39,9 +40,9 @@ func TestPolicies(t *testing.T) {
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, _ := app.Test(req, -1)
-		var createdPolicy []_vault.Policy
+		createdPolicies := []_vault.Policy{}
 		body, _ := io.ReadAll(res.Body)
-		err := json.Unmarshal(body, &createdPolicy)
+		err := json.Unmarshal(body, &createdPolicies)
 
 		if err != nil {
 			t.Error("Error creating policy", err)
@@ -53,18 +54,13 @@ func TestPolicies(t *testing.T) {
 
 	t.Run("can get policy", func(t *testing.T) {
 		principal := _vault.Principal{
-			AccessKey:    "test",
-			AccessSecret: "test",
-			Policies:     []string{"admin-read"},
+			Username: "test",
+			Password: "test",
+			Policies: []string{"admin-read", "admin-write"},
 		}
 		jwt, _ := core.generateJWT(principal)
 
-<<<<<<< HEAD
-
-		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-%d", testPolicyId, 0), nil)
-=======
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s-0", testPolicyId), nil)
->>>>>>> 22a682f (fixes)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+jwt)
 		res, err := app.Test(req, -1)
 		if err != nil {
@@ -81,5 +77,6 @@ func TestPolicies(t *testing.T) {
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, _vault.EffectAllow, returnedPolicy.Effect)
 		assert.Equal(t, _vault.PolicyActionRead, returnedPolicy.Action)
+		assert.Equal(t, fmt.Sprintf("/policies/%s", testPolicyId), returnedPolicy.Resource)
 	})
 }

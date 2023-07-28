@@ -83,6 +83,5 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 			}
 		}
 	}
-
 	return c.Status(http.StatusCreated).JSON(policies)
 }
