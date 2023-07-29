@@ -40,9 +40,9 @@ func TestPolicies(t *testing.T) {
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
 		res, _ := app.Test(req, -1)
-		createdPolicies := []_vault.Policy{}
+		createdPolicy := _vault.Policy{}
 		body, _ := io.ReadAll(res.Body)
-		err := json.Unmarshal(body, &createdPolicies)
+		err := json.Unmarshal(body, &createdPolicy)
 
 		if err != nil {
 			t.Error("Error creating policy", err)
@@ -56,7 +56,7 @@ func TestPolicies(t *testing.T) {
 		principal := _vault.Principal{
 			Username: "test",
 			Password: "test",
-			Policies: []string{"root"},
+			Policies: []string{testPolicyId},
 		}
 		jwt, _ := core.generateJWT(principal)
 
