@@ -277,14 +277,31 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	return dbPrincipal, nil
 }
 
+type RawPolicy struct {
+	PolicyId  string       `redis:"policy_id"`
+	Effect    PolicyEffect `redis:"effect"`
+	Actions   string       `redis:"actions"`
+	Resources string       `redis:"resources"`
+}
+
 func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
-	var policy Policy
-	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&policy); err != nil {
+	var rawPolicy RawPolicy
+	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
 		if err == redis.Nil {
 			return Policy{}, &NotFoundError{polRedisId}
 		}
 		return Policy{}, err
+	}
+	var actions []PolicyAction
+	for _, action := range strings.Split(rawPolicy.Actions, ",") {
+		actions = append(actions, PolicyAction(action))
+	}
+	policy := Policy{
+		PolicyId:  rawPolicy.PolicyId,
+		Effect:    rawPolicy.Effect,
+		Actions:   actions,
+		Resources: strings.Split(rawPolicy.Resources, ","),
 	}
 
 	return policy, nil
@@ -310,13 +327,18 @@ func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Pol
 
 func (rs RedisStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, p.PolicyId)
+	var actions []string
+	for _, action := range p.Actions {
+		actions = append(actions, string(action))
+	}
+
 	_, err := rs.Client.HSet(
 		ctx,
 		polRedisId,
 		"policy_id", p.PolicyId,
 		"effect", string(p.Effect),
-		"actions", p.Actions,
-		"resources", p.Resources,
+		"actions", strings.Join(actions, ","),
+		"resources", strings.Join(p.Resources, ","),
 	).Result()
 
 	if err != nil {
