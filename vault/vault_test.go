@@ -28,22 +28,16 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	var pm PolicyManager = db
 	_, _ = pm.CreatePolicy(ctx, Policy{
-		"admin-read",
+		"root",
 		EffectAllow,
-		PolicyActionRead,
-		"*",
-	})
-	_, _ = pm.CreatePolicy(ctx, Policy{
-		"admin-write",
-		EffectAllow,
-		PolicyActionWrite,
-		"*",
+		[]PolicyAction{PolicyActionRead, PolicyActionWrite},
+		[]string{"*"},
 	})
 	_, _ = pm.CreatePolicy(ctx, Policy{
 		"read-all-customers",
 		EffectAllow,
-		PolicyActionRead,
-		"/collections/customers*",
+		[]PolicyAction{PolicyActionRead},
+		[]string{"/collections/customers*"},
 	})
 	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
 	return vault, db, priv
@@ -54,7 +48,7 @@ func TestVault(t *testing.T) {
 	testPrincipal := Principal{
 		Username:    "test_user",
 		Password:    "test_password",
-		Policies:    []string{"admin-write", "admin-read"},
+		Policies:    []string{"root"},
 		Description: "test principal",
 	}
 	t.Run("can store and get collections and records", func(t *testing.T) {

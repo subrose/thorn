@@ -9,10 +9,10 @@ var (
 	ErrIndexError = errors.New("index")
 )
 
-type ForbiddenError struct{ action Action }
+type ForbiddenError struct{ request Request }
 
 func (e *ForbiddenError) Error() string {
-	return fmt.Sprintf("forbidden: principal %s doing %s on %s", e.action.Principal.Username, e.action.Action, e.action.Resource)
+	return fmt.Sprintf("forbidden: principal %s doing %s on %s", e.request.Principal.Username, e.request.Action, e.request.Resource)
 }
 
 type NotFoundError struct{ resourceName string }

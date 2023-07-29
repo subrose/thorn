@@ -21,7 +21,7 @@ func TestPrincipals(t *testing.T) {
 		Username:    "admin",
 		Password:    "admin",
 		Description: "admin principal",
-		Policies:    []string{"admin-read", "admin-write"},
+		Policies:    []string{"root"},
 	})
 
 	principalToCreate := PrincipalModel{

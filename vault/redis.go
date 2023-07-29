@@ -315,8 +315,8 @@ func (rs RedisStore) CreatePolicy(ctx context.Context, p Policy) (string, error)
 		polRedisId,
 		"policy_id", p.PolicyId,
 		"effect", string(p.Effect),
-		"action", string(p.Action),
-		"resource", p.Resource,
+		"actions", p.Actions,
+		"resources", p.Resources,
 	).Result()
 
 	if err != nil {

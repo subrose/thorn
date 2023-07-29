@@ -42,19 +42,13 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	bootstrapContext := context.Background()
 	_ = vault.Db.Flush(bootstrapContext)
 	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
-		PolicyId: "admin-read",
-		Effect:   _vault.EffectAllow,
-		Action:   _vault.PolicyActionRead,
-		Resource: "*",
+		PolicyId:  "root",
+		Effect:    _vault.EffectAllow,
+		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
+		Resources: []string{"*"},
 	})
-	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
-		PolicyId: "admin-write",
-		Effect:   _vault.EffectAllow,
-		Action:   _vault.PolicyActionWrite,
-		Resource: "*",
-	})
-	adminPrincipal := _vault.Principal{Username: coreConfig.VAULT_ADMIN_ACCESS_KEY, Password: coreConfig.VAULT_ADMIN_ACCESS_SECRET, Policies: []string{"admin-write", "admin-read"}}
-	principalErr := vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_ACCESS_KEY, coreConfig.VAULT_ADMIN_ACCESS_SECRET, "admin principal", []string{"admin-write", "admin-read"})
+	adminPrincipal := _vault.Principal{Username: coreConfig.VAULT_ADMIN_ACCESS_KEY, Password: coreConfig.VAULT_ADMIN_ACCESS_SECRET, Policies: []string{"root"}}
+	principalErr := vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_ACCESS_KEY, coreConfig.VAULT_ADMIN_ACCESS_SECRET, "admin principal", []string{"root"})
 	if principalErr != nil {
 		t.Fatal("Failed to create admin principal", principalErr)
 	}
