@@ -284,15 +284,7 @@ type RawPolicy struct {
 	Resources string       `redis:"resources"`
 }
 
-func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
-	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
-	var rawPolicy RawPolicy
-	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
-		if err == redis.Nil {
-			return Policy{}, &NotFoundError{polRedisId}
-		}
-		return Policy{}, err
-	}
+func (rawPolicy RawPolicy) toPolicy() Policy {
 	var actions []PolicyAction
 	for _, action := range strings.Split(rawPolicy.Actions, ",") {
 		actions = append(actions, PolicyAction(action))
@@ -304,7 +296,20 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, er
 		Resources: strings.Split(rawPolicy.Resources, ","),
 	}
 
-	return policy, nil
+	return policy
+}
+
+func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
+	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
+	var rawPolicy RawPolicy
+	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
+		if err == redis.Nil {
+			return Policy{}, &NotFoundError{polRedisId}
+		}
+		return Policy{}, err
+	}
+
+	return rawPolicy.toPolicy(), nil
 }
 
 func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
@@ -333,11 +338,11 @@ func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Pol
 			// Skip if not found
 			continue
 		}
-		var policy Policy
-		if err := cmd.Scan(&policy); err != nil {
+		var rawPolicy RawPolicy
+		if err := cmd.Scan(&rawPolicy); err != nil {
 			return nil, err
 		}
-		policies = append(policies, policy)
+		policies = append(policies, rawPolicy.toPolicy())
 	}
 	return policies, nil
 }
