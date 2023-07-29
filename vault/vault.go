@@ -190,16 +190,16 @@ func (vault Vault) GetRecords(
 	if len(recordIDs) == 0 {
 		return nil, newValueError(fmt.Errorf("record ids must be provided"))
 	}
-	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
-	for _, recordID := range recordIDs {
-		_action := Action{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format)}
-		allowed, err := vault.ValidateAction(ctx, _action)
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, &ForbiddenError{_action}
-		}
+	actions := Actions{principal, make([]Action, len(recordIDs))}
+	for i, recordID := range recordIDs {
+		actions.Actions[i] = Action{PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format)}
+	}
+	allowed, err := vault.ValidateActions(ctx, actions)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, &ForbiddenError{actions.Actions[0]} // TODO: throw on the right action
 	}
 	col, err := vault.Db.GetCollection(ctx, collectionName)
 	if err != nil {
@@ -358,11 +358,11 @@ func (vault Vault) GetPolicy(
 	return vault.PolicyManager.GetPolicy(ctx, policyId)
 }
 
-func (vault Vault) ValidateAction(
+func (vault Vault) ValidateActions(
 	ctx context.Context,
-	a Action,
+	actions Actions,
 ) (bool, error) {
-	allowed, err := EvaluateAction(ctx, a, vault.PolicyManager)
+	allowed, err := EvaluateActions(ctx, actions, vault.PolicyManager)
 	if err != nil {
 		return false, err
 	}

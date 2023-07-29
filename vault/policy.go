@@ -28,9 +28,13 @@ type Policy struct {
 }
 
 type Action struct {
+	Action   PolicyAction
+	Resource string
+}
+
+type Actions struct {
 	Principal Principal
-	Action    PolicyAction
-	Resource  string
+	Actions   []Action
 }
 
 type PolicyManager interface {
@@ -113,22 +117,30 @@ func Match(pattern, str string) bool {
 	return matchRune([]rune(pattern), []rune(str))
 }
 
-func EvaluateAction(ctx context.Context, a Action, pm PolicyManager) (bool, error) {
-	principalPolicies, err := pm.GetPolicies(ctx, a.Principal.Policies)
+func EvaluateActions(ctx context.Context, actions Actions, pm PolicyManager) (bool, error) {
+	// Get policies for the given principal
+	principalPolicies, err := pm.GetPolicies(ctx, actions.Principal.Policies)
 	if err != nil {
 		return false, err
 	}
-	for _, p := range principalPolicies {
-		matched := Match(p.Resource, a.Resource)
-		matched = (matched && p.Action == a.Action)
-		if !matched {
-			continue
+
+	// Match each action against each of the principal's policies
+	for _, a := range actions.Actions {
+		result := false
+		for _, p := range principalPolicies {
+			matched := Match(p.Resource, a.Resource)
+			matched = matched && (p.Action == a.Action)
+			if !matched {
+				continue
+			}
+			if p.Effect == EffectAllow {
+				result = true
+				break
+			}
 		}
-		if p.Effect == EffectAllow {
-			return true, nil
-		} else {
+		if !result {
 			return false, nil
 		}
 	}
-	return false, nil
+	return true, nil
 }
