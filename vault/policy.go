@@ -67,13 +67,6 @@ func Match(pattern, str string) bool {
 	return matchRune([]rune(pattern), []rune(str))
 }
 
-// func matchResource(resources []string, resource string) bool {
-// 	matched := false
-// 	for _, r := resources {
-
-// 	}
-// }
-
 func containsAction(p Policy, action PolicyAction) bool {
 	for _, a := range p.Actions {
 		if a == action {
