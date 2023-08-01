@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -15,6 +16,7 @@ const FIELDS_PREFIX = "field:"
 const PRINCIPAL_PREFIX = "principal:"
 const POLICY_PREFIX = "policy:"
 const INDEX_PREFIX = "idx:"
+const TOKEN_PREFIX = "token:"
 
 var (
 	Prefix = map[string]string{
@@ -248,6 +250,46 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) e
 		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 	return nil
+}
+
+func (rs RedisStore) CreateToken(ctx context.Context, tokenHash string, t Token) error {
+	tokenId := fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenHash)
+	_, err := rs.Client.HSet(
+		ctx,
+		tokenId,
+		"principal_username", t.PrincipalUsername,
+		"created_at", t.IssuedAt,
+		"not_before", t.NotBefore,
+		"expires_at", t.ExpiresAt,
+		"policies", strings.Join(t.Policies, ","),
+	).Result()
+
+	if err != nil {
+		return fmt.Errorf("failed to create token: %w", err)
+	}
+
+	return nil
+}
+
+func (rs RedisStore) GetToken(ctx context.Context, tokenHash string) (Token, error) {
+	tokenId := fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenHash)
+	var token Token
+	// Get token and split csv policies, we can't use Scan because of the custom policies type
+	tokenMap, err := rs.Client.HGetAll(ctx, tokenId).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return Token{}, &NotFoundError{tokenId}
+		}
+		return Token{}, err
+	}
+	token.PrincipalUsername = tokenMap["principal_username"]
+	token.Policies = strings.Split(tokenMap["policies"], ",")
+	// Errors below ignored assuming data is always valid in Redis
+	token.IssuedAt, _ = strconv.ParseInt(tokenMap["created_at"], 10, 64)
+	token.ExpiresAt, _ = strconv.ParseInt(tokenMap["expires_at"], 10, 64)
+	token.NotBefore, _ = strconv.ParseInt(tokenMap["not_before"], 10, 64)
+
+	return token, nil
 }
 
 func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Principal, error) {

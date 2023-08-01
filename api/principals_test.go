@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,17 +13,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/assert"
-	_vault "github.com/subrose/vault"
 )
 
 func TestPrincipals(t *testing.T) {
-	app, _, core := InitTestingVault(t)
-	adminJwt, _ := core.generateJWT(_vault.Principal{
-		Username:    "admin",
-		Password:    "admin",
-		Description: "admin principal",
-		Policies:    []string{"root"},
-	})
+	app, vault, core := InitTestingVault(t)
+	ctx := context.Background()
+	adminToken, _, err := vault.Login(ctx, core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD)
+	if err != nil {
+		t.Fatalf("Failed to login as admin: %v", err)
+	}
 
 	principalToCreate := PrincipalModel{
 		Username:    "username",
@@ -40,13 +39,13 @@ func TestPrincipals(t *testing.T) {
 		principalJson := bytes.NewReader(jsonData)
 		req := httptest.NewRequest(http.MethodPost, "/principals", principalJson)
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminToken)
 		res, _ := app.Test(req, -1)
 		assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// Can get principal
 		req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/principals/%s", principalToCreate.Username), nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminToken)
 		res, err = app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting prinipal", err)

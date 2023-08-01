@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,59 +16,55 @@ import (
 )
 
 func TestAuth(t *testing.T) {
-	app, _, core := InitTestingVault(t)
+	app, vault, _ := InitTestingVault(t)
 
-	t.Run("can generate a valid JWT for a principal", func(t *testing.T) {
-		inputP := _vault.Principal{
-			Username: "test",
-			Password: "test",
-			Policies: []string{"root"},
-		}
-		jwt, err := core.generateJWT(inputP)
-		if err != nil {
-			t.Error("Error generating JWT", err)
-		}
+	ctx := context.Background()
+	adminPrincipal := _vault.Principal{
+		Username:    "admin",
+		Password:    "admin",
+		Description: "admin principal",
+		Policies:    []string{"root"},
+	}
 
-		// Parse and verify jwt
-		outputP, err := core.validateJWT(jwt)
-		if err != nil {
-			t.Error("Error validating JWT", err)
-		}
+	normalPrincipal := _vault.Principal{
+		Username:    "normal-username",
+		Password:    "normal-password",
+		Description: "normal test principal",
+		Policies:    []string{"test-policy"},
+	}
 
-		// Assertions
-		assert.Equal(t, inputP.Username, outputP.Username)
-		assert.Equal(t, inputP.Policies, outputP.Policies)
-
-	})
+	err := vault.CreatePrincipal(ctx, adminPrincipal, normalPrincipal.Username, normalPrincipal.Password, normalPrincipal.Description, normalPrincipal.Policies)
+	if err != nil {
+		t.Fatalf("Failed to create normal principal: %v", err)
+	}
 
 	t.Run("valid principal can get a token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
-		creds := fmt.Sprintf("%s:%s", core.conf.VAULT_ADMIN_ACCESS_KEY, core.conf.VAULT_ADMIN_ACCESS_SECRET)
+		creds := fmt.Sprintf("%s:%s", normalPrincipal.Username, normalPrincipal.Password)
 		req.Header.Set(fiber.HeaderAuthorization, "Basic "+base64.StdEncoding.EncodeToString([]byte(creds)))
 		res, err := app.Test(req, -1)
 
 		if err != nil {
-			t.Error("Error getting a token", err)
+			t.Fatalf("Error getting a token: %v", err)
 		}
 
-		// Assertions
 		assert.Equal(t, http.StatusOK, res.StatusCode)
-		var token Token
-		body, _ := io.ReadAll(res.Body)
+
+		var token ClientToken
+		body, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Fatalf("Error reading response body: %v", err)
+		}
+
 		err = json.Unmarshal(body, &token)
 		if err != nil {
-			t.Error("Error parsing returned token", err)
+			t.Fatalf("Error parsing returned token: %v", err)
 		}
 
-		// Parse and verify jwt
-		assert.Equal(t, "Bearer", token.Type)
-		outputP, err := core.validateJWT(token.AccessToken)
-		if err != nil {
-			t.Error("Error validating JWT", err)
-		}
-
-		// Assertions
-		assert.Equal(t, core.conf.VAULT_ADMIN_ACCESS_KEY, outputP.Username)
+		assert.Equal(t, normalPrincipal.Username, token.Principal)
+		assert.Equal(t, 1, len(token.Policies))
+		assert.Equal(t, normalPrincipal.Policies[0], token.Policies[0])
+		assert.NotEqual(t, "", token.AccessToken)
 	})
 
 	t.Run("invalid principal can't get a token", func(t *testing.T) {
@@ -77,11 +74,32 @@ func TestAuth(t *testing.T) {
 		res, err := app.Test(req, -1)
 
 		if err != nil {
-			t.Error("Error getting a token", err)
+			t.Fatalf("Error getting a token: %v", err)
 		}
 
-		// Assertions
 		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
+	t.Run("request without authorization header fails", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
+		res, err := app.Test(req, -1)
+
+		if err != nil {
+			t.Fatalf("Error getting a token: %v", err)
+		}
+
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("request with invalid authorization header format fails", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
+		req.Header.Set(fiber.HeaderAuthorization, "Basic "+base64.StdEncoding.EncodeToString([]byte("invalid-format")))
+		res, err := app.Test(req, -1)
+
+		if err != nil {
+			t.Fatalf("Error getting a token: %v", err)
+		}
+
+		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
 }

@@ -12,6 +12,7 @@ import (
 
 // Common testing utils?
 var testConfigPath = flag.String("testConfigFile", "../conf/test.conf.toml", "Path to config file")
+var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
 
 func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	// Setup
@@ -47,10 +48,10 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
 		Resources: []string{"*"},
 	})
-	adminPrincipal := _vault.Principal{Username: coreConfig.VAULT_ADMIN_ACCESS_KEY, Password: coreConfig.VAULT_ADMIN_ACCESS_SECRET, Policies: []string{"root"}}
-	principalErr := vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_ACCESS_KEY, coreConfig.VAULT_ADMIN_ACCESS_SECRET, "admin principal", []string{"root"})
-	if principalErr != nil {
-		t.Fatal("Failed to create admin principal", principalErr)
+
+	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_USERNAME, coreConfig.VAULT_ADMIN_PASSWORD, "admin principal", []string{"root"})
+	if err != nil {
+		t.Fatal("Failed to create admin principal", err)
 	}
 	return app, vault, core
 }

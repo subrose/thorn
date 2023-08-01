@@ -3,6 +3,15 @@
 from typing import Any, Optional, List
 import requests
 
+from pydantic import BaseModel
+
+
+class Policy(BaseModel):
+    policy_id: str
+    effect: str
+    actions: List[str]
+    resources: List[str]
+
 
 def auth_guard(fn):
     def auth_check(self, *args, **kwargs):
@@ -46,6 +55,7 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         self.token = response.json()["access_token"]
+
         return response.json()
 
     @auth_guard
@@ -113,12 +123,12 @@ class Actor:
 
     @auth_guard
     def create_policy(
-        self, policy: dict[str, str], expected_statuses: Optional[list[int]] = None
+        self, policy: Policy, expected_statuses: Optional[list[int]] = None
     ) -> None:
         response = requests.post(
             f"{self.vault_url}/policies",
             headers={"Authorization": f"Bearer {self.token}"},
-            json=policy,
+            json=policy.model_dump(),
         )
         check_expected_status(response, expected_statuses)
 

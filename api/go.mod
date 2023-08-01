@@ -6,7 +6,6 @@ require (
 	github.com/go-playground/assert/v2 v2.2.0
 	github.com/go-playground/validator/v10 v10.11.1
 	github.com/gofiber/fiber/v2 v2.42.0
-	github.com/golang-jwt/jwt/v5 v5.0.0-rc.1
 	github.com/knadh/koanf v1.5.0
 	github.com/stretchr/testify v1.8.1
 	github.com/subrose/logger v0.0.0

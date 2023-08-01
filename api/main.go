@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	_vault "github.com/subrose/vault"
 )
 
 func ApiLogger(core *Core) fiber.Handler {
@@ -29,9 +30,9 @@ func ApiLogger(core *Core) fiber.Handler {
 	}
 }
 
-func JwtGuard(core *Core) fiber.Handler {
+func tokenGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		// Extract JWT from header
+		// Extract token from header
 		authHeader := ctx.Get("Authorization")
 		if authHeader == "" {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -45,12 +46,18 @@ func JwtGuard(core *Core) fiber.Handler {
 			})
 		}
 		tokenString := bearerToken[1]
-		// Validate JWT
-		principal, err := core.validateJWT(tokenString)
+		// Validate Token
+		token, err := core.vault.ValidateAndGetToken(ctx.Context(), tokenString)
 		if err != nil {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid JWT",
 			})
+		}
+
+		// Build a fake principal from the token TODO: This is a hack?
+		principal := _vault.Principal{
+			Username: token.PrincipalUsername,
+			Policies: token.Policies,
 		}
 		// Set principal in context
 		ctx.Locals("principal", principal)
@@ -75,12 +82,12 @@ func SetupApi(core *Core) *fiber.App {
 	authGroup.Post("/token", core.GenerateBearerTokenFromCreds)
 
 	principalGroup := app.Group("/principals")
-	principalGroup.Use(JwtGuard(core))
+	principalGroup.Use(tokenGuard(core))
 	principalGroup.Get(":username", core.GetPrincipal)
 	principalGroup.Post("", core.CreatePrincipal)
 
 	collectionsGroup := app.Group("/collections")
-	collectionsGroup.Use(JwtGuard(core))
+	collectionsGroup.Use(tokenGuard(core))
 	collectionsGroup.Get("", core.GetCollections)
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Post("", core.CreateCollection)
@@ -88,7 +95,7 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("/:name/records/:id/:format", core.GetRecord)
 
 	policiesGroup := app.Group("/policies")
-	policiesGroup.Use(JwtGuard(core))
+	policiesGroup.Use(tokenGuard(core))
 	policiesGroup.Get(":policyId", core.GetPolicyById)
 	policiesGroup.Post("", core.CreatePolicy)
 

@@ -1,5 +1,10 @@
 .PHONY: run-gosec check-formatting lint-vault lint-api checks
 
+tests:
+	go test ./vault
+	go test ./api
+
+
 run-gosec:
 	gosec ./...
 
@@ -13,6 +18,8 @@ lint-api:
 	cd api && golangci-lint run --fast
 
 checks: 
+	@echo "Running checks..."
+	$(MAKE) tests
 	$(MAKE) run-gosec
 	$(MAKE) check-formatting
 	$(MAKE) lint-vault

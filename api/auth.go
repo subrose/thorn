@@ -5,65 +5,23 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/utils"
-	"github.com/golang-jwt/jwt/v5"
 	_vault "github.com/subrose/vault"
 )
 
-type Token struct {
-	AccessToken string `json:"access_token"`
-	Type        string `json:"token_type"`
-}
-
-type CustomClaims struct {
-	Policies []string `json:"policies"`
-	jwt.RegisteredClaims
+type ClientToken struct {
+	AccessToken string   `json:"access_token"`
+	Principal   string   `json:"principal_username"`
+	Policies    []string `json:"policies"`
+	IssuedAt    int64    `json:"issued_at"`
+	NotBefore   int64    `json:"not_before"`
+	ExpiresAt   int64    `json:"expires_at"`
 }
 
 func GetSessionPrincipal(c *fiber.Ctx) _vault.Principal {
 	return c.Locals("principal").(_vault.Principal)
-}
-
-func (core *Core) generateJWT(p _vault.Principal) (string, error) {
-
-	// Create the claims
-	claims := CustomClaims{
-		p.Policies,
-		jwt.RegisteredClaims{
-			// A usual scenario is to set the expiration time relative to the current time
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // TODO: Make this configurable
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()), // TODO: Make this configurable
-			Issuer:    "subrose-vault",                // TODO: Vault namespace goes here or app name
-			Subject:   p.Username,
-			ID:        _vault.GenerateId(),
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	ss, err := token.SignedString([]byte(core.conf.API_JWT_SECRET))
-	if err != nil {
-		return "", err
-	}
-	return ss, nil
-}
-
-func (core *Core) validateJWT(tokenString string) (_vault.Principal, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(core.conf.API_JWT_SECRET), nil
-	})
-
-	if err != nil {
-		return _vault.Principal{}, err
-	}
-
-	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
-		return _vault.Principal{Username: claims.Subject, Policies: claims.Policies}, nil
-	}
-	return _vault.Principal{}, nil
 }
 
 func ExtractCredentials(c *fiber.Ctx) (username string, password string, err error) {
@@ -102,16 +60,21 @@ func (core *Core) GenerateBearerTokenFromCreds(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, "Invalid credentials", nil})
 	}
-	dbPrincipal, err := core.vault.AuthenticateUser(c.Context(), u, p)
+	token, tokenMetadata, err := core.vault.Login(c.Context(), u, p)
 	if err != nil {
 		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, "Invalid credentials", nil})
 	}
-
-	token, err := core.generateJWT(dbPrincipal)
 
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 	}
 
-	return c.Status(http.StatusOK).JSON(Token{AccessToken: token, Type: "Bearer"})
+	return c.Status(http.StatusOK).JSON(ClientToken{
+		AccessToken: token,
+		Principal:   tokenMetadata.PrincipalUsername,
+		Policies:    tokenMetadata.Policies,
+		IssuedAt:    tokenMetadata.IssuedAt,
+		NotBefore:   tokenMetadata.NotBefore,
+		ExpiresAt:   tokenMetadata.ExpiresAt,
+	})
 }

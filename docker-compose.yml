@@ -8,8 +8,8 @@ services:
       - VAULT_DB_PASSWORD=
       - VAULT_API_HOST=0.0.0.0
       - VAULT_API_PORT=3001
-      - VAULT_ADMIN_ACCESS_KEY=admin
-      - VAULT_ADMIN_ACCESS_SECRET=admin
+      - VAULT_ADMIN_USERNAME=admin
+      - VAULT_ADMIN_PASSWORD=admin
       - VAULT_DEV_MODE=true
     build:
       context: .

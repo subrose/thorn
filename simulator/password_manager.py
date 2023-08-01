@@ -1,4 +1,4 @@
-from client import Actor
+from client import Actor, Policy
 
 # VAULT_URL from your client.py
 VAULT_URL = "http://localhost:3001"
@@ -42,24 +42,25 @@ admin.create_collection(
 )
 
 # Step 3: Create policies using admin role
+
 admin.create_policy(
-    policy={
-        "policy_id": "alice-access-own-passwords",
-        "effect": "allow",
-        "actions": ["read", "write"],
-        "resources": ["/collections/alice-passwords/*"],
-    },
+    policy=Policy(
+        policy_id="alice-access-own-passwords",
+        effect="allow",
+        actions=["read", "write"],
+        resources=["/collections/alice-passwords/*"],
+    ),
     expected_statuses=[201, 409],
 )
 
 
 admin.create_policy(
-    policy={
-        "policy_id": "bob-access-own-passwords",
-        "effect": "allow",
-        "actions": ["read", "write"],
-        "resources": ["/collections/bob-passwords/*"],
-    },
+    policy=Policy(
+        policy_id="bob-access-own-passwords",
+        effect="allow",
+        actions=["read", "write"],
+        resources=["/collections/bob-passwords/*"],
+    ),
     expected_statuses=[201, 409],
 )
 

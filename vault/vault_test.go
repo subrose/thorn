@@ -3,8 +3,10 @@ package vault
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/go-playground/assert/v2"
 )
@@ -287,4 +289,103 @@ func TestVault(t *testing.T) {
 		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
 		assert.Equal(t, err, ErrIndexError)
 	})
+}
+
+func TestTokenGenerationAndValidation(t *testing.T) {
+	ctx := context.Background()
+	vault, _, _ := initVault(t)
+
+	testPrincipal := Principal{
+		Username:    "test_user",
+		Password:    "test_password",
+		Policies:    []string{"root"},
+		Description: "test principal",
+	}
+
+	t.Run("can create and validate a token", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Validate the token
+		_, err = vault.ValidateAndGetToken(ctx, tokenString)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("cannot create a token with non-existing policy", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		_, _, err := vault.CreateToken(ctx, testPrincipal, append(testPrincipal.Policies, "non-existing-policy"), notBefore, expiresAt)
+		var valueErr *ValueError
+		if err == nil || !errors.As(err, &valueErr) {
+			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
+		}
+	})
+
+	t.Run("cannot validate a non-existing token", func(t *testing.T) {
+		_, err := vault.ValidateAndGetToken(ctx, "non-existing-token")
+		var tokenErr *NonExistentTokenError
+		if err == nil || !errors.As(err, &tokenErr) {
+			fmt.Println(err)
+			t.Fatalf("Expected a token error for non-existing token, got %s", err)
+		}
+	})
+
+	t.Run("cannot validate an expired token", func(t *testing.T) {
+		notBefore := time.Now().Unix() - 3600
+		expiresAt := notBefore + 1800
+		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Sleep to ensure the token is expired
+		time.Sleep(3 * time.Second)
+
+		_, err = vault.ValidateAndGetToken(ctx, tokenString)
+		var tokenErr *ExpiredTokenError
+		if err == nil || !errors.As(err, &tokenErr) {
+			t.Fatalf("Expected a token error for expired token, got %s", err)
+		}
+	})
+
+	t.Run("cannot validate a token that is not valid yet", func(t *testing.T) {
+		notBefore := time.Now().Unix() + 3600
+		expiresAt := notBefore + 3600
+		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = vault.ValidateAndGetToken(ctx, tokenString)
+		var tokenErr *NotYetValidTokenError
+		if err == nil || !errors.As(err, &tokenErr) {
+			t.Fatalf("Expected a token error for not valid yet token, got %s", err)
+		}
+	})
+
+	t.Run("cannot validate a tampered token", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Tamper with the token
+		tamperedToken := tokenString + "random-gibberish"
+
+		// Attempt to validate the tampered token
+		_, err = vault.ValidateAndGetToken(ctx, tamperedToken)
+		var tokenErr *NonExistentTokenError
+		if err == nil || !errors.As(err, &tokenErr) {
+			t.Fatalf("Expected an invalid token error for tampered token, got %s", err)
+		}
+	})
+
 }

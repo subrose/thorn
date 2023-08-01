@@ -2,6 +2,7 @@ package vault
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -30,6 +31,14 @@ type Principal struct {
 	Policies    []string `redis:"policies"`
 }
 
+type Token struct {
+	PrincipalUsername string   `redis:"principal_username"` // principal username associated with the token
+	Policies          []string `redis:"policies"`
+	IssuedAt          int64    `redis:"issued_at"`  // timestamp the token was issued at
+	NotBefore         int64    `redis:"not_before"` // timestamp the token is valid from
+	ExpiresAt         int64    `redis:"expires_at"` // timestamp the token is set to expire
+}
+
 type VaultDB interface {
 	GetCollection(ctx context.Context, name string) (Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
@@ -37,6 +46,10 @@ type VaultDB interface {
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
 	GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
+	GetPrincipal(ctx context.Context, username string) (Principal, error)
+	CreatePrincipal(ctx context.Context, principal Principal) error
+	CreateToken(ctx context.Context, tokenHash string, t Token) error
+	GetToken(ctx context.Context, tokenHash string) (Token, error)
 	Flush(ctx context.Context) error
 }
 
@@ -304,20 +317,97 @@ func (vault Vault) GetPrincipal(
 	return vault.PrincipalManager.GetPrincipal(ctx, username)
 }
 
-func (vault Vault) AuthenticateUser(
+func (vault Vault) CreateToken(
+	ctx context.Context,
+	principal Principal,
+	policies []string,
+	notBefore int64,
+	expiresAt int64,
+) (string, Token, error) {
+
+	// Ensure policies exist on principal
+	for _, policy := range policies {
+		if !StringInSlice(policy, principal.Policies) {
+			return "", Token{}, newValueError(fmt.Errorf("policy '%s' does not exist on principal '%s'", policy, principal.Username))
+		}
+	}
+	token, err := GenerateTokenString()
+	if err != nil {
+		return "", Token{}, err
+	}
+	hashedToken := HashToken(token)
+
+	dbToken := Token{
+		PrincipalUsername: principal.Username,
+		Policies:          policies,
+		IssuedAt:          time.Now().Unix(),
+		NotBefore:         notBefore,
+		ExpiresAt:         expiresAt,
+	}
+
+	err = vault.Db.CreateToken(ctx, hashedToken, dbToken)
+	if err != nil {
+		return "", Token{}, err
+	}
+	return token, dbToken, nil
+}
+
+func (vault Vault) ValidateAndGetToken(
+	ctx context.Context,
+	token string,
+) (Token, error) {
+	hashedToken := HashToken(token)
+	// TODO: Should we cryptographically sign and verify the token? - this protects against token tampering through the db
+	// Signing the token also protects against DB calls - (DDoS attacks)
+	dbToken, err := vault.Db.GetToken(ctx, hashedToken)
+	if err != nil {
+		var notFoundErr *NotFoundError
+		if errors.As(err, &notFoundErr) {
+			return Token{}, &NonExistentTokenError{Message: "token not found"}
+		}
+		vault.Logger.Error("Error getting token", err)
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+
+	if dbToken.ExpiresAt < time.Now().Unix() {
+		return Token{}, &ExpiredTokenError{Message: "token expired"}
+	}
+
+	if dbToken.NotBefore > time.Now().Unix() {
+		return Token{}, &NotYetValidTokenError{Message: "token not valid yet"}
+	}
+
+	return dbToken, nil
+}
+
+func (vault Vault) Login(
 	ctx context.Context,
 	username,
-	inputAccessSecret string,
-) (Principal, error) {
+	password string,
+) (string, Token, error) {
 	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, username)
 	if err != nil {
-		return Principal{}, err
+		vault.Logger.Error("Error getting principal", err)
+		return "", Token{}, &ForbiddenError{}
 	}
-	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(inputAccessSecret))
+	if dbUser.Username == "" || dbUser.Password == "" {
+		return "", Token{}, &ForbiddenError{}
+	}
+
+	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password))
 	if compareErr != nil {
-		return Principal{}, compareErr
+		return "", Token{}, compareErr
 	}
-	return dbUser, nil
+	token, tokenMetadata, err := vault.CreateToken(ctx,
+		dbUser,
+		dbUser.Policies, // TODO - make this configurable
+		time.Now().Unix(),
+		time.Now().Add(time.Hour*24*7).Unix(), // TODO - make this configurable
+	)
+	if err != nil {
+		return "", Token{}, err
+	}
+	return token, tokenMetadata, nil
 }
 
 func (vault Vault) CreatePolicy(
@@ -327,8 +417,10 @@ func (vault Vault) CreatePolicy(
 ) (string, error) {
 	request := Request{principal, PolicyActionWrite, POLICIES_PPATH}
 	// Ensure resource starts with a slash
-	if !strings.HasPrefix(p.Resources[0], "/") { // TODO: FIX ME!!
-		return "", newValueError(fmt.Errorf("resource must start with a slash"))
+	for _, resource := range p.Resources {
+		if !strings.HasPrefix(resource, "/") {
+			return "", newValueError(fmt.Errorf("resources must start with a slash - '%s' is not a valid resource", resource))
+		}
 	}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
