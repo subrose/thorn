@@ -277,46 +277,90 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	return dbPrincipal, nil
 }
 
+type RawPolicy struct {
+	PolicyId  string       `redis:"policy_id"`
+	Effect    PolicyEffect `redis:"effect"`
+	Actions   string       `redis:"actions"`
+	Resources string       `redis:"resources"`
+}
+
+func (rawPolicy RawPolicy) toPolicy() Policy {
+	var actions []PolicyAction
+	for _, action := range strings.Split(rawPolicy.Actions, ",") {
+		actions = append(actions, PolicyAction(action))
+	}
+	policy := Policy{
+		PolicyId:  rawPolicy.PolicyId,
+		Effect:    rawPolicy.Effect,
+		Actions:   actions,
+		Resources: strings.Split(rawPolicy.Resources, ","),
+	}
+
+	return policy
+}
+
 func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
-	var policy Policy
-	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&policy); err != nil {
+	var rawPolicy RawPolicy
+	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
 		if err == redis.Nil {
 			return Policy{}, &NotFoundError{polRedisId}
 		}
 		return Policy{}, err
 	}
 
-	return policy, nil
+	return rawPolicy.toPolicy(), nil
 }
 
 func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
 	policies := []Policy{}
-	// TODO: Pipe and probably replace the single GetPolicy function
-	for _, polId := range policyIds {
-		pol, err := rs.GetPolicy(ctx, polId)
-		if err != nil {
-			switch err.(type) {
-			case *NotFoundError:
-				// Tried to get a policy that doesn't exist, continue
-			default:
+	pipeline := rs.Client.Pipeline()
+
+	// Prepare the commands
+	cmds := make([]*redis.MapStringStringCmd, len(policyIds))
+	for i, polId := range policyIds {
+		polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, polId)
+		cmds[i] = pipeline.HGetAll(ctx, polRedisId)
+	}
+
+	// Execute the pipeline
+	_, err := pipeline.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		return nil, err
+	}
+
+	// Process the results
+	for _, cmd := range cmds {
+		if err := cmd.Err(); err != nil {
+			if err != redis.Nil {
 				return nil, err
 			}
+			// Skip if not found
+			continue
 		}
-		policies = append(policies, pol)
+		var rawPolicy RawPolicy
+		if err := cmd.Scan(&rawPolicy); err != nil {
+			return nil, err
+		}
+		policies = append(policies, rawPolicy.toPolicy())
 	}
 	return policies, nil
 }
 
 func (rs RedisStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, p.PolicyId)
+	var actions []string
+	for _, action := range p.Actions {
+		actions = append(actions, string(action))
+	}
+
 	_, err := rs.Client.HSet(
 		ctx,
 		polRedisId,
 		"policy_id", p.PolicyId,
 		"effect", string(p.Effect),
-		"action", string(p.Action),
-		"resource", p.Resource,
+		"actions", strings.Join(actions, ","),
+		"resources", strings.Join(p.Resources, ","),
 	).Result()
 
 	if err != nil {

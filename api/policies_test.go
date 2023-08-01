@@ -19,7 +19,7 @@ func TestPolicies(t *testing.T) {
 	adminJwt, _ := core.generateJWT(_vault.Principal{
 		Username: "test",
 		Password: "test",
-		Policies: []string{"admin-read", "admin-write"},
+		Policies: []string{"root"},
 	})
 	testPolicyId := "test-policy"
 
@@ -29,8 +29,8 @@ func TestPolicies(t *testing.T) {
 				`{
 					"policy_id": "%s",
 					"effect": "allow",
-					"action": "read",
-					"resource": "/policies/%s"
+					"actions": ["read"],
+					"resources": ["/policies/%s"]
 				}`,
 				testPolicyId,
 				testPolicyId,
@@ -76,7 +76,7 @@ func TestPolicies(t *testing.T) {
 		// Assertions
 		assert.Equal(t, http.StatusOK, res.StatusCode)
 		assert.Equal(t, _vault.EffectAllow, returnedPolicy.Effect)
-		assert.Equal(t, _vault.PolicyActionRead, returnedPolicy.Action)
-		assert.Equal(t, fmt.Sprintf("/policies/%s", testPolicyId), returnedPolicy.Resource)
+		assert.Equal(t, []_vault.PolicyAction{_vault.PolicyActionRead}, returnedPolicy.Actions)
+		assert.Equal(t, []string{fmt.Sprintf("/policies/%s", testPolicyId)}, returnedPolicy.Resources)
 	})
 }

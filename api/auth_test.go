@@ -21,7 +21,7 @@ func TestAuth(t *testing.T) {
 		inputP := _vault.Principal{
 			Username: "test",
 			Password: "test",
-			Policies: []string{"admin-read", "admin-write"},
+			Policies: []string{"root"},
 		}
 		jwt, err := core.generateJWT(inputP)
 		if err != nil {

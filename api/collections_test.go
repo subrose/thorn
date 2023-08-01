@@ -18,7 +18,7 @@ func TestCollections(t *testing.T) {
 	adminJwt, _ := core.generateJWT(_vault.Principal{
 		Username: "test",
 		Password: "test",
-		Policies: []string{"admin-read", "admin-write"},
+		Policies: []string{"root"},
 	})
 
 	t.Run("can create a collection", func(t *testing.T) {

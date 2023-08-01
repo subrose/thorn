@@ -2,14 +2,60 @@ package vault
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+type DummyPolicyManager struct {
+	policies map[string]Policy
+}
+
+func (pm DummyPolicyManager) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
+	return pm.policies[policyId], nil
+}
+
+func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
+	results := []Policy{}
+	for _, pid := range policyIds {
+		pol, _ := pm.GetPolicy(ctx, pid)
+		results = append(results, pol)
+	}
+	return results, nil
+}
+
+func (pm DummyPolicyManager) CreatePolicy(ctx context.Context, p Policy) (string, error) {
+	pm.policies[p.PolicyId] = p
+
+	return p.PolicyId, nil
+}
+
+func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) error {
+	delete(pm.policies, policyId)
+	return nil
+}
+
+func getDummyPolicy(principal string) []Policy {
+	return []Policy{
+		{
+			fmt.Sprintf("%s-allow", principal),
+			EffectAllow,
+			[]PolicyAction{PolicyActionRead},
+			[]string{"allowed-resource/*", "restricted-resource"},
+		},
+		{
+			fmt.Sprintf("%s-deny", principal),
+			EffectDeny,
+			[]PolicyAction{PolicyActionRead},
+			[]string{"restricted-resource"},
+		},
+	}
+}
+
 func MakePM() PolicyManager {
 	ctx := context.Background()
-	policies := GetDummyPolicy("test")
+	policies := getDummyPolicy("test")
 	dpm := DummyPolicyManager{
 		policies: make(map[string]Policy),
 	}
@@ -29,111 +75,61 @@ func makePrincipal() Principal {
 	}
 }
 
-func TestPolicyNotSpecified(t *testing.T) {
+func TestPolicies(t *testing.T) {
 	pm := MakePM()
-	action := Action{
-		makePrincipal(),
-		PolicyActionRead,
-		"very very secret",
-	}
-	result, _ := EvaluateAction(context.Background(), action, pm)
-	if result {
-		t.Fail()
-	}
-}
-
-func TestPolicyDenied(t *testing.T) {
-	pm := MakePM()
-	action := Action{
-		makePrincipal(),
-		PolicyActionRead,
-		"restricted-resource",
-	}
-	result, _ := EvaluateAction(context.Background(), action, pm)
-	if result {
-		t.Fail()
-	}
-}
-
-func TestPolicyDeniedPrefixed(t *testing.T) {
-	pm := MakePM()
-	action := Action{
-		makePrincipal(),
-		PolicyActionRead,
-		"aallowed-resource",
-	}
-	result, _ := EvaluateAction(context.Background(), action, pm)
-	if result {
-		t.Fail()
-	}
-}
-
-func TestPolicyAllowed(t *testing.T) {
-	pm := MakePM()
-	action := Action{
-		makePrincipal(),
-		PolicyActionRead,
-		"allowed-resource/123",
-	}
-	result, _ := EvaluateAction(context.Background(), action, pm)
-	if !result {
-		t.Fail()
-	}
-}
-
-var pm = MakePM()
-
-func TestEvaluateAction(t *testing.T) {
-	testCases := []struct {
-		name     string
-		action   Action
-		expected bool
-	}{
-		{
-			"PolicyNotSpecified",
-			Action{
-				makePrincipal(),
-				PolicyActionRead,
-				"very very secret",
-			},
-			false,
-		},
-		{
-			"PolicyDenied",
-			Action{
-				makePrincipal(),
-				PolicyActionRead,
-				"restricted-resource",
-			},
-			false,
-		},
-		{
-			"PolicyDeniedPrefixed",
-			Action{
-				makePrincipal(),
-				PolicyActionRead,
-				"aallowed-resource",
-			},
-			false,
-		},
-		{
-			"PolicyAllowed",
-			Action{
-				makePrincipal(),
-				PolicyActionRead,
-				"allowed-resource/123",
-			},
-			true,
-		},
+	principal := makePrincipal()
+	policies, err := pm.GetPolicies(context.Background(), principal.Policies)
+	if err != nil {
+		t.Error(err)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := EvaluateAction(context.Background(), tc.action, pm)
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
+	t.Run("not allowed when no policy is specified for a resource", func(t *testing.T) {
+		request := Request{
+			principal,
+			PolicyActionRead,
+			"very very secret",
+		}
+		allowed := EvaluateRequest(request, policies)
+		if allowed {
+			t.Fail()
+		}
+	})
+
+	t.Run("not allowed when deny policy on resource", func(t *testing.T) {
+		request := Request{
+			principal,
+			PolicyActionRead,
+			"restricted-resource",
+		}
+		allowed := EvaluateRequest(request, policies)
+		if allowed {
+			t.Fail()
+		}
+	})
+
+	t.Run("not allowed when deny policy on resource with prefix", func(t *testing.T) {
+		request := Request{
+			principal,
+			PolicyActionRead,
+			"aallowed-resource",
+		}
+		allowed := EvaluateRequest(request, policies)
+		if allowed {
+			t.Fail()
+		}
+	})
+
+	t.Run("allowed on resource using glob in policy", func(t *testing.T) {
+		request := Request{
+			principal,
+			PolicyActionRead,
+			"allowed-resource/123",
+		}
+		allowed := EvaluateRequest(request, policies)
+		if !allowed {
+			t.Fail()
+		}
+	})
 }
 
 func TestMatch(t *testing.T) {

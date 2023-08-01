@@ -2,7 +2,6 @@ package vault
 
 import (
 	"context"
-	"fmt"
 )
 
 type PolicyAction string
@@ -21,13 +20,13 @@ const (
 )
 
 type Policy struct {
-	PolicyId string       `redis:"policy_id" json:"policy_id" validate:"required"`
-	Effect   PolicyEffect `redis:"effect" json:"effect" validate:"required"`
-	Action   PolicyAction `redis:"action" json:"action" validate:"required"`
-	Resource string       `redis:"resource" json:"resource" validate:"required"`
+	PolicyId  string         `redis:"policy_id" json:"policy_id" validate:"required"`
+	Effect    PolicyEffect   `redis:"effect" json:"effect" validate:"required"`
+	Actions   []PolicyAction `redis:"actions" json:"actions" validate:"required"`
+	Resources []string       `redis:"resources" json:"resources" validate:"required"`
 }
 
-type Action struct {
+type Request struct {
 	Principal Principal
 	Action    PolicyAction
 	Resource  string
@@ -39,51 +38,6 @@ type PolicyManager interface {
 	CreatePolicy(ctx context.Context, p Policy) (string, error)
 	DeletePolicy(ctx context.Context, policyId string) error
 	// EvaluateAction(a Action) bool
-}
-
-type DummyPolicyManager struct {
-	policies map[string]Policy
-}
-
-func (pm DummyPolicyManager) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
-	return pm.policies[policyId], nil
-}
-
-func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
-	results := []Policy{}
-	for _, pid := range policyIds {
-		pol, _ := pm.GetPolicy(ctx, pid)
-		results = append(results, pol)
-	}
-	return results, nil
-}
-
-func (pm DummyPolicyManager) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	pm.policies[p.PolicyId] = p
-
-	return p.PolicyId, nil
-}
-
-func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) error {
-	delete(pm.policies, policyId)
-	return nil
-}
-
-func GetDummyPolicy(principal string) []Policy {
-	return []Policy{
-		{
-			fmt.Sprintf("%s-allow", principal),
-			EffectAllow,
-			PolicyActionRead,
-			"allowed-resource/*",
-		},
-		{
-			fmt.Sprintf("%s-deny", principal),
-			EffectDeny,
-			PolicyActionRead,
-			"restricted-resource",
-		},
-	}
 }
 
 func matchRune(pattern, str []rune) bool {
@@ -113,22 +67,34 @@ func Match(pattern, str string) bool {
 	return matchRune([]rune(pattern), []rune(str))
 }
 
-func EvaluateAction(ctx context.Context, a Action, pm PolicyManager) (bool, error) {
-	principalPolicies, err := pm.GetPolicies(ctx, a.Principal.Policies)
-	if err != nil {
-		return false, err
+func containsAction(p Policy, action PolicyAction) bool {
+	for _, a := range p.Actions {
+		if a == action {
+			return true
+		}
 	}
-	for _, p := range principalPolicies {
-		matched := Match(p.Resource, a.Resource)
-		matched = (matched && p.Action == a.Action)
+	return false
+}
+
+func EvaluateRequest(request Request, policies []Policy) bool {
+	allowed := false
+
+	for _, p := range policies {
+		// check that action exists in the policy
+		matched := containsAction(p, request.Action)
 		if !matched {
+			// no matching action found in current policy
 			continue
 		}
-		if p.Effect == EffectAllow {
-			return true, nil
-		} else {
-			return false, nil
+		for _, resource := range p.Resources {
+			if Match(resource, request.Resource) {
+				if p.Effect == EffectDeny {
+					// deny takes precendence
+					return false
+				}
+				allowed = true
+			}
 		}
 	}
-	return false, nil
+	return allowed
 }

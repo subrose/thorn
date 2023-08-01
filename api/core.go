@@ -134,22 +134,16 @@ func (core *Core) Init() error {
 		_ = core.vault.Db.Flush(ctx)
 	}
 	_, _ = core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
-		PolicyId: "admin-write",
-		Effect:   _vault.EffectAllow,
-		Action:   _vault.PolicyActionWrite,
-		Resource: "*",
-	})
-	_, _ = core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
-		PolicyId: "admin-read",
-		Effect:   _vault.EffectAllow,
-		Action:   _vault.PolicyActionRead,
-		Resource: "*",
+		PolicyId:  "root",
+		Effect:    _vault.EffectAllow,
+		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
+		Resources: []string{"*"},
 	})
 	adminPrincipal := _vault.Principal{
 		Username:    core.conf.VAULT_ADMIN_ACCESS_KEY,
 		Password:    core.conf.VAULT_ADMIN_ACCESS_SECRET,
 		Description: "admin",
-		Policies:    []string{"admin-write", "admin-read"}} // TODO: Think about this, Admins shouldn't have read?
+		Policies:    []string{"root"}}
 	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
 
 	return err
