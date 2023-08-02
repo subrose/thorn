@@ -124,7 +124,6 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("SIGNER", signer)
 
 	vaultLogger, err := _logger.NewLogger("VAULT_FUCK_YOU", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{

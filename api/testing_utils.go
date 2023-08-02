@@ -21,7 +21,7 @@ import (
 var testConfigPath = flag.String("testConfigFile", "../conf/test.conf.toml", "Path to config file")
 var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
 
-func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
+func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	// Setup
 	if *testConfigPath == "" {
 		panic("Config path not specified")
@@ -62,7 +62,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	if err != nil {
 		t.Fatal("Failed to create admin principal", err)
 	}
-	return app, vault, core
+	return app, core
 }
 
 func newRequest(t *testing.T, method, url string, headers map[string]string, payload interface{}) *http.Request {

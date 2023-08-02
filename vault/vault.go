@@ -383,10 +383,7 @@ func (vault Vault) createToken(
 		return "", Token{}, err
 	}
 	hashedSecret := Hash(secret)
-	fmt.Println("signing...", vault.Signer, vault.Db)
-	fmt.Println("From vault - Using vault instance: ", &vault)
 	signature, err := vault.Signer.Sign(hashedSecret)
-	fmt.Println("signed!")
 	if err != nil {
 		vault.Logger.Error("Error signing token", err)
 		return "", Token{}, err

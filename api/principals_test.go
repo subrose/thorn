@@ -16,9 +16,9 @@ import (
 )
 
 func TestPrincipals(t *testing.T) {
-	app, vault, core := InitTestingVault(t)
+	app, core := InitTestingVault(t)
 	ctx := context.Background()
-	adminToken, _, err := vault.Login(ctx, core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD, nil, 0, -1)
+	adminToken, _, err := core.vault.Login(ctx, core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD, nil, 0, -1)
 	if err != nil {
 		t.Fatalf("Failed to login as admin: %v", err)
 	}

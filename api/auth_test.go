@@ -13,7 +13,7 @@ import (
 const loginRoute = "/auth/userpass/login"
 
 func TestAuth(t *testing.T) {
-	app, vault, _ := InitTestingVault(t)
+	app, core := InitTestingVault(t)
 
 	ctx := context.Background()
 	adminPrincipal := _vault.Principal{
@@ -30,7 +30,7 @@ func TestAuth(t *testing.T) {
 		Policies:    []string{"test-policy"},
 	}
 
-	err := vault.CreatePrincipal(ctx, adminPrincipal, normalPrincipal.Username, normalPrincipal.Password, normalPrincipal.Description, normalPrincipal.Policies)
+	err := core.vault.CreatePrincipal(ctx, adminPrincipal, normalPrincipal.Username, normalPrincipal.Password, normalPrincipal.Description, normalPrincipal.Policies)
 	if err != nil {
 		t.Fatalf("Failed to create normal principal: %v", err)
 	}

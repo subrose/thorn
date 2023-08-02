@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -53,9 +54,19 @@ func tokenGuard(core *Core) fiber.Handler {
 		// Validate Token
 		token, err := core.vault.ValidateAndGetToken(ctx.Context(), tokenString)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid JWT",
-			})
+			var forbiddenErr *_vault.ForbiddenError
+			var valueErr *_vault.ValueError
+			if errors.As(err, &forbiddenErr) {
+				return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
+					"error": "Not authorized",
+				})
+			}
+
+			if errors.As(err, &valueErr) {
+				return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error": valueErr.Msg,
+				})
+			}
 		}
 
 		// Build a fake principal from the token TODO: This is a hack?
