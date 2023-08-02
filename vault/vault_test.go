@@ -13,11 +13,6 @@ import (
 	_logger "github.com/subrose/logger"
 )
 
-// I have customer PII in my database which I want to move to a PII vault.
-// The customer object looks like this: {first_name: "John", last_name: "Crawford", "email": "john.crawford@gmail.com", "phone": "1234567890""}
-// I want to store the customer object in the vault and get back a unique ID.
-// I want to be able to retrieve the customer object from the vault using the unique ID.
-
 func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	ctx := context.Background()
 	db, err := NewRedisStore(
@@ -443,7 +438,6 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 			t.Fatalf("Expected an invalid token error for tampered token, got %s", err)
 		}
 	})
-
 }
 
 func TestLoginFunctionality(t *testing.T) {
