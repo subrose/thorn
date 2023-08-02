@@ -30,6 +30,10 @@ func ApiLogger(core *Core) fiber.Handler {
 	}
 }
 
+func GetSessionPrincipal(c *fiber.Ctx) _vault.Principal {
+	return c.Locals("principal").(_vault.Principal)
+}
+
 func tokenGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		// Extract token from header
@@ -79,7 +83,7 @@ func SetupApi(core *Core) *fiber.App {
 	})
 
 	authGroup := app.Group("/auth")
-	authGroup.Post("/token", core.GenerateBearerTokenFromCreds)
+	authGroup.Post("/userpass/login", core.Login)
 
 	principalGroup := app.Group("/principals")
 	principalGroup.Use(tokenGuard(core))

@@ -2,18 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/go-playground/assert/v2"
-	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/assert"
 	_vault "github.com/subrose/vault"
 )
+
+const loginRoute = "/auth/userpass/login"
 
 func TestAuth(t *testing.T) {
 	app, vault, _ := InitTestingVault(t)
@@ -38,68 +35,89 @@ func TestAuth(t *testing.T) {
 		t.Fatalf("Failed to create normal principal: %v", err)
 	}
 
-	t.Run("valid principal can get a token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
-		creds := fmt.Sprintf("%s:%s", normalPrincipal.Username, normalPrincipal.Password)
-		req.Header.Set(fiber.HeaderAuthorization, "Basic "+base64.StdEncoding.EncodeToString([]byte(creds)))
-		res, err := app.Test(req, -1)
-
-		if err != nil {
-			t.Fatalf("Error getting a token: %v", err)
+	t.Run("Test Login with valid credentials", func(t *testing.T) {
+		request := LoginRequest{
+			Username:  "admin",
+			Password:  "admin",
+			Policies:  []string{"root"},
+			NotBefore: time.Now().Unix(),
+			ExpiresAt: -1,
 		}
 
-		assert.Equal(t, http.StatusOK, res.StatusCode)
+		req := newRequest(t, http.MethodPost, loginRoute, nil, request)
+		response := performRequest(t, app, req)
 
-		var token ClientToken
-		body, err := io.ReadAll(res.Body)
-		if err != nil {
-			t.Fatalf("Error reading response body: %v", err)
-		}
+		var loginResponse LoginResponse
+		checkResponse(t, response, http.StatusOK, &loginResponse)
 
-		err = json.Unmarshal(body, &token)
-		if err != nil {
-			t.Fatalf("Error parsing returned token: %v", err)
-		}
-
-		assert.Equal(t, normalPrincipal.Username, token.Principal)
-		assert.Equal(t, 1, len(token.Policies))
-		assert.Equal(t, normalPrincipal.Policies[0], token.Policies[0])
-		assert.NotEqual(t, "", token.AccessToken)
+		assert.NotEmpty(t, loginResponse.AccessToken)
+		assert.Equal(t, "admin", loginResponse.Principal)
+		assert.ElementsMatch(t, []string{"root"}, loginResponse.Policies)
+		assert.NotEmpty(t, loginResponse.IssuedAt)
+		assert.NotEmpty(t, loginResponse.NotBefore)
+		assert.NotEmpty(t, loginResponse.ExpiresAt)
 	})
 
-	t.Run("invalid principal can't get a token", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
-		creds := fmt.Sprintf("%s:%s", "invalid", "invalid")
-		req.Header.Set(fiber.HeaderAuthorization, "Basic "+base64.StdEncoding.EncodeToString([]byte(creds)))
-		res, err := app.Test(req, -1)
-
-		if err != nil {
-			t.Fatalf("Error getting a token: %v", err)
+	t.Run("Test Login with invalid credentials", func(t *testing.T) {
+		request := LoginRequest{
+			Username:  "non_existing_user",
+			Password:  "invalid_password",
+			Policies:  []string{"test-policy"},
+			NotBefore: time.Now().Unix(),
+			ExpiresAt: -1,
 		}
 
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		req := newRequest(t, http.MethodPost, loginRoute, nil, request)
+		response := performRequest(t, app, req)
+
+		checkResponse(t, response, http.StatusForbidden, nil)
 	})
 
-	t.Run("request without authorization header fails", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
-		res, err := app.Test(req, -1)
+	t.Run("Test Login with missing required fields", func(t *testing.T) {
+		request := LoginRequest{}
+		req := newRequest(t, http.MethodPost, loginRoute, nil, request)
+		response := performRequest(t, app, req)
 
-		if err != nil {
-			t.Fatalf("Error getting a token: %v", err)
-		}
-
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		checkResponse(t, response, http.StatusBadRequest, nil)
 	})
 
-	t.Run("request with invalid authorization header format fails", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/auth/token", nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Basic "+base64.StdEncoding.EncodeToString([]byte("invalid-format")))
-		res, err := app.Test(req, -1)
-
-		if err != nil {
-			t.Fatalf("Error getting a token: %v", err)
+	t.Run("Test Login with custom Not-Before and Expires-At timestamps", func(t *testing.T) {
+		notBefore := time.Now().Unix() + 3600 // 1 hour from now
+		expiresAt := time.Now().Unix() + 7200 // 2 hours from now
+		request := LoginRequest{
+			Username:  "admin",
+			Password:  "admin",
+			Policies:  []string{"root"},
+			NotBefore: notBefore,
+			ExpiresAt: expiresAt,
 		}
 
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		// Perform the request to the API endpoint
+		req := newRequest(t, http.MethodPost, loginRoute, nil, request)
+		response := performRequest(t, app, req)
+
+		var loginResponse LoginResponse
+		checkResponse(t, response, http.StatusOK, &loginResponse)
+
+		assert.Equal(t, notBefore, loginResponse.NotBefore)
+		assert.Equal(t, expiresAt, loginResponse.ExpiresAt)
+	})
+
+	t.Run("Test can't login with expires_at > not_before", func(t *testing.T) {
+		notBefore := time.Now().Unix() + 7200 // 1 hour from now
+		expiresAt := time.Now().Unix() + 3600 // 1 hours from now
+		request := LoginRequest{
+			Username:  "admin",
+			Password:  "admin",
+			Policies:  []string{"root"},
+			NotBefore: notBefore,
+			ExpiresAt: expiresAt,
+		}
+
+		req := newRequest(t, http.MethodPost, loginRoute, nil, request)
+		response := performRequest(t, app, req)
+
+		checkResponse(t, response, http.StatusBadRequest, nil)
+
 	})
 }

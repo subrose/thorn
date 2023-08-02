@@ -47,11 +47,21 @@ class Actor:
         self.token = None
 
     def authenticate(
-        self, expected_statuses: Optional[list[int]] = None
+        self,
+        policies=None,
+        not_before=None,
+        expires_at=None,
+        expected_statuses: Optional[list[int]] = None,
     ) -> dict[str, str]:
         response = requests.post(
-            f"{self.vault_url}/auth/token",
-            auth=(self.username, self.password),
+            f"{self.vault_url}/auth/userpass/login",
+            json={
+                "username": self.username,
+                "password": self.password,
+                "policies": policies,
+                "not_before": not_before,
+                "expires_at": expires_at,
+            },
         )
         check_expected_status(response, expected_statuses)
         self.token = response.json()["access_token"]

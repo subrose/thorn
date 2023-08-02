@@ -305,7 +305,7 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	t.Run("can create and validate a token", func(t *testing.T) {
 		notBefore := time.Now().Unix()
 		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -314,16 +314,6 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 		_, err = vault.ValidateAndGetToken(ctx, tokenString)
 		if err != nil {
 			t.Fatal(err)
-		}
-	})
-
-	t.Run("cannot create a token with non-existing policy", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		_, _, err := vault.CreateToken(ctx, testPrincipal, append(testPrincipal.Policies, "non-existing-policy"), notBefore, expiresAt)
-		var valueErr *ValueError
-		if err == nil || !errors.As(err, &valueErr) {
-			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
 		}
 	})
 
@@ -339,7 +329,7 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	t.Run("cannot validate an expired token", func(t *testing.T) {
 		notBefore := time.Now().Unix() - 3600
 		expiresAt := notBefore + 1800
-		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -357,7 +347,7 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	t.Run("cannot validate a token that is not valid yet", func(t *testing.T) {
 		notBefore := time.Now().Unix() + 3600
 		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -372,7 +362,7 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	t.Run("cannot validate a tampered token", func(t *testing.T) {
 		notBefore := time.Now().Unix()
 		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.CreateToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -389,3 +379,15 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	})
 
 }
+
+// Test the login methods here:
+
+// t.Run("cannot create a token with non-existing policy", func(t *testing.T) {
+// 	notBefore := time.Now().Unix()
+// 	expiresAt := notBefore + 3600
+// 	_, _, err := vault.createToken(ctx, testPrincipal, append(testPrincipal.Policies, "non-existing-policy"), notBefore, expiresAt)
+// 	var valueErr *ValueError
+// 	if err == nil || !errors.As(err, &valueErr) {
+// 		t.Fatalf("Expected a value error for non-existing policy, got %s", err)
+// 	}
+// })

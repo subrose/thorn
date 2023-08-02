@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
 )
@@ -54,4 +60,61 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 		t.Fatal("Failed to create admin principal", err)
 	}
 	return app, vault, core
+}
+
+// Utility function to create a new HTTP request
+func newRequest(t *testing.T, method, url string, headers map[string]string, payload interface{}) *http.Request {
+	jsonRequest, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("Error marshaling request: %v", err)
+	}
+	req := httptest.NewRequest(method, url, bytes.NewBuffer(jsonRequest))
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	return req
+}
+
+// Utility function to perform the request
+func performRequest(t *testing.T, app *fiber.App, req *http.Request) *http.Response {
+	response, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("Error performing request: %v", err)
+	}
+	return response
+}
+
+func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int, target interface{}) {
+	if response.StatusCode != expectedStatusCode {
+		var errorResponse ErrorResponse
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatalf("Error reading response body: %v", err)
+		}
+		err = json.Unmarshal(responseBody, &errorResponse)
+		if err != nil {
+			t.Fatalf("Error parsing response body json: %v", err)
+		}
+		t.Fatalf("Expected status code %d, got %d - Error Message: %s", expectedStatusCode, response.StatusCode, errorResponse.Message)
+	}
+
+	// If target is provided, unmarshal the response body into the target struct
+	if target != nil {
+		responseBody, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatalf("Error reading response body: %v", err)
+		}
+		err = json.Unmarshal(responseBody, &target)
+		if err != nil {
+			t.Fatalf("Error parsing response body json: %v", err)
+		}
+
+		// Validate the response data against the struct tags
+		validate := validator.New()
+		err = validate.Struct(target)
+		if err != nil {
+			t.Fatalf("Response data validation failed: %v", err)
+		}
+	}
 }

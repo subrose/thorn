@@ -317,20 +317,41 @@ func (vault Vault) GetPrincipal(
 	return vault.PrincipalManager.GetPrincipal(ctx, username)
 }
 
-func (vault Vault) CreateToken(
+func (vault Vault) ValidateAndGetToken(
+	ctx context.Context,
+	token string,
+) (Token, error) {
+	hashedToken := HashToken(token)
+	// TODO: Should we cryptographically sign and verify the token? - this protects against token tampering through the db
+	// Signing the token also protects against DB calls - (DDoS attacks)
+	dbToken, err := vault.Db.GetToken(ctx, hashedToken)
+	if err != nil {
+		var notFoundErr *NotFoundError
+		if errors.As(err, &notFoundErr) {
+			return Token{}, &NonExistentTokenError{Message: "token not found"}
+		}
+		vault.Logger.Error("Error getting token", err)
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+
+	if dbToken.ExpiresAt < time.Now().Unix() && dbToken.ExpiresAt != -1 {
+		return Token{}, &ExpiredTokenError{Message: "token expired"}
+	}
+
+	if dbToken.NotBefore > time.Now().Unix() {
+		return Token{}, &NotYetValidTokenError{Message: "token not valid yet"}
+	}
+
+	return dbToken, nil
+}
+
+func (vault Vault) createToken(
 	ctx context.Context,
 	principal Principal,
 	policies []string,
 	notBefore int64,
 	expiresAt int64,
 ) (string, Token, error) {
-
-	// Ensure policies exist on principal
-	for _, policy := range policies {
-		if !StringInSlice(policy, principal.Policies) {
-			return "", Token{}, newValueError(fmt.Errorf("policy '%s' does not exist on principal '%s'", policy, principal.Username))
-		}
-	}
 	token, err := GenerateTokenString()
 	if err != nil {
 		return "", Token{}, err
@@ -352,57 +373,57 @@ func (vault Vault) CreateToken(
 	return token, dbToken, nil
 }
 
-func (vault Vault) ValidateAndGetToken(
-	ctx context.Context,
-	token string,
-) (Token, error) {
-	hashedToken := HashToken(token)
-	// TODO: Should we cryptographically sign and verify the token? - this protects against token tampering through the db
-	// Signing the token also protects against DB calls - (DDoS attacks)
-	dbToken, err := vault.Db.GetToken(ctx, hashedToken)
-	if err != nil {
-		var notFoundErr *NotFoundError
-		if errors.As(err, &notFoundErr) {
-			return Token{}, &NonExistentTokenError{Message: "token not found"}
-		}
-		vault.Logger.Error("Error getting token", err)
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-
-	if dbToken.ExpiresAt < time.Now().Unix() {
-		return Token{}, &ExpiredTokenError{Message: "token expired"}
-	}
-
-	if dbToken.NotBefore > time.Now().Unix() {
-		return Token{}, &NotYetValidTokenError{Message: "token not valid yet"}
-	}
-
-	return dbToken, nil
-}
-
 func (vault Vault) Login(
 	ctx context.Context,
 	username,
 	password string,
-) (string, Token, error) {
-	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, username)
+	policies []string,
+	notBefore int64,
+	expiresAt int64,
+) (token string, tokenMetadata Token, err error) {
+
+	if username == "" || password == "" {
+		return "", Token{}, newValueError(fmt.Errorf("username and password must be provided"))
+	}
+
+	dbPrincipal, err := vault.PrincipalManager.GetPrincipal(ctx, username)
 	if err != nil {
 		vault.Logger.Error("Error getting principal", err)
 		return "", Token{}, &ForbiddenError{}
 	}
-	if dbUser.Username == "" || dbUser.Password == "" {
+	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
 		return "", Token{}, &ForbiddenError{}
 	}
 
-	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(password))
+	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
 	if compareErr != nil {
-		return "", Token{}, compareErr
+		return "", Token{}, &ForbiddenError{}
 	}
-	token, tokenMetadata, err := vault.CreateToken(ctx,
-		dbUser,
-		dbUser.Policies, // TODO - make this configurable
-		time.Now().Unix(),
-		time.Now().Add(time.Hour*24*7).Unix(), // TODO - make this configurable
+
+	// Default to principals policies if none provided
+	policiesToApply := policies
+
+	if len(policies) == 0 {
+		policiesToApply = dbPrincipal.Policies
+	} else {
+		// Ensure requested policies exist on principal
+		for _, policy := range policies {
+			if !StringInSlice(policy, dbPrincipal.Policies) {
+				return "", Token{}, newValueError(fmt.Errorf("policy '%s' does not exist on principal '%s'", policy, username))
+			}
+		}
+	}
+
+	// Ensure expiresAt is greater than notBefore
+	if expiresAt != -1 && expiresAt < notBefore {
+		return "", Token{}, newValueError(fmt.Errorf("expiresAt must be greater than notBefore"))
+	}
+
+	token, tokenMetadata, err = vault.createToken(ctx,
+		dbPrincipal,
+		policiesToApply,
+		notBefore,
+		expiresAt,
 	)
 	if err != nil {
 		return "", Token{}, err

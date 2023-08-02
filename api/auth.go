@@ -1,75 +1,65 @@
 package main
 
 import (
-	"encoding/base64"
 	"errors"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/utils"
 	_vault "github.com/subrose/vault"
 )
 
-type ClientToken struct {
-	AccessToken string   `json:"access_token"`
-	Principal   string   `json:"principal_username"`
-	Policies    []string `json:"policies"`
-	IssuedAt    int64    `json:"issued_at"`
-	NotBefore   int64    `json:"not_before"`
-	ExpiresAt   int64    `json:"expires_at"`
+type LoginRequest struct {
+	Username  string   `json:"username" validate:"required"`
+	Password  string   `json:"password" validate:"required"`
+	Policies  []string `json:"policies"`
+	NotBefore int64    `json:"not_before" validate:"min=0"`
+	ExpiresAt int64    `json:"expires_at"`
 }
 
-func GetSessionPrincipal(c *fiber.Ctx) _vault.Principal {
-	return c.Locals("principal").(_vault.Principal)
+type LoginResponse struct {
+	AccessToken string   `json:"access_token" validate:"required"`
+	Principal   string   `json:"principal_username" validate:"required"`
+	Policies    []string `json:"policies" validate:"required"`
+	IssuedAt    int64    `json:"issued_at" validate:"required"`
+	NotBefore   int64    `json:"not_before" validate:"required"`
+	ExpiresAt   int64    `json:"expires_at" validate:"required"`
 }
 
-func ExtractCredentials(c *fiber.Ctx) (username string, password string, err error) {
-	// Get authorization header
-	auth := c.Get(fiber.HeaderAuthorization)
-
-	// Check if the header contains content besides "basic".
-	if len(auth) <= 6 || !utils.EqualFold(auth[:6], "basic ") {
-		return "", "", errors.New("invalid credentials")
+func (core *Core) Login(c *fiber.Ctx) error {
+	request := LoginRequest{}
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Invalid request format", nil})
 	}
 
-	// Decode the header contents
-	raw, err := base64.StdEncoding.DecodeString(auth[6:])
+	if err := Validate(request); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(err)
+	}
+
+	if request.NotBefore == 0 {
+		// Default to the current time
+		request.NotBefore = time.Now().Unix()
+	}
+
+	if request.ExpiresAt == 0 {
+		// Default to an indefinite expiration time
+		request.ExpiresAt = -1
+	}
+
+	token, tokenMetadata, err := core.vault.Login(c.Context(), request.Username, request.Password, nil, request.NotBefore, request.ExpiresAt)
 	if err != nil {
-		return "", "", errors.New("invalid credentials")
-	}
-
-	// Get the credentials
-	creds := utils.UnsafeString(raw)
-
-	// Check if the credentials are in the correct form
-	// which is "username:password".
-	index := strings.Index(creds, ":")
-	if index == -1 {
-		return "", "", errors.New("invalid credentials")
-	}
-
-	// Get the username and password
-	username = creds[:index]
-	password = creds[index+1:]
-	return username, password, nil
-}
-
-func (core *Core) GenerateBearerTokenFromCreds(c *fiber.Ctx) error {
-	u, p, err := ExtractCredentials(c)
-	if err != nil {
-		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, "Invalid credentials", nil})
-	}
-	token, tokenMetadata, err := core.vault.Login(c.Context(), u, p)
-	if err != nil {
-		return c.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, "Invalid credentials", nil})
-	}
-
-	if err != nil {
+		var forbiddenErr *_vault.ForbiddenError
+		var valueErr *_vault.ValueError
+		if errors.As(err, &forbiddenErr) {
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, "Invalid login", nil})
+		}
+		if errors.As(err, &valueErr) {
+			return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, valueErr.Msg, nil})
+		}
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 	}
 
-	return c.Status(http.StatusOK).JSON(ClientToken{
+	return c.Status(http.StatusOK).JSON(LoginResponse{
 		AccessToken: token,
 		Principal:   tokenMetadata.PrincipalUsername,
 		Policies:    tokenMetadata.Policies,
