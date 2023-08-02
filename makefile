@@ -12,10 +12,10 @@ check-formatting:
 	if [ -n "$(gofmt -l .)" ]; then echo "Go code is not properly formatted:"; gofmt -d .; exit 1; fi
 
 lint-vault:
-	cd vault && golangci-lint run --fast
+	cd vault && golangci-lint run
 
 lint-api:
-	cd api && golangci-lint run --fast
+	cd api && golangci-lint run
 
 checks: 
 	@echo "Running checks..."

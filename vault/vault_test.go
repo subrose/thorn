@@ -455,7 +455,10 @@ func TestLoginFunctionality(t *testing.T) {
 		Policies:    []string{"root"},
 		Description: "test principal",
 	}
-	vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	if err != nil {
+		t.Fatalf("Failed to create test principal: %v", err)
+	}
 
 	t.Run("can succesfully login", func(t *testing.T) {
 		notBefore := time.Now().Unix()
