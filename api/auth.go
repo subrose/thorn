@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -45,8 +46,8 @@ func (core *Core) Login(c *fiber.Ctx) error {
 		// Default to an indefinite expiration time
 		request.ExpiresAt = -1
 	}
-
-	token, tokenMetadata, err := core.vault.Login(c.Context(), request.Username, request.Password, nil, request.NotBefore, request.ExpiresAt)
+	fmt.Println("From endpoint", &core.vault)
+	token, tokenMetadata, err := core.vault.Login(c.Context(), request.Username, request.Password, request.Policies, request.NotBefore, request.ExpiresAt)
 	if err != nil {
 		var forbiddenErr *_vault.ForbiddenError
 		var valueErr *_vault.ValueError

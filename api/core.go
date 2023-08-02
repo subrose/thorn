@@ -22,11 +22,11 @@ type CoreConfig struct {
 	DB_DB                   int
 	VAULT_ENCRYPTION_KEY    string
 	VAULT_ENCRYPTION_SECRET string
+	VAULT_SIGNING_KEY       string
 	VAULT_ADMIN_USERNAME    string
 	VAULT_ADMIN_PASSWORD    string
 	API_HOST                string
 	API_PORT                int
-	API_JWT_SECRET          string
 	LOG_LEVEL               string
 	LOG_OUTPUT              string
 	DEV_MODE                bool
@@ -74,7 +74,7 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	conf.VAULT_ADMIN_PASSWORD = Config.String("admin_access_secret")
 	conf.API_HOST = Config.String("api_host")
 	conf.API_PORT = Config.Int("api_port")
-	conf.API_JWT_SECRET = Config.String("api_jwt_secret")
+	conf.VAULT_SIGNING_KEY = Config.String("signing_key")
 	conf.LOG_LEVEL = Config.String("log_level")
 	conf.LOG_OUTPUT = Config.String("log_output")
 	conf.DEV_MODE = Config.Bool("system_dev_mode")
@@ -120,8 +120,21 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
 	var policyManager _vault.PolicyManager = db
 	var principalManager _vault.PrincipalManager = db
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
-	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: principalManager, PolicyManager: policyManager, Logger: vaultLogger}
+	signer, err := _vault.NewHMACSigner([]byte(conf.VAULT_SIGNING_KEY))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("SIGNER", signer)
+
+	vaultLogger, err := _logger.NewLogger("VAULT_FUCK_YOU", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	vault := _vault.Vault{
+		Db:               db,
+		Priv:             priv,
+		PrincipalManager: principalManager,
+		PolicyManager:    policyManager,
+		Logger:           vaultLogger,
+		Signer:           signer,
+	}
 
 	c.vault = vault
 

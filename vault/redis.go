@@ -306,7 +306,6 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 		}
 		return Principal{}, err
 	}
-
 	err = pipeRes[0].(*redis.MapStringStringCmd).Scan(&dbPrincipal)
 	if err != nil {
 		return Principal{}, err
@@ -315,7 +314,6 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
 		return Principal{}, &NotFoundError{principalId}
 	}
-
 	return dbPrincipal, nil
 }
 

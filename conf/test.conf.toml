@@ -13,9 +13,8 @@ dev_mode = true
 host = "localhost"
 port = 3000
 
-[api.jwt]
-secret = "secret"
-ttl = 3600000000000 # TODO: Not used right now but should be the default
+[signing]
+key = "secret"
 
 [admin]
 access_key = "admin"

@@ -58,6 +58,11 @@ type Privatiser interface {
 	Decrypt(string) (string, error)
 }
 
+type Signer interface {
+	Sign(message string) (string, error)
+	Verify(message, signature string) (bool, error)
+}
+
 type PrincipalManager interface {
 	CreatePrincipal(ctx context.Context, principal Principal) error
 	GetPrincipal(ctx context.Context, username string) (Principal, error)
@@ -76,6 +81,7 @@ type Vault struct {
 	PrincipalManager PrincipalManager
 	PolicyManager    PolicyManager
 	Logger           Logger
+	Signer           Signer
 }
 
 // TODO: These probably should be renamed to have _PATH
@@ -321,10 +327,30 @@ func (vault Vault) ValidateAndGetToken(
 	ctx context.Context,
 	token string,
 ) (Token, error) {
-	hashedToken := HashToken(token)
-	// TODO: Should we cryptographically sign and verify the token? - this protects against token tampering through the db
-	// Signing the token also protects against DB calls - (DDoS attacks)
-	dbToken, err := vault.Db.GetToken(ctx, hashedToken)
+	tokenSplits := strings.Split(token, ".")
+	if len(tokenSplits) != 2 {
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+
+	secret := tokenSplits[0]
+	signature := tokenSplits[1]
+
+	if secret == "" || signature == "" {
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+
+	hashedSecret := Hash(secret)
+	valid, err := vault.Signer.Verify(hashedSecret, signature)
+	if err != nil {
+		vault.Logger.Error("Error verifying token", err)
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+
+	if !valid {
+		return Token{}, &InvalidTokenError{Message: "invalid token"}
+	}
+	dbTokenId := fmt.Sprintf("%s.%s", hashedSecret, signature)
+	dbToken, err := vault.Db.GetToken(ctx, dbTokenId)
 	if err != nil {
 		var notFoundErr *NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -352,13 +378,28 @@ func (vault Vault) createToken(
 	notBefore int64,
 	expiresAt int64,
 ) (string, Token, error) {
-	token, err := GenerateTokenString()
+	secret, err := GenerateSecret()
 	if err != nil {
 		return "", Token{}, err
 	}
-	hashedToken := HashToken(token)
+	hashedSecret := Hash(secret)
+	fmt.Println("signing...", vault.Signer, vault.Db)
+	fmt.Println("From vault - Using vault instance: ", &vault)
+	signature, err := vault.Signer.Sign(hashedSecret)
+	fmt.Println("signed!")
+	if err != nil {
+		vault.Logger.Error("Error signing token", err)
+		return "", Token{}, err
+	}
 
-	dbToken := Token{
+	dbTokenId := fmt.Sprintf("%s.%s", hashedSecret, signature)
+	token := fmt.Sprintf("%s.%s", secret, signature)
+	if err != nil {
+		vault.Logger.Error("Error signing token", err)
+		return "", Token{}, err
+	}
+
+	tokenMetadata := Token{
 		PrincipalUsername: principal.Username,
 		Policies:          policies,
 		IssuedAt:          time.Now().Unix(),
@@ -366,11 +407,11 @@ func (vault Vault) createToken(
 		ExpiresAt:         expiresAt,
 	}
 
-	err = vault.Db.CreateToken(ctx, hashedToken, dbToken)
+	err = vault.Db.CreateToken(ctx, dbTokenId, tokenMetadata)
 	if err != nil {
 		return "", Token{}, err
 	}
-	return token, dbToken, nil
+	return token, tokenMetadata, nil
 }
 
 func (vault Vault) Login(
@@ -402,7 +443,6 @@ func (vault Vault) Login(
 
 	// Default to principals policies if none provided
 	policiesToApply := policies
-
 	if len(policies) == 0 {
 		policiesToApply = dbPrincipal.Policies
 	} else {
@@ -419,7 +459,8 @@ func (vault Vault) Login(
 		return "", Token{}, newValueError(fmt.Errorf("expiresAt must be greater than notBefore"))
 	}
 
-	token, tokenMetadata, err = vault.createToken(ctx,
+	token, tokenMetadata, err = vault.createToken(
+		ctx,
 		dbPrincipal,
 		policiesToApply,
 		notBefore,

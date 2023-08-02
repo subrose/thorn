@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	_logger "github.com/subrose/logger"
 	_vault "github.com/subrose/vault"
 )
 
@@ -44,8 +45,10 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	)
 
 	priv := _vault.NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
+	signer, _ := _vault.NewHMACSigner([]byte("testkey"))
 	var pm _vault.PolicyManager = db
-	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
+	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	bootstrapContext := context.Background()
 	_ = vault.Db.Flush(bootstrapContext)
 	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
@@ -62,7 +65,6 @@ func InitTestingVault(t *testing.T) (*fiber.App, _vault.Vault, *Core) {
 	return app, vault, core
 }
 
-// Utility function to create a new HTTP request
 func newRequest(t *testing.T, method, url string, headers map[string]string, payload interface{}) *http.Request {
 	jsonRequest, err := json.Marshal(payload)
 	if err != nil {
@@ -76,7 +78,6 @@ func newRequest(t *testing.T, method, url string, headers map[string]string, pay
 	return req
 }
 
-// Utility function to perform the request
 func performRequest(t *testing.T, app *fiber.App, req *http.Request) *http.Response {
 	response, err := app.Test(req)
 	if err != nil {

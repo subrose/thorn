@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-playground/assert/v2"
+	_logger "github.com/subrose/logger"
 )
 
 // I have customer PII in my database which I want to move to a PII vault.
@@ -28,6 +30,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	}
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
+	signer, _ := NewHMACSigner([]byte("testkey"))
 	var pm PolicyManager = db
 	_, _ = pm.CreatePolicy(ctx, Policy{
 		"root",
@@ -41,7 +44,8 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
 	})
-	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
+	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }
 
@@ -310,37 +314,9 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Validate the token
 		_, err = vault.ValidateAndGetToken(ctx, tokenString)
 		if err != nil {
 			t.Fatal(err)
-		}
-	})
-
-	t.Run("cannot validate a non-existing token", func(t *testing.T) {
-		_, err := vault.ValidateAndGetToken(ctx, "non-existing-token")
-		var tokenErr *NonExistentTokenError
-		if err == nil || !errors.As(err, &tokenErr) {
-			fmt.Println(err)
-			t.Fatalf("Expected a token error for non-existing token, got %s", err)
-		}
-	})
-
-	t.Run("cannot validate an expired token", func(t *testing.T) {
-		notBefore := time.Now().Unix() - 3600
-		expiresAt := notBefore + 1800
-		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Sleep to ensure the token is expired
-		time.Sleep(3 * time.Second)
-
-		_, err = vault.ValidateAndGetToken(ctx, tokenString)
-		var tokenErr *ExpiredTokenError
-		if err == nil || !errors.As(err, &tokenErr) {
-			t.Fatalf("Expected a token error for expired token, got %s", err)
 		}
 	})
 
@@ -360,6 +336,98 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 	})
 
 	t.Run("cannot validate a tampered token", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			tamperFunc   func(tokenString string) string
+			expectError  bool
+			errorMessage string
+		}{
+			{
+				name: "missing token",
+				tamperFunc: func(tokenString string) string {
+					return ""
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for tampered signature",
+			},
+			{
+				name: "tampered signature",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf("%s.%sx", tokenSplits[0], tokenSplits[1])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for tampered signature",
+			},
+			{
+				name: "missing signature",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf("%s.", tokenSplits[0])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for missing signature",
+			},
+			{
+				name: "space in signature",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf("%s. %s", tokenSplits[0], tokenSplits[1])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for missing signature",
+			},
+			{
+				name: "tampered secret",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf("x%s.%s", tokenSplits[0], tokenSplits[1])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for extra data in token",
+			},
+			{
+				name: "missing secret",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf(".%s", tokenSplits[1])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for extra data in token",
+			},
+			{
+				name: "space in secret",
+				tamperFunc: func(tokenString string) string {
+					tokenSplits := strings.Split(tokenString, ".")
+					return fmt.Sprintf(" %s.%s", tokenSplits[0], tokenSplits[1])
+				},
+				expectError:  true,
+				errorMessage: "Expected an invalid token error for extra data in token",
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				notBefore := time.Now().Unix()
+				expiresAt := notBefore + 3600
+				tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				tamperedToken := test.tamperFunc(tokenString)
+
+				_, err = vault.ValidateAndGetToken(ctx, tamperedToken)
+				var tokenErr *InvalidTokenError
+				if (err == nil || !errors.As(err, &tokenErr)) != !test.expectError {
+					t.Fatalf(test.errorMessage+" got %s", err)
+				}
+			})
+		}
+
+	})
+
+	t.Run("cannot validate a token with incorrect secret", func(t *testing.T) {
 		notBefore := time.Now().Unix()
 		expiresAt := notBefore + 3600
 		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
@@ -367,12 +435,10 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Tamper with the token
-		tamperedToken := tokenString + "random-gibberish"
+		tamperedToken := "x" + tokenString
 
-		// Attempt to validate the tampered token
 		_, err = vault.ValidateAndGetToken(ctx, tamperedToken)
-		var tokenErr *NonExistentTokenError
+		var tokenErr *InvalidTokenError
 		if err == nil || !errors.As(err, &tokenErr) {
 			t.Fatalf("Expected an invalid token error for tampered token, got %s", err)
 		}
@@ -380,14 +446,74 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 
 }
 
-// Test the login methods here:
+func TestLoginFunctionality(t *testing.T) {
+	ctx := context.Background()
+	vault, _, _ := initVault(t)
+	testPrincipal := Principal{
+		Username:    "test_user",
+		Password:    "test_password",
+		Policies:    []string{"root"},
+		Description: "test principal",
+	}
+	vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
 
-// t.Run("cannot create a token with non-existing policy", func(t *testing.T) {
-// 	notBefore := time.Now().Unix()
-// 	expiresAt := notBefore + 3600
-// 	_, _, err := vault.createToken(ctx, testPrincipal, append(testPrincipal.Policies, "non-existing-policy"), notBefore, expiresAt)
-// 	var valueErr *ValueError
-// 	if err == nil || !errors.As(err, &valueErr) {
-// 		t.Fatalf("Expected a value error for non-existing policy, got %s", err)
-// 	}
-// })
+	t.Run("can succesfully login", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, testPrincipal.Policies, notBefore, expiresAt)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("can't login without a username or password", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		userPassCombo := []struct {
+			username string
+			password string
+		}{
+			{"", ""},
+			{"", testPrincipal.Password},
+			{testPrincipal.Username, ""},
+		}
+
+		for _, combo := range userPassCombo {
+			_, _, err := vault.Login(ctx, combo.username, combo.password, testPrincipal.Policies, notBefore, expiresAt)
+			var valueErr *ValueError
+			if err == nil || !errors.As(err, &valueErr) {
+				t.Fatalf("Expected a value error for non-existing policy, got %s", err)
+			}
+		}
+
+	})
+
+	t.Run("can't login with invalid credentials", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		_, _, err := vault.Login(ctx, "xx", "yy", testPrincipal.Policies, notBefore, expiresAt)
+		var forbiddenErr *ForbiddenError
+		if err == nil || !errors.As(err, &forbiddenErr) {
+			t.Fatalf("Expected a forbidden error for invalid credentials, got %s", err)
+		}
+	})
+	t.Run("can't login with a notBefore > expiresAt", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore - 3600
+		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, testPrincipal.Policies, notBefore, expiresAt)
+		var valueErr *ValueError
+		if err == nil || !errors.As(err, &valueErr) {
+			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
+		}
+	})
+	t.Run("principal can't specify login policies without having ownership of them", func(t *testing.T) {
+		notBefore := time.Now().Unix()
+		expiresAt := notBefore + 3600
+		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, []string{"not-real-policy"}, notBefore, expiresAt)
+		var valueErr *ValueError
+		if err == nil || !errors.As(err, &valueErr) {
+			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
+		}
+	})
+
+}

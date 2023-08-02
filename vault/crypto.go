@@ -7,11 +7,9 @@ import (
 	"encoding/hex"
 )
 
-// Generate a random token
-func GenerateTokenString() (string, error) {
+func GenerateSecret() (string, error) {
 	// Define the desired token length in bytes
-	tokenLength := 32
-
+	tokenLength := 16
 	// Create a byte slice to hold the random bytes
 	tokenBytes := make([]byte, tokenLength)
 
@@ -27,8 +25,7 @@ func GenerateTokenString() (string, error) {
 	return token, nil
 }
 
-// Hash a token using SHA-256
-func HashToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
+func Hash(msg string) string {
+	hash := sha256.Sum256([]byte(msg))
 	return hex.EncodeToString(hash[:])
 }

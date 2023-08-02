@@ -56,7 +56,7 @@ func NewLogger(module, sink, level string, logStackTrace bool) (Logger, error) {
 			return pkgerrors.MarshalStack(errors.WithStack(err))
 		}
 	}
-
+	// TODO: Don't use magic strings
 	var logger zerolog.Logger
 	switch sink {
 	case "stdout":
