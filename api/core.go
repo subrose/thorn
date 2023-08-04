@@ -125,7 +125,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	vaultLogger, err := _logger.NewLogger("VAULT_FUCK_YOU", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
 		Db:               db,
 		Priv:             priv,

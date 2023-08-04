@@ -3,11 +3,8 @@ package vault
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-playground/assert/v2"
 	_logger "github.com/subrose/logger"
@@ -290,7 +287,7 @@ func TestVault(t *testing.T) {
 	})
 }
 
-func TestTokenGenerationAndValidation(t *testing.T) {
+func TestVaultLogin(t *testing.T) {
 	ctx := context.Background()
 	vault, _, _ := initVault(t)
 
@@ -301,216 +298,30 @@ func TestTokenGenerationAndValidation(t *testing.T) {
 		Description: "test principal",
 	}
 
-	t.Run("can create and validate a token", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		_, err = vault.ValidateAndGetToken(ctx, tokenString)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("cannot validate a token that is not valid yet", func(t *testing.T) {
-		notBefore := time.Now().Unix() + 3600
-		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		_, err = vault.ValidateAndGetToken(ctx, tokenString)
-		var tokenErr *NotYetValidTokenError
-		if err == nil || !errors.As(err, &tokenErr) {
-			t.Fatalf("Expected a token error for not valid yet token, got %s", err)
-		}
-	})
-
-	t.Run("cannot validate a tampered token", func(t *testing.T) {
-		tests := []struct {
-			name         string
-			tamperFunc   func(tokenString string) string
-			expectError  bool
-			errorMessage string
-		}{
-			{
-				name: "missing token",
-				tamperFunc: func(tokenString string) string {
-					return ""
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for tampered signature",
-			},
-			{
-				name: "tampered signature",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf("%s.%sx", tokenSplits[0], tokenSplits[1])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for tampered signature",
-			},
-			{
-				name: "missing signature",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf("%s.", tokenSplits[0])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for missing signature",
-			},
-			{
-				name: "space in signature",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf("%s. %s", tokenSplits[0], tokenSplits[1])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for missing signature",
-			},
-			{
-				name: "tampered secret",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf("x%s.%s", tokenSplits[0], tokenSplits[1])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for extra data in token",
-			},
-			{
-				name: "missing secret",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf(".%s", tokenSplits[1])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for extra data in token",
-			},
-			{
-				name: "space in secret",
-				tamperFunc: func(tokenString string) string {
-					tokenSplits := strings.Split(tokenString, ".")
-					return fmt.Sprintf(" %s.%s", tokenSplits[0], tokenSplits[1])
-				},
-				expectError:  true,
-				errorMessage: "Expected an invalid token error for extra data in token",
-			},
-		}
-
-		for _, test := range tests {
-			t.Run(test.name, func(t *testing.T) {
-				notBefore := time.Now().Unix()
-				expiresAt := notBefore + 3600
-				tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				tamperedToken := test.tamperFunc(tokenString)
-
-				_, err = vault.ValidateAndGetToken(ctx, tamperedToken)
-				var tokenErr *InvalidTokenError
-				if (err == nil || !errors.As(err, &tokenErr)) != !test.expectError {
-					t.Fatalf(test.errorMessage+" got %s", err)
-				}
-			})
-		}
-
-	})
-
-	t.Run("cannot validate a token with incorrect secret", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		tokenString, _, err := vault.createToken(ctx, testPrincipal, testPrincipal.Policies, notBefore, expiresAt)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		tamperedToken := "x" + tokenString
-
-		_, err = vault.ValidateAndGetToken(ctx, tamperedToken)
-		var tokenErr *InvalidTokenError
-		if err == nil || !errors.As(err, &tokenErr) {
-			t.Fatalf("Expected an invalid token error for tampered token, got %s", err)
-		}
-	})
-}
-
-func TestLoginFunctionality(t *testing.T) {
-	ctx := context.Background()
-	vault, _, _ := initVault(t)
-	testPrincipal := Principal{
-		Username:    "test_user",
-		Password:    "test_password",
-		Policies:    []string{"root"},
-		Description: "test principal",
-	}
 	err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
 	if err != nil {
-		t.Fatalf("Failed to create test principal: %v", err)
+		t.Fatal(err)
 	}
 
-	t.Run("can succesfully login", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, testPrincipal.Policies, notBefore, expiresAt)
+	t.Run("can login successfully", func(t *testing.T) {
+		principal, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password)
 		if err != nil {
 			t.Fatal(err)
 		}
-	})
 
-	t.Run("can't login without a username or password", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		userPassCombo := []struct {
-			username string
-			password string
-		}{
-			{"", ""},
-			{"", testPrincipal.Password},
-			{testPrincipal.Username, ""},
+		if principal.Username != testPrincipal.Username {
+			t.Fatalf("Expected principal username to be %s, got %s", testPrincipal.Username, principal.Username)
 		}
 
-		for _, combo := range userPassCombo {
-			_, _, err := vault.Login(ctx, combo.username, combo.password, testPrincipal.Policies, notBefore, expiresAt)
-			var valueErr *ValueError
-			if err == nil || !errors.As(err, &valueErr) {
-				t.Fatalf("Expected a value error for non-existing policy, got %s", err)
-			}
+		if err != nil {
+			t.Fatal(err)
 		}
-
 	})
 
 	t.Run("can't login with invalid credentials", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		_, _, err := vault.Login(ctx, "xx", "yy", testPrincipal.Policies, notBefore, expiresAt)
-		var forbiddenErr *ForbiddenError
-		if err == nil || !errors.As(err, &forbiddenErr) {
-			t.Fatalf("Expected a forbidden error for invalid credentials, got %s", err)
+		_, err := vault.Login(ctx, testPrincipal.Username, "invalid_password")
+		if err == nil {
+			t.Fatal("Expected an error, got nil")
 		}
 	})
-	t.Run("can't login with a notBefore > expiresAt", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore - 3600
-		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, testPrincipal.Policies, notBefore, expiresAt)
-		var valueErr *ValueError
-		if err == nil || !errors.As(err, &valueErr) {
-			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
-		}
-	})
-	t.Run("principal can't specify login policies without having ownership of them", func(t *testing.T) {
-		notBefore := time.Now().Unix()
-		expiresAt := notBefore + 3600
-		_, _, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password, []string{"not-real-policy"}, notBefore, expiresAt)
-		var valueErr *ValueError
-		if err == nil || !errors.As(err, &valueErr) {
-			t.Fatalf("Expected a value error for non-existing policy, got %s", err)
-		}
-	})
-
 }

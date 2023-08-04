@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -65,6 +66,13 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	return app, core
 }
 
+func createBasicAuthHeader(username, password string) string {
+	// Encode username and password into Basic Auth header
+	authValue := username + ":" + password
+	encodedAuthValue := base64.StdEncoding.EncodeToString([]byte(authValue))
+	return "Basic " + encodedAuthValue
+}
+
 func newRequest(t *testing.T, method, url string, headers map[string]string, payload interface{}) *http.Request {
 	jsonRequest, err := json.Marshal(payload)
 	if err != nil {
@@ -115,7 +123,8 @@ func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int
 		validate := validator.New()
 		err = validate.Struct(target)
 		if err != nil {
-			t.Fatalf("Response data validation failed: %v", err)
+			fmt.Println(target)
+			t.Fatalf("Response data validation failed: %v, got: %v", err, target)
 		}
 	}
 }

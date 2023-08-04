@@ -2,7 +2,6 @@ package vault
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -273,6 +272,23 @@ func (vault Vault) GetRecordsFilter(
 	return vault.GetRecords(ctx, principal, collectionName, recordIds, format)
 }
 
+func (vault Vault) GetPrincipal(
+	ctx context.Context,
+	principal Principal,
+	username string,
+) (Principal, error) {
+	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return Principal{}, err
+	}
+	if !allowed {
+		return Principal{}, &ForbiddenError{request}
+	}
+
+	return vault.PrincipalManager.GetPrincipal(ctx, username)
+}
+
 func (vault Vault) CreatePrincipal(
 	ctx context.Context,
 	principal Principal,
@@ -306,167 +322,31 @@ func (vault Vault) CreatePrincipal(
 	return nil
 }
 
-func (vault Vault) GetPrincipal(
-	ctx context.Context,
-	principal Principal,
-	username string,
-) (Principal, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return Principal{}, err
-	}
-	if !allowed {
-		return Principal{}, &ForbiddenError{request}
-	}
-
-	return vault.PrincipalManager.GetPrincipal(ctx, username)
-}
-
-func (vault Vault) ValidateAndGetToken(
-	ctx context.Context,
-	token string,
-) (Token, error) {
-	tokenSplits := strings.Split(token, ".")
-	if len(tokenSplits) != 2 {
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-
-	secret := tokenSplits[0]
-	signature := tokenSplits[1]
-
-	if secret == "" || signature == "" {
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-
-	hashedSecret := Hash(secret)
-	valid, err := vault.Signer.Verify(hashedSecret, signature)
-	if err != nil {
-		vault.Logger.Error("Error verifying token", err)
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-
-	if !valid {
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-	dbTokenId := fmt.Sprintf("%s.%s", hashedSecret, signature)
-	dbToken, err := vault.Db.GetToken(ctx, dbTokenId)
-	if err != nil {
-		var notFoundErr *NotFoundError
-		if errors.As(err, &notFoundErr) {
-			return Token{}, &NonExistentTokenError{Message: "token not found"}
-		}
-		vault.Logger.Error("Error getting token", err)
-		return Token{}, &InvalidTokenError{Message: "invalid token"}
-	}
-
-	if dbToken.ExpiresAt < time.Now().Unix() && dbToken.ExpiresAt != -1 {
-		return Token{}, &ExpiredTokenError{Message: "token expired"}
-	}
-
-	if dbToken.NotBefore > time.Now().Unix() {
-		return Token{}, &NotYetValidTokenError{Message: "token not valid yet"}
-	}
-
-	return dbToken, nil
-}
-
-func (vault Vault) createToken(
-	ctx context.Context,
-	principal Principal,
-	policies []string,
-	notBefore int64,
-	expiresAt int64,
-) (string, Token, error) {
-	secret, err := GenerateSecret()
-	if err != nil {
-		return "", Token{}, err
-	}
-	hashedSecret := Hash(secret)
-	signature, err := vault.Signer.Sign(hashedSecret)
-	if err != nil {
-		vault.Logger.Error("Error signing token", err)
-		return "", Token{}, err
-	}
-
-	dbTokenId := fmt.Sprintf("%s.%s", hashedSecret, signature)
-	token := fmt.Sprintf("%s.%s", secret, signature)
-	if err != nil {
-		vault.Logger.Error("Error signing token", err)
-		return "", Token{}, err
-	}
-
-	tokenMetadata := Token{
-		PrincipalUsername: principal.Username,
-		Policies:          policies,
-		IssuedAt:          time.Now().Unix(),
-		NotBefore:         notBefore,
-		ExpiresAt:         expiresAt,
-	}
-
-	err = vault.Db.CreateToken(ctx, dbTokenId, tokenMetadata)
-	if err != nil {
-		return "", Token{}, err
-	}
-	return token, tokenMetadata, nil
-}
-
 func (vault Vault) Login(
 	ctx context.Context,
 	username,
 	password string,
-	policies []string,
-	notBefore int64,
-	expiresAt int64,
-) (token string, tokenMetadata Token, err error) {
+) (principal Principal, err error) {
 
 	if username == "" || password == "" {
-		return "", Token{}, newValueError(fmt.Errorf("username and password must be provided"))
+		return Principal{}, newValueError(fmt.Errorf("username and password must be provided"))
 	}
 
 	dbPrincipal, err := vault.PrincipalManager.GetPrincipal(ctx, username)
 	if err != nil {
 		vault.Logger.Error("Error getting principal", err)
-		return "", Token{}, &ForbiddenError{}
+		return Principal{}, &ForbiddenError{}
 	}
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return "", Token{}, &ForbiddenError{}
+		return Principal{}, &ForbiddenError{}
 	}
 
 	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
 	if compareErr != nil {
-		return "", Token{}, &ForbiddenError{}
+		return Principal{}, &ForbiddenError{}
 	}
 
-	// Default to principals policies if none provided
-	policiesToApply := policies
-	if len(policies) == 0 {
-		policiesToApply = dbPrincipal.Policies
-	} else {
-		// Ensure requested policies exist on principal
-		for _, policy := range policies {
-			if !StringInSlice(policy, dbPrincipal.Policies) {
-				return "", Token{}, newValueError(fmt.Errorf("policy '%s' does not exist on principal '%s'", policy, username))
-			}
-		}
-	}
-
-	// Ensure expiresAt is greater than notBefore
-	if expiresAt != -1 && expiresAt < notBefore {
-		return "", Token{}, newValueError(fmt.Errorf("expiresAt must be greater than notBefore"))
-	}
-
-	token, tokenMetadata, err = vault.createToken(
-		ctx,
-		dbPrincipal,
-		policiesToApply,
-		notBefore,
-		expiresAt,
-	)
-	if err != nil {
-		return "", Token{}, err
-	}
-	return token, tokenMetadata, nil
+	return dbPrincipal, nil
 }
 
 func (vault Vault) CreatePolicy(

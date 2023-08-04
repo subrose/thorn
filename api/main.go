@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"strings"
@@ -10,6 +10,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
 )
+
+const PRINCIPAL_CONTEXT_KEY = "principal"
 
 func ApiLogger(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
@@ -32,50 +34,52 @@ func ApiLogger(core *Core) fiber.Handler {
 }
 
 func GetSessionPrincipal(c *fiber.Ctx) _vault.Principal {
-	return c.Locals("principal").(_vault.Principal)
+	return c.Locals(PRINCIPAL_CONTEXT_KEY).(_vault.Principal)
 }
 
-func tokenGuard(core *Core) fiber.Handler {
+func authGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		// Extract token from header
 		authHeader := ctx.Get("Authorization")
 		if authHeader == "" {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Missing Authorization header",
 			})
 		}
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 {
+
+		const prefix = "Basic "
+		if !strings.HasPrefix(authHeader, prefix) {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid Authorization header",
 			})
 		}
-		tokenString := bearerToken[1]
-		// Validate Token
-		token, err := core.vault.ValidateAndGetToken(ctx.Context(), tokenString)
+
+		encodedCredentials := authHeader[len(prefix):]
+		decoded, err := base64.StdEncoding.DecodeString(encodedCredentials)
 		if err != nil {
-			var forbiddenErr *_vault.ForbiddenError
-			var valueErr *_vault.ValueError
-			if errors.As(err, &forbiddenErr) {
-				return ctx.Status(fiber.StatusForbidden).JSON(fiber.Map{
-					"error": "Not authorized",
-				})
-			}
-
-			if errors.As(err, &valueErr) {
-				return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-					"error": valueErr.Msg,
-				})
-			}
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid base64 encoding",
+			})
 		}
 
-		// Build a fake principal from the token TODO: This is a hack?
-		principal := _vault.Principal{
-			Username: token.PrincipalUsername,
-			Policies: token.Policies,
+		credentials := strings.SplitN(string(decoded), ":", 2)
+		if len(credentials) != 2 {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid Authorization value",
+			})
 		}
+
+		username := credentials[0]
+		password := credentials[1]
+
+		principal, err := core.vault.Login(ctx.Context(), username, password)
+		if err != nil {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid username or password",
+			})
+		}
+
 		// Set principal in context
-		ctx.Locals("principal", principal)
+		ctx.Locals(PRINCIPAL_CONTEXT_KEY, principal)
 		// Continue stack
 		_ = ctx.Next()
 
@@ -93,16 +97,13 @@ func SetupApi(core *Core) *fiber.App {
 		return c.Status(fiber.StatusOK).SendString("OK")
 	})
 
-	authGroup := app.Group("/auth")
-	authGroup.Post("/userpass/login", core.Login)
-
 	principalGroup := app.Group("/principals")
-	principalGroup.Use(tokenGuard(core))
+	principalGroup.Use(authGuard(core))
 	principalGroup.Get(":username", core.GetPrincipal)
 	principalGroup.Post("", core.CreatePrincipal)
 
 	collectionsGroup := app.Group("/collections")
-	collectionsGroup.Use(tokenGuard(core))
+	collectionsGroup.Use(authGuard(core))
 	collectionsGroup.Get("", core.GetCollections)
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Post("", core.CreateCollection)
@@ -110,7 +111,7 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("/:name/records/:id/:format", core.GetRecord)
 
 	policiesGroup := app.Group("/policies")
-	policiesGroup.Use(tokenGuard(core))
+	policiesGroup.Use(authGuard(core))
 	policiesGroup.Get(":policyId", core.GetPolicyById)
 	policiesGroup.Post("", core.CreatePolicy)
 

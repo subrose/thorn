@@ -13,17 +13,6 @@ class Policy(BaseModel):
     resources: List[str]
 
 
-def auth_guard(fn):
-    def auth_check(self, *args, **kwargs):
-        if not self.token:
-            raise Exception(
-                "Attempted to call a protected method without authentication"
-            )
-        return fn(self, *args, **kwargs)
-
-    return auth_check
-
-
 def check_expected_status(
     response: requests.Response, expected_status_codes: Optional[list[int]]
 ):
@@ -44,31 +33,7 @@ class Actor:
         self.username = username
         self.password = password
         self.vault_url = vault_url
-        self.token = None
 
-    def authenticate(
-        self,
-        policies=None,
-        not_before=None,
-        expires_at=None,
-        expected_statuses: Optional[list[int]] = None,
-    ) -> dict[str, str]:
-        response = requests.post(
-            f"{self.vault_url}/auth/userpass/login",
-            json={
-                "username": self.username,
-                "password": self.password,
-                "policies": policies,
-                "not_before": not_before,
-                "expires_at": expires_at,
-            },
-        )
-        check_expected_status(response, expected_statuses)
-        self.token = response.json()["access_token"]
-
-        return response.json()
-
-    @auth_guard
     def create_principal(
         self,
         username: str,
@@ -85,23 +50,21 @@ class Actor:
                 "description": description,
                 "policies": policies,
             },
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
         return response.json()
 
-    @auth_guard
     def create_collection(
         self, schema: dict[str, Any], expected_statuses: Optional[list[int]] = None
     ) -> None:
         response = requests.post(
             f"{self.vault_url}/collections",
             json=schema,
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
 
-    @auth_guard
     def create_records(
         self,
         collection: str,
@@ -111,12 +74,11 @@ class Actor:
         response = requests.post(
             f"{self.vault_url}/collections/{collection}/records",
             json=records,
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
         return response.json()
 
-    @auth_guard
     def get_record(
         self,
         collection: str,
@@ -126,29 +88,27 @@ class Actor:
     ) -> dict[str, dict[str, str]]:
         response = requests.get(
             f"{self.vault_url}/collections/{collection}/records/{record_id}/{format}",
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
         return response.json()
 
-    @auth_guard
     def create_policy(
         self, policy: Policy, expected_statuses: Optional[list[int]] = None
     ) -> None:
         response = requests.post(
             f"{self.vault_url}/policies",
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
             json=policy.model_dump(),
         )
         check_expected_status(response, expected_statuses)
 
-    @auth_guard
     def get_policy(
         self, policy_id: str, expected_statuses: Optional[list[int]] = None
     ) -> None:
         response = requests.get(
             f"{self.vault_url}/policies/{policy_id}",
-            headers={"Authorization": f"Bearer {self.token}"},
+            auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
         return response.json()

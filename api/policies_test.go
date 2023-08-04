@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,11 +16,6 @@ import (
 
 func TestPolicies(t *testing.T) {
 	app, core := InitTestingVault(t)
-	ctx := context.Background()
-	adminToken, _, err := core.vault.Login(ctx, core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD, nil, 0, -1)
-	if err != nil {
-		t.Fatalf("Failed to login as admin: %v", err)
-	}
 
 	testPolicyId := "test-policy"
 
@@ -40,7 +34,7 @@ func TestPolicies(t *testing.T) {
 		)
 		req := httptest.NewRequest(http.MethodPost, "/policies", policyJson)
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminToken)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, _ := app.Test(req, -1)
 		createdPolicy := _vault.Policy{}
 		body, _ := io.ReadAll(res.Body)
@@ -57,7 +51,7 @@ func TestPolicies(t *testing.T) {
 	t.Run("can get policy", func(t *testing.T) {
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s", testPolicyId), nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminToken)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err := app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting policy", err)

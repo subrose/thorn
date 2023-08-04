@@ -16,7 +16,6 @@ BOB_PASSWORD = "bob-password"
 
 
 admin = Actor(VAULT_URL, username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
-admin.authenticate(expected_statuses=[200])
 
 # Step 2: Create collection
 admin.create_collection(
@@ -74,7 +73,6 @@ admin.create_principal(
 
 
 alice = Actor(VAULT_URL, ALICE_USERNAME, ALICE_PASSWORD)
-alice.authenticate(expected_statuses=[200])
 
 admin.create_principal(
     username=BOB_USERNAME,
@@ -85,7 +83,6 @@ admin.create_principal(
 )
 
 bob = Actor(VAULT_URL, BOB_USERNAME, BOB_PASSWORD)
-bob.authenticate(expected_statuses=[200])
 
 # 2) Alice adds a password
 alice_password = "alicerocks"

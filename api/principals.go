@@ -7,30 +7,36 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
-type PrincipalModel struct {
+type NewPrincipal struct {
 	Username    string   `json:"username" validate:"required,min=1,max=32"`
 	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
 	Description string   `json:"description"`
 	Policies    []string `json:"policies"`
 }
 
+type PrincipalResponse struct {
+	Username    string   `json:"username"`
+	Description string   `json:"description"`
+	Policies    []string `json:"policies"`
+}
+
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
-	var inputPrincipal PrincipalModel
-	if err := c.BodyParser(&inputPrincipal); err != nil {
+	var newPrincipal NewPrincipal
+	if err := c.BodyParser(&newPrincipal); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Invalid request body", nil})
 	}
 
-	errors := Validate(inputPrincipal)
+	errors := Validate(newPrincipal)
 	if errors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(errors)
 	}
 
 	sessionPrincipal := GetSessionPrincipal(c)
 	err := core.vault.CreatePrincipal(c.Context(), sessionPrincipal,
-		inputPrincipal.Username,
-		inputPrincipal.Password,
-		inputPrincipal.Description,
-		inputPrincipal.Policies,
+		newPrincipal.Username,
+		newPrincipal.Password,
+		newPrincipal.Description,
+		newPrincipal.Policies,
 	)
 	if err != nil {
 		switch err.(type) {
@@ -42,7 +48,11 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
 	}
-	return c.Status(http.StatusCreated).JSON(nil) // Return no content on purpose.
+	return c.Status(http.StatusCreated).JSON(PrincipalResponse{
+		Username:    newPrincipal.Username,
+		Description: newPrincipal.Description,
+		Policies:    newPrincipal.Policies,
+	})
 }
 
 func (core *Core) GetPrincipal(c *fiber.Ctx) error {
@@ -59,8 +69,7 @@ func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
 		}
 	}
-	// Note that we don't return the password hash.
-	return c.Status(http.StatusOK).JSON(PrincipalModel{
+	return c.Status(http.StatusOK).JSON(PrincipalResponse{
 		Username:    principal.Username,
 		Description: principal.Description,
 		Policies:    principal.Policies,
