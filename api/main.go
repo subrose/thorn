@@ -1,13 +1,17 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	_vault "github.com/subrose/vault"
 )
+
+const PRINCIPAL_CONTEXT_KEY = "principal"
 
 func ApiLogger(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
@@ -29,31 +33,53 @@ func ApiLogger(core *Core) fiber.Handler {
 	}
 }
 
-func JwtGuard(core *Core) fiber.Handler {
+func GetSessionPrincipal(c *fiber.Ctx) _vault.Principal {
+	return c.Locals(PRINCIPAL_CONTEXT_KEY).(_vault.Principal)
+}
+
+func authGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
-		// Extract JWT from header
 		authHeader := ctx.Get("Authorization")
 		if authHeader == "" {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Missing Authorization header",
 			})
 		}
-		bearerToken := strings.Split(authHeader, " ")
-		if len(bearerToken) != 2 {
+
+		const prefix = "Basic "
+		if !strings.HasPrefix(authHeader, prefix) {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "Invalid Authorization header",
 			})
 		}
-		tokenString := bearerToken[1]
-		// Validate JWT
-		principal, err := core.validateJWT(tokenString)
+
+		encodedCredentials := authHeader[len(prefix):]
+		decoded, err := base64.StdEncoding.DecodeString(encodedCredentials)
 		if err != nil {
 			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid JWT",
+				"error": "Invalid base64 encoding",
 			})
 		}
+
+		credentials := strings.SplitN(string(decoded), ":", 2)
+		if len(credentials) != 2 {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid Authorization value",
+			})
+		}
+
+		username := credentials[0]
+		password := credentials[1]
+
+		principal, err := core.vault.Login(ctx.Context(), username, password)
+		if err != nil {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid username or password",
+			})
+		}
+
 		// Set principal in context
-		ctx.Locals("principal", principal)
+		ctx.Locals(PRINCIPAL_CONTEXT_KEY, principal)
 		// Continue stack
 		_ = ctx.Next()
 
@@ -71,16 +97,13 @@ func SetupApi(core *Core) *fiber.App {
 		return c.Status(fiber.StatusOK).SendString("OK")
 	})
 
-	authGroup := app.Group("/auth")
-	authGroup.Post("/token", core.GenerateBearerTokenFromCreds)
-
 	principalGroup := app.Group("/principals")
-	principalGroup.Use(JwtGuard(core))
+	principalGroup.Use(authGuard(core))
 	principalGroup.Get(":username", core.GetPrincipal)
 	principalGroup.Post("", core.CreatePrincipal)
 
 	collectionsGroup := app.Group("/collections")
-	collectionsGroup.Use(JwtGuard(core))
+	collectionsGroup.Use(authGuard(core))
 	collectionsGroup.Get("", core.GetCollections)
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Post("", core.CreateCollection)
@@ -88,7 +111,7 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("/:name/records/:id/:format", core.GetRecord)
 
 	policiesGroup := app.Group("/policies")
-	policiesGroup.Use(JwtGuard(core))
+	policiesGroup.Use(authGuard(core))
 	policiesGroup.Get(":policyId", core.GetPolicyById)
 	policiesGroup.Post("", core.CreatePolicy)
 

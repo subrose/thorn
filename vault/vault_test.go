@@ -7,12 +7,8 @@ import (
 	"testing"
 
 	"github.com/go-playground/assert/v2"
+	_logger "github.com/subrose/logger"
 )
-
-// I have customer PII in my database which I want to move to a PII vault.
-// The customer object looks like this: {first_name: "John", last_name: "Crawford", "email": "john.crawford@gmail.com", "phone": "1234567890""}
-// I want to store the customer object in the vault and get back a unique ID.
-// I want to be able to retrieve the customer object from the vault using the unique ID.
 
 func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	ctx := context.Background()
@@ -26,6 +22,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	}
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
+	signer, _ := NewHMACSigner([]byte("testkey"))
 	var pm PolicyManager = db
 	_, _ = pm.CreatePolicy(ctx, Policy{
 		"root",
@@ -39,7 +36,8 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
 	})
-	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm}
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
+	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }
 
@@ -286,5 +284,44 @@ func TestVault(t *testing.T) {
 		})
 		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
 		assert.Equal(t, err, ErrIndexError)
+	})
+}
+
+func TestVaultLogin(t *testing.T) {
+	ctx := context.Background()
+	vault, _, _ := initVault(t)
+
+	testPrincipal := Principal{
+		Username:    "test_user",
+		Password:    "test_password",
+		Policies:    []string{"root"},
+		Description: "test principal",
+	}
+
+	err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("can login successfully", func(t *testing.T) {
+		principal, err := vault.Login(ctx, testPrincipal.Username, testPrincipal.Password)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if principal.Username != testPrincipal.Username {
+			t.Fatalf("Expected principal username to be %s, got %s", testPrincipal.Username, principal.Username)
+		}
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("can't login with invalid credentials", func(t *testing.T) {
+		_, err := vault.Login(ctx, testPrincipal.Username, "invalid_password")
+		if err == nil {
+			t.Fatal("Expected an error, got nil")
+		}
 	})
 }

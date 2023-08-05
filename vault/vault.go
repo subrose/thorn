@@ -30,6 +30,14 @@ type Principal struct {
 	Policies    []string `redis:"policies"`
 }
 
+type Token struct {
+	PrincipalUsername string   `redis:"principal_username"` // principal username associated with the token
+	Policies          []string `redis:"policies"`
+	IssuedAt          int64    `redis:"issued_at"`  // timestamp the token was issued at
+	NotBefore         int64    `redis:"not_before"` // timestamp the token is valid from
+	ExpiresAt         int64    `redis:"expires_at"` // timestamp the token is set to expire
+}
+
 type VaultDB interface {
 	GetCollection(ctx context.Context, name string) (Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
@@ -37,12 +45,21 @@ type VaultDB interface {
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
 	GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
+	GetPrincipal(ctx context.Context, username string) (Principal, error)
+	CreatePrincipal(ctx context.Context, principal Principal) error
+	CreateToken(ctx context.Context, tokenHash string, t Token) error
+	GetToken(ctx context.Context, tokenHash string) (Token, error)
 	Flush(ctx context.Context) error
 }
 
 type Privatiser interface {
 	Encrypt(string) (string, error)
 	Decrypt(string) (string, error)
+}
+
+type Signer interface {
+	Sign(message string) (string, error)
+	Verify(message, signature string) (bool, error)
 }
 
 type PrincipalManager interface {
@@ -63,6 +80,7 @@ type Vault struct {
 	PrincipalManager PrincipalManager
 	PolicyManager    PolicyManager
 	Logger           Logger
+	Signer           Signer
 }
 
 // TODO: These probably should be renamed to have _PATH
@@ -254,6 +272,23 @@ func (vault Vault) GetRecordsFilter(
 	return vault.GetRecords(ctx, principal, collectionName, recordIds, format)
 }
 
+func (vault Vault) GetPrincipal(
+	ctx context.Context,
+	principal Principal,
+	username string,
+) (Principal, error) {
+	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return Principal{}, err
+	}
+	if !allowed {
+		return Principal{}, &ForbiddenError{request}
+	}
+
+	return vault.PrincipalManager.GetPrincipal(ctx, username)
+}
+
 func (vault Vault) CreatePrincipal(
 	ctx context.Context,
 	principal Principal,
@@ -287,37 +322,31 @@ func (vault Vault) CreatePrincipal(
 	return nil
 }
 
-func (vault Vault) GetPrincipal(
-	ctx context.Context,
-	principal Principal,
-	username string,
-) (Principal, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return Principal{}, err
-	}
-	if !allowed {
-		return Principal{}, &ForbiddenError{request}
-	}
-
-	return vault.PrincipalManager.GetPrincipal(ctx, username)
-}
-
-func (vault Vault) AuthenticateUser(
+func (vault Vault) Login(
 	ctx context.Context,
 	username,
-	inputAccessSecret string,
-) (Principal, error) {
-	dbUser, err := vault.PrincipalManager.GetPrincipal(ctx, username)
+	password string,
+) (principal Principal, err error) {
+
+	if username == "" || password == "" {
+		return Principal{}, newValueError(fmt.Errorf("username and password must be provided"))
+	}
+
+	dbPrincipal, err := vault.PrincipalManager.GetPrincipal(ctx, username)
 	if err != nil {
-		return Principal{}, err
+		vault.Logger.Error("Error getting principal", err)
+		return Principal{}, &ForbiddenError{}
 	}
-	compareErr := bcrypt.CompareHashAndPassword([]byte(dbUser.Password), []byte(inputAccessSecret))
+	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
+		return Principal{}, &ForbiddenError{}
+	}
+
+	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
 	if compareErr != nil {
-		return Principal{}, compareErr
+		return Principal{}, &ForbiddenError{}
 	}
-	return dbUser, nil
+
+	return dbPrincipal, nil
 }
 
 func (vault Vault) CreatePolicy(
@@ -327,8 +356,10 @@ func (vault Vault) CreatePolicy(
 ) (string, error) {
 	request := Request{principal, PolicyActionWrite, POLICIES_PPATH}
 	// Ensure resource starts with a slash
-	if !strings.HasPrefix(p.Resources[0], "/") { // TODO: FIX ME!!
-		return "", newValueError(fmt.Errorf("resource must start with a slash"))
+	for _, resource := range p.Resources {
+		if !strings.HasPrefix(resource, "/") {
+			return "", newValueError(fmt.Errorf("resources must start with a slash - '%s' is not a valid resource", resource))
+		}
 	}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {

@@ -15,12 +15,8 @@ import (
 )
 
 func TestPolicies(t *testing.T) {
-	app, _, core := InitTestingVault(t)
-	adminJwt, _ := core.generateJWT(_vault.Principal{
-		Username: "test",
-		Password: "test",
-		Policies: []string{"root"},
-	})
+	app, core := InitTestingVault(t)
+
 	testPolicyId := "test-policy"
 
 	t.Run("can create policy", func(t *testing.T) {
@@ -38,7 +34,7 @@ func TestPolicies(t *testing.T) {
 		)
 		req := httptest.NewRequest(http.MethodPost, "/policies", policyJson)
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, _ := app.Test(req, -1)
 		createdPolicy := _vault.Policy{}
 		body, _ := io.ReadAll(res.Body)
@@ -53,15 +49,9 @@ func TestPolicies(t *testing.T) {
 	})
 
 	t.Run("can get policy", func(t *testing.T) {
-		principal := _vault.Principal{
-			Username: "test",
-			Password: "test",
-			Policies: []string{testPolicyId},
-		}
-		jwt, _ := core.generateJWT(principal)
 
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/policies/%s", testPolicyId), nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+jwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err := app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting policy", err)

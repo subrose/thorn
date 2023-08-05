@@ -16,20 +16,20 @@ import (
 
 // CoreConfig is used to parameterize a core
 type CoreConfig struct {
-	DB_HOST                   string
-	DB_PORT                   int
-	DB_PASSWORD               string
-	DB_DB                     int
-	VAULT_ENCRYPTION_KEY      string
-	VAULT_ENCRYPTION_SECRET   string
-	VAULT_ADMIN_ACCESS_KEY    string
-	VAULT_ADMIN_ACCESS_SECRET string
-	API_HOST                  string
-	API_PORT                  int
-	API_JWT_SECRET            string
-	LOG_LEVEL                 string
-	LOG_OUTPUT                string
-	DEV_MODE                  bool
+	DB_HOST                 string
+	DB_PORT                 int
+	DB_PASSWORD             string
+	DB_DB                   int
+	VAULT_ENCRYPTION_KEY    string
+	VAULT_ENCRYPTION_SECRET string
+	VAULT_SIGNING_KEY       string
+	VAULT_ADMIN_USERNAME    string
+	VAULT_ADMIN_PASSWORD    string
+	API_HOST                string
+	API_PORT                int
+	LOG_LEVEL               string
+	LOG_OUTPUT              string
+	DEV_MODE                bool
 }
 
 // Core is used as the central manager of Vault activity. It is the primary point of
@@ -70,11 +70,11 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	conf.DB_DB = Config.Int("db_db")
 	conf.VAULT_ENCRYPTION_KEY = Config.String("encryption_key")
 	conf.VAULT_ENCRYPTION_SECRET = Config.String("encryption_secret")
-	conf.VAULT_ADMIN_ACCESS_KEY = Config.String("admin_access_key")
-	conf.VAULT_ADMIN_ACCESS_SECRET = Config.String("admin_access_secret")
+	conf.VAULT_ADMIN_USERNAME = Config.String("admin_access_key")
+	conf.VAULT_ADMIN_PASSWORD = Config.String("admin_access_secret")
 	conf.API_HOST = Config.String("api_host")
 	conf.API_PORT = Config.Int("api_port")
-	conf.API_JWT_SECRET = Config.String("api_jwt_secret")
+	conf.VAULT_SIGNING_KEY = Config.String("signing_key")
 	conf.LOG_LEVEL = Config.String("log_level")
 	conf.LOG_OUTPUT = Config.String("log_output")
 	conf.DEV_MODE = Config.Bool("system_dev_mode")
@@ -112,7 +112,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	res := db.Client.Ping(context.Background())
+	res := db.Client.Ping(context.Background()) // TODO: This is a leak in the vault abstraction layer
 	if res.Err() != nil {
 		panic(res.Err())
 	}
@@ -120,8 +120,20 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
 	var policyManager _vault.PolicyManager = db
 	var principalManager _vault.PrincipalManager = db
+	signer, err := _vault.NewHMACSigner([]byte(conf.VAULT_SIGNING_KEY))
+	if err != nil {
+		panic(err)
+	}
+
 	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
-	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: principalManager, PolicyManager: policyManager, Logger: vaultLogger}
+	vault := _vault.Vault{
+		Db:               db,
+		Priv:             priv,
+		PrincipalManager: principalManager,
+		PolicyManager:    policyManager,
+		Logger:           vaultLogger,
+		Signer:           signer,
+	}
 
 	c.vault = vault
 
@@ -140,8 +152,8 @@ func (core *Core) Init() error {
 		Resources: []string{"*"},
 	})
 	adminPrincipal := _vault.Principal{
-		Username:    core.conf.VAULT_ADMIN_ACCESS_KEY,
-		Password:    core.conf.VAULT_ADMIN_ACCESS_SECRET,
+		Username:    core.conf.VAULT_ADMIN_USERNAME,
+		Password:    core.conf.VAULT_ADMIN_PASSWORD,
 		Description: "admin",
 		Policies:    []string{"root"}}
 	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)

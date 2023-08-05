@@ -14,12 +14,7 @@ import (
 )
 
 func TestCollections(t *testing.T) {
-	app, _, core := InitTestingVault(t)
-	adminJwt, _ := core.generateJWT(_vault.Principal{
-		Username: "test",
-		Password: "test",
-		Policies: []string{"root"},
-	})
+	app, core := InitTestingVault(t)
 
 	t.Run("can create a collection", func(t *testing.T) {
 		collectionJSON := strings.NewReader(
@@ -34,10 +29,11 @@ func TestCollections(t *testing.T) {
 		)
 		req := httptest.NewRequest(http.MethodPost, "/collections", collectionJSON)
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		// Encode username and password into Basic Auth header
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err := app.Test(req, -1)
 
-		if err != nil {
+		if err != nil || res.StatusCode != http.StatusCreated {
 			t.Error("Error creating collection", err)
 		}
 
@@ -47,7 +43,7 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can get a collection", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/collections/customers", nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err := app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting collection", err)
@@ -65,7 +61,7 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can get all collections", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/collections", nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err := app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting collection", err)
@@ -88,7 +84,7 @@ func TestCollections(t *testing.T) {
 			]`,
 		)
 		req := httptest.NewRequest(http.MethodPost, "/collections/customers/records", recordJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		res, err := app.Test(req, -1)
 		if err != nil {
@@ -105,7 +101,7 @@ func TestCollections(t *testing.T) {
 
 		// Test getting the record
 		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+"/plain", nil)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err = app.Test(req, -1)
 		if err != nil {
 			t.Error("Error getting record", err)
@@ -129,7 +125,7 @@ func TestCollections(t *testing.T) {
 			]`,
 		)
 		req := httptest.NewRequest(http.MethodPost, "/collections/customers/records", recordJSON)
-		req.Header.Set(fiber.HeaderAuthorization, "Bearer "+adminJwt)
+		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
 		res, _ := app.Test(req, -1)
 		// Assertions

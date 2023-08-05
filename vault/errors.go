@@ -27,6 +27,38 @@ func (e *ConflictError) Error() string {
 	return fmt.Sprintf("conflict: %s", e.resourceName)
 }
 
+type InvalidTokenError struct {
+	Message string
+}
+
+func (e *InvalidTokenError) Error() string {
+	return e.Message
+}
+
+type ExpiredTokenError struct {
+	Message string
+}
+
+func (e *ExpiredTokenError) Error() string {
+	return e.Message
+}
+
+type NonExistentTokenError struct {
+	Message string
+}
+
+func (e *NonExistentTokenError) Error() string {
+	return e.Message
+}
+
+type NotYetValidTokenError struct {
+	Message string
+}
+
+func (e *NotYetValidTokenError) Error() string {
+	return e.Message
+}
+
 type ValueError struct {
 	Err error
 	Msg string

@@ -1,4 +1,4 @@
-from client import Actor
+from client import Actor, Policy
 
 # VAULT_URL from your client.py
 VAULT_URL = "http://localhost:3001"
@@ -16,7 +16,6 @@ BOB_PASSWORD = "bob-password"
 
 
 admin = Actor(VAULT_URL, username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
-admin.authenticate(expected_statuses=[200])
 
 # Step 2: Create collection
 admin.create_collection(
@@ -42,24 +41,25 @@ admin.create_collection(
 )
 
 # Step 3: Create policies using admin role
+
 admin.create_policy(
-    policy={
-        "policy_id": "alice-access-own-passwords",
-        "effect": "allow",
-        "actions": ["read", "write"],
-        "resources": ["/collections/alice-passwords/*"],
-    },
+    policy=Policy(
+        policy_id="alice-access-own-passwords",
+        effect="allow",
+        actions=["read", "write"],
+        resources=["/collections/alice-passwords/*"],
+    ),
     expected_statuses=[201, 409],
 )
 
 
 admin.create_policy(
-    policy={
-        "policy_id": "bob-access-own-passwords",
-        "effect": "allow",
-        "actions": ["read", "write"],
-        "resources": ["/collections/bob-passwords/*"],
-    },
+    policy=Policy(
+        policy_id="bob-access-own-passwords",
+        effect="allow",
+        actions=["read", "write"],
+        resources=["/collections/bob-passwords/*"],
+    ),
     expected_statuses=[201, 409],
 )
 
@@ -73,7 +73,6 @@ admin.create_principal(
 
 
 alice = Actor(VAULT_URL, ALICE_USERNAME, ALICE_PASSWORD)
-alice.authenticate(expected_statuses=[200])
 
 admin.create_principal(
     username=BOB_USERNAME,
@@ -84,7 +83,6 @@ admin.create_principal(
 )
 
 bob = Actor(VAULT_URL, BOB_USERNAME, BOB_PASSWORD)
-bob.authenticate(expected_statuses=[200])
 
 # 2) Alice adds a password
 alice_password = "alicerocks"

@@ -27,7 +27,6 @@ func Decode(s string) []byte {
 	return data
 }
 
-// Encrypt method is to encrypt or hide any classified text
 func (p AESPrivatiser) Encrypt(text string) (string, error) {
 	block, err := aes.NewCipher([]byte(p.secret))
 	if err != nil {
