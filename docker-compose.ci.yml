@@ -11,6 +11,7 @@ services:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
       - ./keydb/data:/data
   api:
+    profiles: ["simulations"]
     environment:
       - VAULT_DB_HOST=keydb
       - VAULT_DB_PORT=6379
@@ -33,6 +34,7 @@ services:
     volumes:
       - "./:/app"
   simulations:
+    profiles: ["simulations"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -47,6 +49,7 @@ services:
     volumes:
       - "./:/code"
   tests:
+    profiles: ["tests"]
     build:
       context: .
       dockerfile: Dockerfile

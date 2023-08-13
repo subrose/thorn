@@ -112,11 +112,6 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	res := db.Client.Ping(context.Background()) // TODO: This is a leak in the vault abstraction layer
-	if res.Err() != nil {
-		panic(res.Err())
-	}
-
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
 	var policyManager _vault.PolicyManager = db
 	var principalManager _vault.PrincipalManager = db
