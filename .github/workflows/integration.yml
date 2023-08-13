@@ -1,4 +1,4 @@
-name: Docker Compose Integration Test Workflow
+name: integration
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-  
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
