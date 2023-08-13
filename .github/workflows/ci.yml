@@ -65,10 +65,17 @@ jobs:
           compose-file: "./docker-compose.ci.yml"
           up-flags: "--remove-orphans --abort-on-container-exit"
           down-flags: "--volumes --remove-orphans"
+          services: |
+            keydb
+            tests
 
       - name: Run simulations
         uses: isbang/compose-action@v1.5.1
         with:
-          compose-file: "./docker-compose.simulations.yml"
+          compose-file: "./docker-compose.ci.yml"
           up-flags: "--remove-orphans --abort-on-container-exit"
           down-flags: "--volumes --remove-orphans"
+          services: |
+            keydb
+            api
+            simulations
