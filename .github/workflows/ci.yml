@@ -62,3 +62,7 @@ jobs:
       - name: Build and run Docker Compose
         run: |
           docker-compose -f docker-compose.yml up --build --abort-on-container-exit
+          if [ $? -ne 0 ]; then
+              echo "Docker Compose failed"
+              exit 1
+          fi
