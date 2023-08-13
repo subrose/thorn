@@ -10,6 +10,8 @@ run:
     - img
     - keydb
     - simulator
+    - conf
+    - website
   skip-dirs-use-default: false
   # Which files to skip: they will be analyzed, but issues from them won't be reported.
   # Default value is empty list,
@@ -34,7 +36,7 @@ run:
   modules-download-mode: readonly
   # Allow multiple parallel golangci-lint instances running.
   # If false (default) - golangci-lint acquires file lock on start.
-  allow-parallel-runners: false
+  allow-parallel-runners: true
   # Define the Go version limit.
   # Mainly related to generics support since go1.18.
   # Default: use Go version from the go.mod file, fallback on the env var `GOVERSION`, fallback on 1.18
