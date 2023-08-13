@@ -1,26 +1,28 @@
 # Simulating a usecase of a simple ecommerce app
-# Garden Inc is a flower ecommerce application that sells flowers online.
+# Garden Inc is a flower ecommerce application that sells flowers online in the UK
 
 # They have the following requirements
 # A backend application for processing orders, the PII it stores consists of:
 # - Customer details: name, email, phone
 # - Credit card details
 
-# Marketing team needs access to:
-# - email:plain to send out marketing campaigns
-# - name:plain to address users in marketing campaigns
-# - phone:masked to understand where users are based (by analysing area codes)
+# Marketing team needs to phone number area codes to assess campaign effectiveness
+# Marketing team needs access to plain email addresses to send marketing emails
 
+# Customer service team needs to access to all customer details to process refunds
 
 from client import Actor
+from client import Policy
+from faker import Faker
+from faker_e164.providers import E164Provider
+from wait import wait_for_api
+import os
 
-VAULT_URL = "http://localhost:3001"
+VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
+wait_for_api(VAULT_URL)
 
-# Step 0: Initialize your actors
 admin = Actor(VAULT_URL, username="admin", password="admin")
-admin.authenticate(expected_statuses=[200])
-
-# Step 1: Create collections
+# Create collection
 admin.create_collection(
     schema={
         "name": "customers",
@@ -29,126 +31,147 @@ admin.create_collection(
             "email": {"type": "email", "indexed": True},
             "phone": {"type": "phone_number", "indexed": False},
             "credit-card": {"type": "credit-card", "indexed": False},
+            "address": {"type": "address", "indexed": False},
         },
     },
     expected_statuses=[201, 409],
 )
 
+# Create policies
+# Backend can write customer details
 admin.create_policy(
-    policy={
-        "policy_id": "backend-read-collections",
-        "effect": "allow",
-        "action": "read",
-        "resource": "/collections/customers/records",  # allow checking if record exists
-    },
+    policy=Policy(
+        policy_id="backend",
+        effect="allow",
+        actions=["write"],
+        resources=["/collections/customers/*"],
+    ),
     expected_statuses=[201, 409],
 )
 
+# Marketing can read masked records
 admin.create_policy(
-    policy={
-        "policy_id": "backend-read",
-        "effect": "allow",
-        "action": "read",
-        "resource": "/collections/customers/*/email.plain",
-    },
+    policy=Policy(
+        policy_id="marketing",
+        effect="allow",
+        actions=["read"],
+        resources=[
+            "/collections/customers/*/masked",
+        ],
+    ),
     expected_statuses=[201, 409],
 )
 
+# Customer service team can read all customer details in plain
 admin.create_policy(
-    policy={
-        "policy_id": "backend-write",
-        "effect": "allow",
-        "action": "write",
-        "resource": "/collections/customers/*",
-    },
+    policy=Policy(
+        policy_id="customer-service",
+        effect="allow",
+        actions=["read"],
+        resources=[
+            "/collections/customers/*/plain",
+        ],
+    ),
     expected_statuses=[201, 409],
 )
 
-# Step 3: Create principals
-ecomm_principal = admin.create_principal(
-    username="ecom-user",
-    password="ecom-password",
-    description="ecom-backend-service",
-    policies=["backend-read", "backend-read-collections", "backend-write"],
+# Create actors
+backend = Actor(VAULT_URL, username="backend", password="backend")
+marketing = Actor(VAULT_URL, username="marketing", password="marketing")
+customer_service = Actor(
+    VAULT_URL, username="customer-service", password="customer-service"
+)
+
+admin.create_principal(
+    username=backend.username,
+    password=backend.password,
+    description="backend",
+    policies=["backend"],
     expected_statuses=[201, 409],
 )
 
-assert ecomm_principal is not None
-
-ecomm = Actor(
-    VAULT_URL,
-    ecomm_principal["username"],
-    ecomm_principal["password"],
-)
-ecomm.authenticate(expected_statuses=[200])
-
-# Step 4: Simulate application events
-# 1) User signs up
-record = ecomm.create_records(
-    collection="customers",
-    records=[
-        {
-            "name": "Alice",
-            "email": "alice@alice.com",
-            "phone": "+447123456789",
-            "credit-card": "4242424242424242",
-        }
-    ],
+admin.create_principal(
+    username=marketing.username,
+    password=marketing.password,
+    description="marketing",
+    policies=["marketing"],
     expected_statuses=[201, 409],
 )
 
+admin.create_principal(
+    username=customer_service.username,
+    password=customer_service.password,
+    description="customer-service",
+    policies=["customer-service"],
+    expected_statuses=[201, 409],
+)
 
-# admin.create_policy(
-#     policy={
-#         "id": "marketing",
-#         "effect": "allow",
-#         "action": ["read", "write"],
-#         "resources": [
-#             "records/customers/email:plain",
-#             "records/customers/name:masked",
-#             "records/customers/phone:masked",
-#         ],
-#     },
-#     expected_statuses=[201, 409],
-# )
+# Backend creates some customers
+fake = Faker()
+fake.add_provider(E164Provider)
 
-# # Step 3: Create principals
-# ecomm_principal, _, _ = admin.create_principal(
-#     name="ecom-backend-service",
-#     description="ecom-backend-service",
-#     policies=["app"],
-#     expected_statuses=[201, 409],
-# )
+# We need to create records one by one and build a map with the returned id:
 
-# marketing_principal, _, _ = admin.create_principal(
-#     name="marketing-team",
-#     description="marketing-team",
-#     policies=["marketing"],
-#     expected_statuses=[201, 409],
-# )
+records_map = {}
+for i in range(10):
+    record = {
+        "name": fake.name(),
+        "email": fake.email(),
+        "phone": fake.e164(),
+        "credit-card": fake.credit_card_full(),
+        "address": fake.address(),
+    }
+    record_ids = backend.create_records(
+        collection="customers", records=[record], expected_statuses=[201, 409]
+    )
+    records_map[record_ids[0]] = record
 
-# ecomm_backend = Actor(
-#     VAULT_URL,
-#     name="admin",
-#     username=ecomm_principal["username"],
-#     password=ecomm_principal["password"],
-# )
-# admin.authenticate(expected_statuses=[200])
+for record_id, record in records_map.items():
+    # Backend can't read anything
+    backend.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="masked",
+        expected_statuses=[403],
+    )
+
+    backend.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[403],
+    )
+
+    # Marketing can read masked records
+    masked_record = marketing.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="masked",
+        expected_statuses=[200],
+    )
+    # Check that masked record is masked correctly, first 5 digits are the same
+    assert masked_record[record_id]["phone"][:5] == record["phone"][:5]
+    # Check that masked record is masked correctly, rest of the digits are not the same
+    assert masked_record[record_id]["phone"][5:] != record["phone"][5:]
+
+    # Marketing can't read plain
+    marketing.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[403],
+    )
+
+    # Customer service can read plain
+    plain_record = customer_service.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[200],
+    )
+
+    # Check that plain record is the same as the original record
+    assert plain_record[record_id] == record
 
 
-# Step 4: Simulate application events
-# 1) User signs up
-# 2) User buys an apple with a credit card
-# 3) Marketing need to engage with the user
-
-
-# policy = (
-#     {
-#         "id": "app",
-#         "effect": "allow",
-#         "actions": ["read", "write"],
-#         "resources": [
-#             "records/customers/*/*",  # all fields at all levels
-#         ],
-#     },
-# )
+print("ecommerce usecase completed successfully!")

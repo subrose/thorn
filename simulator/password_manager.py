@@ -1,7 +1,10 @@
 from client import Actor, Policy
+from wait import wait_for_api
+import os
 
 # VAULT_URL from your client.py
-VAULT_URL = "http://localhost:3001"
+VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
+wait_for_api(VAULT_URL)
 
 # Step 0: Initialize your actors
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"strconv"
 	"strings"
 
 	"github.com/nyaruka/phonenumbers"
@@ -106,16 +107,22 @@ func (pn PhoneNumber) Get(format string) (string, error) {
 
 func (pn PhoneNumber) GetMasked() string {
 	rawNumber := phonenumbers.Format(pn.val, phonenumbers.E164)
-	cCode := *pn.val.CountryCode
 
-	// TODO: mask better
-	maskedNumber := fmt.Sprintf(
-		"+%d%s",
-		cCode,
-		strings.Repeat("1", len(rawNumber)-2),
-	)
+	// Extract the country code correctly
+	cCodeStr := strconv.Itoa(int(*pn.val.CountryCode))
+	withoutCountryCode := rawNumber[len(cCodeStr)+1:] // +1 to skip the "+" sign in the E164 format
 
-	return maskedNumber
+	// Show the first 3 digits (assuming these are the area or national code)
+	// and mask the rest
+	var masked string
+	if len(withoutCountryCode) > 3 {
+		masked = withoutCountryCode[:3] + strings.Repeat("*", len(withoutCountryCode)-3)
+	} else {
+		// If the number is shorter than expected, mask it all
+		masked = strings.Repeat("*", len(withoutCountryCode))
+	}
+
+	return fmt.Sprintf("+%s%s", cCodeStr, masked)
 }
 
 func (pn PhoneNumber) Validate() bool {

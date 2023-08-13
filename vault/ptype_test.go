@@ -41,7 +41,7 @@ func TestPhonePType(t *testing.T) {
 	masked, _ := pn.Get("masked")
 
 	assert.Equal(t, plain, "+447112223333")
-	assert.Equal(t, masked, "+4411111111111")
+	assert.Equal(t, masked, "+44711*******")
 }
 
 func TestInvalidPhonePType(t *testing.T) {

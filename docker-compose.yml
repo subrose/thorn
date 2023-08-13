@@ -19,12 +19,11 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - test
       - keydb
     volumes:
       - "./:/app"
   keydb:
-    image: eqalpha/keydb:arm64_v5.3.3
+    image: eqalpha/keydb:arm64_v6.3.3
     container_name: keydb
     command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
     ports:
@@ -33,35 +32,6 @@ services:
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
       - ./keydb/data:/data
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: build
-    environment:
-      - KEYDB_CONN_STRING=keydb:6379
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
-    working_dir: /code
-    depends_on:
-      - keydb
-    command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
-    volumes:
-      - "./:/code"
-  simulator:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: simulator
-    working_dir: /code
-    depends_on:
-      - api
-    command: sh -c "cd simulator && python password_manager.py"
-    volumes:
-      - "./:/code"
-
 volumes:
   data:
     driver: local

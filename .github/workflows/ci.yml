@@ -1,16 +1,20 @@
-name: Build and Test
+name: ci
 
 on:
-  # push:
-  #   branches: [ main ]
   pull_request:
     branches: [ main ]
     paths:
       - '**'
       - '!website/**'
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -19,7 +23,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+          go-version: '1.21'
 
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
@@ -34,13 +38,14 @@ jobs:
       - name: Run Go linter on vault
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.53
+          version: v1.54.1
           working-directory: vault
 
       - name: Run Go linter on api
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.53
+          skip-pkg-cache: true
+          version: v1.54.1
           working-directory: api
 
       - name: Set up Docker Buildx
@@ -54,10 +59,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Docker Compose Build and Test
-        uses: isbang/compose-action@v1.4.1
+      - name: Run tests
+        uses: isbang/compose-action@v1.5.1
         with:
-          compose-file: "./docker-compose.yml"
-          down-flags: "--volumes"
+          compose-file: "./docker-compose.ci.yml"
+          up-flags: "--remove-orphans --abort-on-container-exit"
+          down-flags: "--volumes --remove-orphans"
           services: |
-            test
+            keydb
+            tests
+
+      - name: Run simulations
+        uses: isbang/compose-action@v1.5.1
+        with:
+          compose-file: "./docker-compose.ci.yml"
+          up-flags: "--remove-orphans --abort-on-container-exit"
+          down-flags: "--volumes --remove-orphans"
+          services: |
+            keydb
+            api
+            simulations
