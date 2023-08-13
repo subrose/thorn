@@ -44,10 +44,10 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 func TestVault(t *testing.T) {
 	ctx := context.Background()
 	testPrincipal := Principal{
-		Username:    "test_user",
-		Password:    "test_password",
+		Username:    "admin",
+		Password:    "admin",
 		Policies:    []string{"root"},
-		Description: "test principal",
+		Description: "test admin",
 	}
 	t.Run("can store and get collections and records", func(t *testing.T) {
 		vault, _, _ := initVault(t)

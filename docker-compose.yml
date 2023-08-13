@@ -55,10 +55,12 @@ services:
       context: .
       dockerfile: Dockerfile
       target: simulator
+    environment:
+      - VAULT_URL=http://api:3001
     working_dir: /code
     depends_on:
       - api
-    command: sh -c "cd simulator && python password_manager.py"
+    command: sh -c "cd simulator && python password_manager.py && python ecommerce.py"
     volumes:
       - "./:/code"
 

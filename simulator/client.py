@@ -20,7 +20,7 @@ def check_expected_status(
         return
     if response.status_code not in expected_status_codes:
         raise Exception(
-            f"""Request failed:
+            f"""Request failed
             path={response.request.path_url}, body={response.request.body}
             {response.status_code} not in {expected_status_codes=} 
             {response.reason}, {response.text}

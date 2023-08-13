@@ -15,8 +15,12 @@ from client import Actor
 from client import Policy
 from faker import Faker
 from faker_e164.providers import E164Provider
+from wait import wait_for_api
+import os
 
-VAULT_URL = "http://localhost:3001"
+VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
+wait_for_api(VAULT_URL)
+
 admin = Actor(VAULT_URL, username="admin", password="admin")
 # Create collection
 admin.create_collection(
@@ -65,7 +69,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/customers/*/*/plain",
+            "/collections/customers/*/plain",
         ],
     ),
     expected_statuses=[201, 409],
@@ -105,39 +109,40 @@ admin.create_principal(
 # Backend creates some customers
 fake = Faker()
 fake.add_provider(E164Provider)
-records = [
-    {
+
+# We need to create records one by one and build a map with the returned id:
+
+records_map = {}
+for i in range(10):
+    record = {
         "name": fake.name(),
         "email": fake.email(),
         "phone": fake.e164(),
         "credit-card": fake.credit_card_full(),
         "address": fake.address(),
     }
-    for _ in range(10)
-]
+    record_id = backend.create_records(
+        collection="customers", records=[record], expected_statuses=[201, 409]
+    )
+    records_map[record_id] = record
 
-record_ids = backend.create_records(
-    collection="customers", records=records, expected_statuses=[201, 409]
-)
+for record_id, record in records_map.items():
+    # Backend can't read anything
+    backend.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="masked",
+        expected_statuses=[403],
+    )
 
-# Backend can't read anything
-backend.get_record(
-    collection="customers",
-    record_id=record_ids[0],
-    format="masked",
-    expected_statuses=[403],
-)
+    backend.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[403],
+    )
 
-backend.get_record(
-    collection="customers",
-    record_id=record_ids[0],
-    format="plain",
-    expected_statuses=[403],
-)
-
-# Marketing team can read plain email addresses and masked phone numbers
-for i in range(len(record_ids)):
-    record_id = record_ids[i]
+    # Marketing can read masked records
     masked_record = marketing.get_record(
         collection="customers",
         record_id=record_id,
@@ -145,33 +150,28 @@ for i in range(len(record_ids)):
         expected_statuses=[200],
     )
     # Check that masked record is masked correctly, first 5 digits are the same
-    assert masked_record[record_id]["phone"][:5] == records[i]["phone"][:5]
+    assert masked_record[record_id]["phone"][:5] == record["phone"][:5]
     # Check that masked record is masked correctly, rest of the digits are not the same
-    assert masked_record[record_id]["phone"][5:] != records[i]["phone"][5:]
+    assert masked_record[record_id]["phone"][5:] != record["phone"][5:]
 
-# Marketing can't read plain
-marketing.get_record(
-    collection="customers",
-    record_id=record_ids[0],
-    format="plain",
-    expected_statuses=[403],
-)
+    # Marketing can't read plain
+    marketing.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[403],
+    )
 
-# Customer service team can only read customer details in plain
-customer_service.get_record(
-    collection="customers",
-    record_id=record_ids[0],
-    format="plain",
-    expected_statuses=[200],
-)
+    # Customer service can read plain
+    plain_record = customer_service.get_record(
+        collection="customers",
+        record_id=record_id,
+        format="plain",
+        expected_statuses=[200],
+    )
 
-customer_service.get_record(
-    collection="customers",
-    record_id=record_ids[0],
-    format="masked",
-    expected_statuses=[403],
-)
+    # Check that plain record is the same as the original record
+    assert plain_record[record_id] == record
 
-# Problems:
-# - Marketing team should not be able to read the whole record even if masked,
-# We should be able to specify policies at the field level
+
+# Marketing team can read plain email addresses and masked phone numbers

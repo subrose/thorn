@@ -93,7 +93,7 @@ func SetupApi(core *Core) *fiber.App {
 	})
 	app.Use(ApiLogger(core))
 
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusOK).SendString("OK")
 	})
 

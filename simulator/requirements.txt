@@ -2,3 +2,4 @@ locust==2.14.2
 requests==2.31.0
 pydantic==2.1.1
 Faker==19.2.0
+tenacity==8.2.2
