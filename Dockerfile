@@ -13,8 +13,8 @@ RUN go mod download
 
 COPY . ./
 
-RUN cd vault && go build -buildvcs=false && cd ..
-RUN cd api && go build -buildvcs=false && cd ..
+RUN cd vault && go build && cd ..
+RUN cd api && go build && cd ..
 
 
 ## Simulator

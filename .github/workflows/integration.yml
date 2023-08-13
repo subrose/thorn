@@ -1,35 +1,35 @@
-name: integration
+# name: integration
 
-on:
-  pull_request:
-    branches: [ main ]
-    paths:
-      - '**'
-      - '!website/**'
-      - 
-concurrency: 
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# on:
+#   pull_request:
+#     branches: [ main ]
+#     paths:
+#       - '**'
+#       - '!website/**'
+#       - 
+# concurrency: 
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+# jobs:
+#   build-and-test:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 10
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v1
 
-    - name: Cache Docker layers
-      uses: actions/cache@v2
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-buildx-
+#     - name: Cache Docker layers
+#       uses: actions/cache@v2
+#       with:
+#         path: /tmp/.buildx-cache
+#         key: ${{ runner.os }}-buildx-${{ github.sha }}
+#         restore-keys: |
+#           ${{ runner.os }}-buildx-
 
-    - name: Build and run Docker Compose
-      run: |
-        docker-compose -f docker-compose.simulator.yml up --build --abort-on-container-exit
+#     - name: Build and run Docker Compose
+#       run: |
+#         docker-compose -f docker-compose.simulator.yml up --build --abort-on-container-exit

@@ -11,7 +11,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
@@ -59,10 +58,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Build and run Docker Compose
-        run: |
-          docker-compose -f docker-compose.yml up --build --abort-on-container-exit
-          if [ $? -ne 0 ]; then
-              echo "Docker Compose failed"
-              exit 1
-          fi
+
+      - name: Docker Compose Build and Test
+        uses: isbang/compose-action@v1.4.1
+        with:
+          compose-file: "./docker-compose.yml"
+          up-flags: "--build --abort-on-container-exit"
+          down-flags: "--volumes"
