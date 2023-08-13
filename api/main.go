@@ -108,7 +108,7 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Post("", core.CreateCollection)
 	collectionsGroup.Post("/:name/records", core.CreateRecords)
-	collectionsGroup.Get("/:name/records/:id/:format", core.GetRecord)
+	collectionsGroup.Get("/:name/records/:id", core.GetRecord)
 
 	policiesGroup := app.Group("/policies")
 	policiesGroup.Use(authGuard(core))

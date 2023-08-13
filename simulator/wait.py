@@ -16,8 +16,8 @@ logging.basicConfig(
 
 
 @tenacity.retry(
-    wait=tenacity.wait_fixed(1),
-    stop=tenacity.stop_after_attempt(60),
+    wait=tenacity.wait_fixed(2),
+    stop=tenacity.stop_after_attempt(50),
     before_sleep=tenacity.before_sleep_log(logger, logging.DEBUG),
     retry=tenacity.retry_if_exception_type(tenacity.TryAgain),
 )

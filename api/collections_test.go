@@ -100,7 +100,7 @@ func TestCollections(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 		// Test getting the record
-		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+"/plain", nil)
+		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+"?formats=name.plain", nil)
 		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
 		res, err = app.Test(req, -1)
 		if err != nil {
@@ -115,7 +115,6 @@ func TestCollections(t *testing.T) {
 		if err != nil {
 			t.Error("Error parsing returned record", err, string(body))
 		}
-
 	})
 
 	t.Run("cant create a bad record", func(t *testing.T) {

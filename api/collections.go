@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
@@ -126,12 +127,28 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordIds)
 }
 
+func parseFieldsQuery(fieldsQuery string) map[string]string {
+	fieldFormats := map[string]string{}
+	for _, field := range strings.Split(fieldsQuery, ",") {
+		splitFieldFormat := strings.Split(field, ".")
+		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
+	}
+
+	return fieldFormats
+}
+
 func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
-	format := c.Params("format")
-	// /collections/:name/records/:id/:format
+	// /records/users/<id>?formats=fname.plain,lname.masked
+	fieldsQuery := c.Query("formats")
+
+	if fieldsQuery == "" {
+		return core.SendErrorResponse(c, http.StatusBadRequest, "fields query is required", nil)
+	}
+
+	returnFormats := parseFieldsQuery(fieldsQuery)
 
 	if collectionName == "" {
 		return core.SendErrorResponse(c, http.StatusBadRequest, "collection name is required", nil)
@@ -140,18 +157,14 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
 	}
 
-	if format == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "format is required", nil)
-	}
-
 	recordIds := []string{recordId}
-	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, format)
+	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, returnFormats)
 	if err != nil {
 		switch err.(type) {
 		case *_vault.ForbiddenError:
 			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
 		case *_vault.NotFoundError:
-			return core.SendErrorResponse(c, http.StatusNotFound, "Record not found", err)
+			return core.SendErrorResponse(c, http.StatusNotFound, err.Error(), err)
 		case *_vault.ValueError:
 			return core.SendErrorResponse(c, http.StatusBadRequest, err.Error(), err)
 		default:
