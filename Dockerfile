@@ -15,7 +15,7 @@ COPY . ./
 
 RUN cd vault && go build && cd ..
 RUN cd api && go build && cd ..
-
+RUN chmod +x ./api
 
 ## Simulator
 FROM python:3.11 as simulator

@@ -15,7 +15,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: build
-    # TODO: change to not use air
     entrypoint: ["air", ".", "-c", "./.air.toml", "-buildvcs=false"]
     ports:
       - 3001:3001
@@ -25,7 +24,7 @@ services:
     volumes:
       - "./:/app"
   keydb:
-    image: eqalpha/keydb:arm64_v6.3.3
+    image: eqalpha/keydb:x86_64_v6.3.3
     container_name: keydb
     command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
     ports:

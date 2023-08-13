@@ -29,5 +29,8 @@ node_modules
 
 # Redis/Keydb
 appendonly.aof
+dump.rdb
+*.aof
+*.rdb
 
 .vscode
