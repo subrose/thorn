@@ -44,6 +44,7 @@ jobs:
       - name: Run Go linter on api
         uses: golangci/golangci-lint-action@v3
         with:
+          skip-pkg-cache: true
           version: v1.54.1
           working-directory: api
 
