@@ -64,7 +64,7 @@ jobs:
         uses: isbang/compose-action@v1.4.1
         with:
           compose-file: | 
-            "./docker-compose.ci.yml"
-            "./docker-compose.integration.yml"
+            "docker-compose.ci.yml"
+            "docker-compose.integration.yml"
           up-flags: "--build --abort-on-container-exit"
           down-flags: "--volumes"
