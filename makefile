@@ -4,7 +4,6 @@ tests:
 	go test ./vault
 	go test ./api
 
-
 run-gosec:
 	gosec ./...
 
@@ -19,8 +18,19 @@ lint-api:
 
 checks: 
 	@echo "Running checks..."
+	docker-compose up --build -d 
 	$(MAKE) tests
 	$(MAKE) run-gosec
 	$(MAKE) check-formatting
 	$(MAKE) lint-vault
 	$(MAKE) lint-api
+	docker-compose down --remove-orphans
+
+e2e:
+	@echo "Running CI..."
+	docker-compose -f docker-compose.ci.yml --profile tests up --build --abort-on-container-exit 
+	docker-compose -f docker-compose.ci.yml --profile simulations up --build --abort-on-container-exit 
+
+ci:
+	$(MAKE) checks
+	$(MAKE) e2e

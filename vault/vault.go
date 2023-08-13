@@ -74,6 +74,42 @@ type Logger interface {
 	Error(msg string, err error)
 }
 
+type PolicyAction string
+
+const (
+	PolicyActionRead  PolicyAction = "read"
+	PolicyActionWrite PolicyAction = "write"
+	// TODO: Add more
+)
+
+type PolicyEffect string
+
+const (
+	EffectDeny  PolicyEffect = "deny"
+	EffectAllow PolicyEffect = "allow"
+)
+
+type Policy struct {
+	PolicyId  string         `redis:"policy_id" json:"policy_id" validate:"required"`
+	Effect    PolicyEffect   `redis:"effect" json:"effect" validate:"required"`
+	Actions   []PolicyAction `redis:"actions" json:"actions" validate:"required"`
+	Resources []string       `redis:"resources" json:"resources" validate:"required"`
+}
+
+type Request struct {
+	Principal Principal
+	Action    PolicyAction
+	Resource  string
+}
+
+type PolicyManager interface {
+	GetPolicy(ctx context.Context, policyId string) (Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	DeletePolicy(ctx context.Context, policyId string) error
+	// EvaluateAction(a Action) bool
+}
+
 type Vault struct {
 	Db               VaultDB
 	Priv             Privatiser
