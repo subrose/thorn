@@ -3,3 +3,4 @@ requests==2.31.0
 pydantic==2.1.1
 Faker==19.2.0
 tenacity==8.2.2
+faker-e164==0.1.0

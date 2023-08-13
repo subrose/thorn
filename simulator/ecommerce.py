@@ -121,10 +121,10 @@ for i in range(10):
         "credit-card": fake.credit_card_full(),
         "address": fake.address(),
     }
-    record_id = backend.create_records(
+    record_ids = backend.create_records(
         collection="customers", records=[record], expected_statuses=[201, 409]
     )
-    records_map[record_id] = record
+    records_map[record_ids[0]] = record
 
 for record_id, record in records_map.items():
     # Backend can't read anything
@@ -174,4 +174,4 @@ for record_id, record in records_map.items():
     assert plain_record[record_id] == record
 
 
-# Marketing team can read plain email addresses and masked phone numbers
+print("ecommerce usecase completed successfully!")

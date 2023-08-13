@@ -19,7 +19,6 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - test
       - keydb
     volumes:
       - "./:/app"
@@ -33,21 +32,17 @@ services:
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
       - ./keydb/data:/data
-  test:
+  simulator:
     build:
       context: .
       dockerfile: Dockerfile
-      target: build
+      target: simulator
     environment:
-      - KEYDB_CONN_STRING=keydb:6379
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_URL=http://api:3001
     working_dir: /code
     depends_on:
-      - keydb
-    command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
+      - api
+    command: sh -c "cd simulator && python password_manager.py && python ecommerce.py"
     volumes:
       - "./:/code"
 
