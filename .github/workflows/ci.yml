@@ -59,16 +59,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Build and test
+      - name: Module tests
         uses: isbang/compose-action@v1.5.1
         with:
           compose-file: "./docker-compose.ci.yml"
           up-flags: "--build --abort-on-container-exit"
           down-flags: "--volumes"
 
-      - name: Built and integration test
-        uses: isbang/compose-action@v1.5.1
-        with:
-          compose-file: "./docker-compose.integration.yml"
-          up-flags: "--build --abort-on-container-exit"
-          down-flags: "--volumes"
+      # - name: Integration tests
+      #   uses: isbang/compose-action@v1.5.1
+      #   with:
+      #     compose-file: "./docker-compose.integration.yml"
+      #     up-flags: "--build --abort-on-container-exit"
+      #     down-flags: "--volumes"

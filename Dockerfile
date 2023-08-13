@@ -15,7 +15,6 @@ COPY . ./
 
 RUN cd vault && go build && cd ..
 RUN cd api && go build && cd ..
-RUN chmod +x ./api
 
 ## Simulator
 FROM python:3.11 as simulator
@@ -33,6 +32,6 @@ WORKDIR /
 COPY --from=build /app/api/api .
 COPY --from=build /app/conf/dev.conf.toml ./conf.toml
 
-EXPOSE 3000
+EXPOSE 3001
 
 USER nonroot:nonroot

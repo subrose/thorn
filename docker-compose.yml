@@ -16,7 +16,7 @@ services:
       dockerfile: Dockerfile
       target: build
     # TODO: change to not use air
-    entrypoint: ["air", ".", "-c", "./.air.toml", "-buildvcs=false"]
+    entrypoint: ["air", ".", "-c", "./.air.toml"]
     ports:
       - 3001:3001
     depends_on:
