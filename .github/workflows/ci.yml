@@ -63,12 +63,12 @@ jobs:
         uses: isbang/compose-action@v1.5.1
         with:
           compose-file: "./docker-compose.ci.yml"
-          up-flags: "--build --abort-on-container-exit"
-          down-flags: "--volumes"
+          up-flags: "--abort-on-container-exit"
+          down-flags: "--volumes --remove-orphans"
 
       - name: Run simulations
         uses: isbang/compose-action@v1.5.1
         with:
           compose-file: "./docker-compose.simulations.yml"
           up-flags: "--abort-on-container-exit"
-          down-flags: "--volumes"
+          down-flags: "--volumes --remove-orphans"

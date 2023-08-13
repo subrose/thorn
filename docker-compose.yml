@@ -15,12 +15,10 @@ services:
       context: .
       dockerfile: Dockerfile
       target: build
-    # TODO: change to not use air
     entrypoint: ["air", ".", "-c", "./.air.toml"]
     ports:
       - 3001:3001
     depends_on:
-      - test
       - keydb
     volumes:
       - "./:/app"
@@ -34,24 +32,6 @@ services:
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
       - ./keydb/data:/data
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: build
-    environment:
-      - KEYDB_CONN_STRING=keydb:6379
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
-    working_dir: /code
-    depends_on:
-      - keydb
-    command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
-    volumes:
-      - "./:/code"
-
 volumes:
   data:
     driver: local

@@ -1,28 +1,5 @@
 version: "3.8"
 services:
-  api:
-    environment:
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
-      - VAULT_API_HOST=0.0.0.0
-      - VAULT_API_PORT=3001
-      - VAULT_ADMIN_USERNAME=admin
-      - VAULT_ADMIN_PASSWORD=admin
-      - VAULT_DEV_MODE=true
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: build
-    entrypoint: ["air", ".", "-c", "./.air.toml", "-buildvcs=false"]
-    ports:
-      - 3001:3001
-    depends_on:
-      - test
-      - keydb
-    volumes:
-      - "./:/app"
   keydb:
     image: eqalpha/keydb:x86_64_v6.3.3
     container_name: keydb
