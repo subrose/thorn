@@ -105,7 +105,7 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	records := new([]_vault.Record)
 	if err := c.BodyParser(records); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(err)
+		return core.SendErrorResponse(c, http.StatusBadRequest, "malformed record body", err)
 	}
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
@@ -145,7 +145,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	fieldsQuery := c.Query("formats")
 
 	if fieldsQuery == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "fields query is required", nil)
+		return core.SendErrorResponse(c, http.StatusBadRequest, "formats query is required", nil)
 	}
 
 	returnFormats := parseFieldsQuery(fieldsQuery)

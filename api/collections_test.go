@@ -1,166 +1,127 @@
 package main
 
 import (
-	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
-
-	"github.com/go-playground/assert/v2"
-	"github.com/gofiber/fiber/v2"
-	_vault "github.com/subrose/vault"
 )
 
 func TestCollections(t *testing.T) {
 	app, core := InitTestingVault(t)
 
+	customerCollection := CollectionModel{
+		Name: "customers",
+		Fields: map[string]CollectionFieldModel{
+			"name":         {Type: "name", IsIndexed: true},
+			"phone_number": {Type: "phoneNumber", IsIndexed: true},
+			"dob":          {Type: "date", IsIndexed: false},
+		},
+	}
+
 	t.Run("can create a collection", func(t *testing.T) {
-		collectionJSON := strings.NewReader(
-			`{
-					"name": "customers",
-					"fields": {
-						"name": {"type": "name", "indexed": true},
-						"phone_number": {"type": "phoneNumber", "indexed": true},
-						"dob": {"type": "date","indexed": false}
-					}
-			}`,
-		)
-		req := httptest.NewRequest(http.MethodPost, "/collections", collectionJSON)
-		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		// Encode username and password into Basic Auth header
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		res, err := app.Test(req, -1)
+		request := newRequest(t, http.MethodPost, "/collections", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, customerCollection)
 
-		if err != nil || res.StatusCode != http.StatusCreated {
-			t.Error("Error creating collection", err)
-		}
+		response := performRequest(t, app, request)
+		checkResponse(t, response, http.StatusCreated, nil)
 
-		// Assertions
-		assert.Equal(t, http.StatusCreated, res.StatusCode)
 	})
 
 	t.Run("can get a collection", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/collections/customers", nil)
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		res, err := app.Test(req, -1)
-		if err != nil {
-			t.Error("Error getting collection", err)
-		}
+		request := newRequest(t, http.MethodGet, "/collections/customers", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response := performRequest(t, app, request)
 		var returnedCollection CollectionModel
-		body, _ := io.ReadAll(res.Body)
-		err = json.Unmarshal(body, &returnedCollection)
-		if err != nil {
-			t.Error("Error parsing returned collection", err)
+		checkResponse(t, response, http.StatusOK, &returnedCollection)
+
+		if returnedCollection.Name != "customers" {
+			t.Error("Error getting collection", returnedCollection)
 		}
-		// Assertions
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-		assert.Equal(t, "customers", returnedCollection.Name)
+
+		if returnedCollection.Fields["name"].Type != "name" {
+			t.Error("Error getting collection", returnedCollection)
+		}
 	})
 
 	t.Run("can get all collections", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/collections", nil)
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		res, err := app.Test(req, -1)
-		if err != nil {
-			t.Error("Error getting collection", err)
-		}
+		request := newRequest(t, http.MethodGet, "/collections", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response := performRequest(t, app, request)
+
 		var returnedCollections []string
-		body, _ := io.ReadAll(res.Body)
-		err = json.Unmarshal(body, &returnedCollections)
-		if err != nil {
-			t.Error("Error parsing returned collection", err)
-		}
-		// Assertions
-		assert.Equal(t, http.StatusOK, res.StatusCode)
-		assert.Equal(t, 1, len(returnedCollections))
+		checkResponse(t, response, http.StatusOK, &returnedCollections)
 	})
 
 	t.Run("can create and get a record", func(t *testing.T) {
-		recordJSON := strings.NewReader(
-			`[
-				{"name": "123345","phone_number": "12345","dob": "12345"}
-			]`,
-		)
-		req := httptest.NewRequest(http.MethodPost, "/collections/customers/records", recordJSON)
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		res, err := app.Test(req, -1)
-		if err != nil {
-			t.Error("Error creating record", err)
+		records := []map[string]interface{}{
+			{
+				"name":         "123345",
+				"phone_number": "12345",
+				"dob":          "12345",
+			},
 		}
-		// Assertions
-		parsedRecordIds := []string{}
-		body, _ := io.ReadAll(res.Body)
-		err = json.Unmarshal(body, &parsedRecordIds)
-		if err != nil {
-			t.Error("Error parsing returned records", err)
-		}
-		assert.Equal(t, http.StatusCreated, res.StatusCode)
 
-		// Test getting the record
-		req = httptest.NewRequest(http.MethodGet, "/collections/customers/records/"+parsedRecordIds[0]+"?formats=name.plain", nil)
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		res, err = app.Test(req, -1)
-		if err != nil {
-			t.Error("Error getting record", err)
-		}
-		// Assertions
-		assert.Equal(t, res.StatusCode, http.StatusOK)
+		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, records)
 
-		var returnedRecord map[string]_vault.Record // A map of the record id to the record
-		body, _ = io.ReadAll(res.Body)
-		err = json.Unmarshal(body, &returnedRecord)
-		if err != nil {
-			t.Error("Error parsing returned record", err, string(body))
+		response := performRequest(t, app, request)
+		var returnedRecordIds []string
+		checkResponse(t, response, http.StatusCreated, &returnedRecordIds)
+		if len(returnedRecordIds) != 1 {
+			t.Error("Error creating record", returnedRecordIds)
 		}
+		// Get the record
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response = performRequest(t, app, request)
+		var returnedRecords map[string]interface{}
+		checkResponse(t, response, http.StatusOK, returnedRecords)
 	})
 
 	t.Run("cant create a bad record", func(t *testing.T) {
-		recordJSON := strings.NewReader(
-			`[
-				{"xxx": "123345","phone_number": "12345","dob": "12345"}
-			]`,
-		)
-		req := httptest.NewRequest(http.MethodPost, "/collections/customers/records", recordJSON)
-		req.Header.Set(fiber.HeaderAuthorization, createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD))
-		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		res, _ := app.Test(req, -1)
-		// Assertions
-		assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+		badRecords := []map[string]interface{}{
+			{
+				"xxx":          "123345",
+				"phone_number": "12345",
+				"dob":          "12345",
+			},
+		}
+
+		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, badRecords)
+
+		response := performRequest(t, app, request)
+		checkResponse(t, response, http.StatusBadRequest, nil)
 	})
 
 	t.Run("unauthenticated user cant crud a collection", func(t *testing.T) { // TODO: Can probably make this a table test?
-		// Create
-		collectionJSON := strings.NewReader(
-			`{
-					"name": "customers2",
-					"fields": {
-						"name": {"type": "name", "indexed": true},
-						"phone_number": {"type": "phoneNumber", "indexed": true},
-						"dob": {"type": "date","indexed": false}
-					}
-			}`,
-		)
-		req := httptest.NewRequest(http.MethodPost, "/collections", collectionJSON)
-		req.Header.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-		res, _ := app.Test(req, -1)
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		records := []map[string]interface{}{
+			{
+				"name":         "123345",
+				"phone_number": "12345",
+				"dob":          "12345",
+			},
+		}
 
-		// Get
-		req = httptest.NewRequest(http.MethodGet, "/collections/customers2", nil)
-		res, _ = app.Test(req, -1)
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{}, records)
 
-		// Get all
-		req = httptest.NewRequest(http.MethodGet, "/collections", nil)
-		res, _ = app.Test(req, -1)
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		response := performRequest(t, app, request)
+		checkResponse(t, response, http.StatusUnauthorized, nil)
 
-		// Delete
-		req = httptest.NewRequest(http.MethodDelete, "/collections/customers2", nil)
-		res, _ = app.Test(req, -1)
-		assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		request = newRequest(t, http.MethodGet, "/collections/customers/records/123345", map[string]string{
+			"Authorization": createBasicAuthHeader("bad", "bad"),
+		}, nil)
+		response = performRequest(t, app, request)
+		checkResponse(t, response, http.StatusUnauthorized, nil)
+
 	})
 }

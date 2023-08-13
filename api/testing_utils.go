@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
 	_logger "github.com/subrose/logger"
 	_vault "github.com/subrose/vault"
@@ -96,35 +95,36 @@ func performRequest(t *testing.T, app *fiber.App, req *http.Request) *http.Respo
 
 func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int, target interface{}) {
 	if response.StatusCode != expectedStatusCode {
-		var errorResponse ErrorResponse
-		responseBody, err := io.ReadAll(response.Body)
-		if err != nil {
-			t.Fatalf("Error reading response body: %v", err)
+		if response.StatusCode > 299 {
+			var errorResponse ErrorResponse
+			responseBody, err := io.ReadAll(response.Body)
+			if err != nil {
+				t.Fatalf("Error reading response body: %v - body: %s", err, responseBody)
+			}
+			err = json.Unmarshal(responseBody, &errorResponse)
+			if err != nil {
+				t.Fatalf("Error parsing response body json: %v - body: %s", err, responseBody)
+			}
+			t.Fatalf("Expected status code %d, got %d - Error Message: %s", expectedStatusCode, response.StatusCode, errorResponse.Message)
 		}
-		err = json.Unmarshal(responseBody, &errorResponse)
-		if err != nil {
-			t.Fatalf("Error parsing response body json: %v", err)
-		}
-		t.Fatalf("Expected status code %d, got %d - Error Message: %s", expectedStatusCode, response.StatusCode, errorResponse.Message)
+		t.Fatalf("Expected status code %d, got %d", expectedStatusCode, response.StatusCode)
+
 	}
 
 	// If target is provided, unmarshal the response body into the target struct
 	if target != nil {
 		responseBody, err := io.ReadAll(response.Body)
 		if err != nil {
-			t.Fatalf("Error reading response body: %v", err)
+			t.Fatalf("Error reading response body: %v - %s", err, responseBody)
 		}
 		err = json.Unmarshal(responseBody, &target)
 		if err != nil {
-			t.Fatalf("Error parsing response body json: %v", err)
+			t.Fatalf("Error parsing response body json: %v - %s", err, responseBody)
 		}
 
 		// Validate the response data against the struct tags
-		validate := validator.New()
-		err = validate.Struct(target)
-		if err != nil {
-			fmt.Println(target)
-			t.Fatalf("Response data validation failed: %v, got: %v", err, target)
+		if err := Validate(target); err != nil {
+			t.Fatalf("Error validating response: %v", err)
 		}
 	}
 }
