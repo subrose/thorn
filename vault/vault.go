@@ -234,30 +234,35 @@ func (vault Vault) GetRecords(
 	principal Principal,
 	collectionName string,
 	recordIDs []string,
-	format string,
+	returnFormats map[string]string,
 ) (map[string]Record, error) {
-
-	if format != PLAIN_FORMAT && format != MASKED_FORMAT {
-		return nil, newValueError(fmt.Errorf("invalid format: %s", format))
-	}
 
 	if len(recordIDs) == 0 {
 		return nil, newValueError(fmt.Errorf("record ids must be provided"))
 	}
+
 	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
 	for _, recordID := range recordIDs {
-		_request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format)}
-		allowed, err := vault.ValidateAction(ctx, _request)
-		if err != nil {
-			return nil, err
-		}
-		if !allowed {
-			return nil, &ForbiddenError{_request}
+		for field, format := range returnFormats {
+			_request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format, FIELDS_PPATH, field)}
+			allowed, err := vault.ValidateAction(ctx, _request)
+			if err != nil {
+				return nil, err
+			}
+			if !allowed {
+				return nil, &ForbiddenError{_request}
+			}
 		}
 	}
 	col, err := vault.Db.GetCollection(ctx, collectionName)
 	if err != nil {
 		return nil, err
+	}
+	// Ensure requested fields exist on collection
+	for field := range returnFormats {
+		if _, ok := col.Fields[field]; !ok {
+			return nil, &NotFoundError{resourceName: fmt.Sprintf("Field %s not found on collection %s", field, collectionName)}
+		}
 	}
 
 	encryptedRecords, err := vault.Db.GetRecords(ctx, recordIDs)
@@ -272,22 +277,26 @@ func (vault Vault) GetRecords(
 	records := make(map[string]Record, len(encryptedRecords))
 	for recordId, record := range encryptedRecords {
 		decryptedRecord := make(Record)
-		for k, v := range record {
-			decryptedValue, err := vault.Priv.Decrypt(v)
+		for field, format := range returnFormats {
+
+			decryptedValue, err := vault.Priv.Decrypt(record[field])
 			if err != nil {
 				return nil, err
 			}
-			privValue, err := GetPType(PTypeName(col.Fields[k].Type), decryptedValue)
+
+			privValue, err := GetPType(PTypeName(col.Fields[field].Type), decryptedValue)
 			if err != nil {
 				return nil, err
 			}
-			decryptedRecord[k], err = privValue.Get(format)
+
+			decryptedRecord[field], err = privValue.Get(format)
 			if err != nil {
 				return nil, err
 			}
 		}
 		records[recordId] = decryptedRecord
 	}
+
 	return records, nil
 }
 
@@ -297,7 +306,7 @@ func (vault Vault) GetRecordsFilter(
 	collectionName string,
 	fieldName string,
 	value string,
-	format string,
+	returnFormats map[string]string,
 ) (map[string]Record, error) {
 	val, _ := vault.Priv.Encrypt(value)
 	recordIds, err := vault.Db.GetRecordsFilter(ctx, collectionName, fieldName, val)
@@ -305,7 +314,7 @@ func (vault Vault) GetRecordsFilter(
 		return nil, err
 	}
 
-	return vault.GetRecords(ctx, principal, collectionName, recordIds, format)
+	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
 }
 
 func (vault Vault) GetPrincipal(

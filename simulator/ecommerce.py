@@ -30,7 +30,7 @@ admin.create_collection(
             "name": {"type": "name", "indexed": False},
             "email": {"type": "email", "indexed": True},
             "phone": {"type": "phone_number", "indexed": False},
-            "credit-card": {"type": "credit-card", "indexed": False},
+            "credit_card": {"type": "credit_card", "indexed": False},
             "address": {"type": "address", "indexed": False},
         },
     },
@@ -56,7 +56,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/customers/*/masked",
+            "/collections/customers/*/masked/*",
         ],
     ),
     expected_statuses=[201, 409],
@@ -69,7 +69,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/customers/*/plain",
+            "/collections/customers/*/plain/*",
         ],
     ),
     expected_statuses=[201, 409],
@@ -118,7 +118,7 @@ for i in range(10):
         "name": fake.name(),
         "email": fake.email(),
         "phone": fake.e164(),
-        "credit-card": fake.credit_card_full(),
+        "credit_card": fake.credit_card_full(),
         "address": fake.address(),
     }
     record_ids = backend.create_records(
@@ -131,14 +131,14 @@ for record_id, record in records_map.items():
     backend.get_record(
         collection="customers",
         record_id=record_id,
-        format="masked",
+        return_formats="name.masked,email.masked,phone.masked",
         expected_statuses=[403],
     )
 
     backend.get_record(
         collection="customers",
         record_id=record_id,
-        format="plain",
+        return_formats="name.plain,email.plain,phone.plain",
         expected_statuses=[403],
     )
 
@@ -146,7 +146,7 @@ for record_id, record in records_map.items():
     masked_record = marketing.get_record(
         collection="customers",
         record_id=record_id,
-        format="masked",
+        return_formats="name.masked,email.masked,phone.masked",
         expected_statuses=[200],
     )
     # Check that masked record is masked correctly, first 5 digits are the same
@@ -158,7 +158,7 @@ for record_id, record in records_map.items():
     marketing.get_record(
         collection="customers",
         record_id=record_id,
-        format="plain",
+        return_formats="name.plain,email.plain,phone.plain",
         expected_statuses=[403],
     )
 
@@ -166,12 +166,14 @@ for record_id, record in records_map.items():
     plain_record = customer_service.get_record(
         collection="customers",
         record_id=record_id,
-        format="plain",
+        return_formats="name.plain,email.plain,phone.plain",
         expected_statuses=[200],
     )
 
     # Check that plain record is the same as the original record
-    assert plain_record[record_id] == record
+    assert plain_record[record_id]["name"] == record["name"]
+    assert plain_record[record_id]["email"] == record["email"]
+    assert plain_record[record_id]["phone"] == record["phone"]
 
 
 print("ecommerce usecase completed successfully!")

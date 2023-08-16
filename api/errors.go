@@ -40,8 +40,11 @@ func Validate(payload interface{}) []*ValidationError {
 	_ = validate.RegisterValidation("vaultResourceNames", ValidateResourceName)
 
 	err := validate.Struct(payload)
-
 	if err != nil {
+		// Check if the error is a validator.ValidationErrors type
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			return errors
+		}
 		for _, err := range err.(validator.ValidationErrors) {
 			var element ValidationError
 			element.FailedField = strings.ToLower(err.StructField())

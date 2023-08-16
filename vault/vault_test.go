@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/go-playground/assert/v2"
+	"github.com/stretchr/testify/assert"
 	_logger "github.com/subrose/logger"
 )
 
@@ -124,7 +124,9 @@ func TestVault(t *testing.T) {
 		}
 
 		// Can get records
-		vaultRecords, err := vault.GetRecords(ctx, testPrincipal, col.Name, ids, "plain")
+		vaultRecords, err := vault.GetRecords(ctx, testPrincipal, col.Name, ids, map[string]string{
+			"first_name": "plain", "last_name": "plain", "email": "plain", "phone_number": "plain",
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -218,7 +220,9 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "customers", record_ids, "plain")
+		_, err := vault.GetRecords(ctx, limitedPrincipal, "customers", record_ids, map[string]string{
+			"first_name": "plain",
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -232,7 +236,9 @@ func TestVault(t *testing.T) {
 			Description: "test principal",
 		}
 		vault, _, _ := initVault(t)
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, "plain")
+		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, map[string]string{
+			"first_name": "plain",
+		})
 		switch err.(type) {
 		case *ForbiddenError:
 			// worked
@@ -257,7 +263,9 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		res, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
+		res, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", map[string]string{
+			"first_name": "plain",
+		})
 		assert.Equal(t, err, nil)
 		assert.Equal(
 			t,
@@ -282,7 +290,9 @@ func TestVault(t *testing.T) {
 			{"first_name": "Jane"},
 			{"first_name": "Bob"},
 		})
-		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", "plain")
+		_, err := vault.GetRecordsFilter(ctx, testPrincipal, "customers", "first_name", "Bob", map[string]string{
+			"first_name": "plain",
+		})
 		assert.Equal(t, err, ErrIndexError)
 	})
 }
