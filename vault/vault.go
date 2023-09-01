@@ -42,6 +42,7 @@ type VaultDB interface {
 	GetCollection(ctx context.Context, name string) (Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
 	CreateCollection(ctx context.Context, c Collection) (string, error)
+	DeleteCollection(ctx context.Context, name string) error
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
 	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
@@ -198,6 +199,28 @@ func (vault Vault) CreateCollection(
 		return "", err
 	}
 	return collectionId, nil
+}
+
+func (vault Vault) DeleteCollection(
+	ctx context.Context,
+	principal Principal,
+	name string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeleteCollection(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (vault Vault) CreateRecords(

@@ -132,6 +132,47 @@ func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string
 	return c.Name, nil
 }
 
+func (rs RedisStore) DeleteCollection(ctx context.Context, name string) error {
+	dbCollection, err := rs.GetCollection(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, name)
+	recordIds, err := rs.Client.SMembers(ctx, fmt.Sprintf("%s:r", colId)).Result()
+	if err != nil {
+		return err
+	}
+
+	pipe := rs.Client.Pipeline()
+	// Delete the collection
+	pipe.Del(ctx, colId)
+	pipe.SRem(ctx, COLLECTIONS_PREFIX, colId)
+	// Delete all records and indexes for the collection
+	for _, recordId := range recordIds {
+		dbRecord, err := rs.GetRecords(ctx, name, []string{recordId})
+		if err != nil {
+			return err
+		}
+
+		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+		pipe.Del(ctx, redisKey)
+		pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
+		for fieldName, fieldValue := range dbRecord[recordId] {
+			if dbCollection.Fields[fieldName].IsIndexed {
+				pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
+			}
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+
+	return nil
+}
+
 func formatIndex(fieldName string, value string) string {
 	// Given that the value is encrypted for now, this might not be needed.
 	return fmt.Sprintf("%s%s_%s", INDEX_PREFIX, fieldName, strings.ToLower(value))

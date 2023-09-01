@@ -100,6 +100,25 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).SendString("Collection created")
 }
 
+func (core *Core) DeleteCollection(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+
+	err := core.vault.DeleteCollection(c.Context(), principal, collectionName)
+	if err != nil {
+		switch err.(type) {
+		case *_vault.ForbiddenError:
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		case *_vault.NotFoundError:
+			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Collection not found", nil})
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+		}
+	}
+
+	return c.Status(http.StatusOK).SendString("Collection deleted")
+}
+
 func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
