@@ -145,6 +145,47 @@ func TestVault(t *testing.T) {
 		}
 	})
 
+	t.Run("can update records", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
+			"test_field": {
+				Name:      "test_field",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+
+		// Create collection
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+
+		// Create a dummy record
+		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+			{"test_field": "dummy"},
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Update the record
+		updateRecord := Record{"test_field": "updated"}
+		err = vault.UpdateRecord(ctx, testPrincipal, col.Name, recordID[0], updateRecord)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify update of the record
+		updatedRecord, err := vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+			"test_field": "plain",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updatedRecord[recordID[0]]["test_field"] != "updated" {
+			t.Fatal("Record not updated correctly.")
+		}
+	})
+
 	t.Run("cant store records with invalid fields", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "smol_collection", Fields: map[string]Field{
@@ -160,6 +201,46 @@ func TestVault(t *testing.T) {
 		var valueErr *ValueError
 		if err == nil || !errors.As(err, &valueErr) {
 			t.Fatalf("Expected an invalid field error, got %s", err)
+		}
+	})
+
+	t.Run("can delete records", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
+			"test_field": {
+				Name:      "test_field",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+
+		// Create collection
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+
+		// Create a dummy record
+		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+			{"test_field": "dummy"},
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Delete the record
+		err = vault.DeleteRecord(ctx, testPrincipal, col.Name, recordID[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Try to get the deleted record
+		_, err = vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+			"test_field": "plain",
+		})
+
+		// Expect a NotFoundError
+		var notFoundErr *NotFoundError
+		if err == nil || !errors.As(err, &notFoundErr) {
+			t.Fatalf("Expected a NotFoundError, got %s", err)
 		}
 	})
 
