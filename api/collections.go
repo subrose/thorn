@@ -243,11 +243,9 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		}
 	}
 
-	// Loop through the record and figure out which fields were accessed
+	// Replace loop with append function
 	accessedFields := []string{}
-	for _, field := range strings.Split(fieldsQuery, ",") {
-		accessedFields = append(accessedFields, field)
-	}
+	accessedFields = append(accessedFields, strings.Split(fieldsQuery, ",")...)
 
 	core.logger.WriteAuditLog(
 		c.Method(),
