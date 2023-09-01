@@ -46,6 +46,7 @@ type VaultDB interface {
 	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
 	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
+	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
 	GetPrincipal(ctx context.Context, username string) (Principal, error)
 	CreatePrincipal(ctx context.Context, principal Principal) error
 	CreateToken(ctx context.Context, tokenHash string, t Token) error
@@ -316,6 +317,38 @@ func (vault Vault) GetRecordsFilter(
 	}
 
 	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
+}
+
+func (vault Vault) UpdateRecord(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	recordID string,
+	record Record,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	encryptedRecord := make(Record)
+	for recordFieldName, recordFieldValue := range record {
+		encryptedValue, err := vault.Priv.Encrypt(recordFieldValue)
+		if err != nil {
+			return err
+		}
+		encryptedRecord[recordFieldName] = encryptedValue
+	}
+
+	err = vault.Db.UpdateRecord(ctx, collectionName, recordID, encryptedRecord)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (vault Vault) DeleteRecord(

@@ -220,6 +220,38 @@ func (rs RedisStore) GetRecordsFilter(ctx context.Context, collectionName string
 	return data, nil
 }
 
+func (rs RedisStore) UpdateRecord(ctx context.Context, collectionName string, recordId string, record Record) error {
+	dbCol, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return err
+	}
+
+	redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+	pipe := rs.Client.Pipeline()
+	pipe.Del(ctx, redisKey)
+	for rFieldName, rFieldValue := range record {
+		field, ok := dbCol.Fields[rFieldName]
+		if !ok {
+			return newValueError(fmt.Errorf("field %s does not exist in collection %s", rFieldName, collectionName))
+		}
+		pipe.HSet(
+			ctx,
+			redisKey,
+			rFieldName,
+			rFieldValue,
+		)
+		if field.IsIndexed {
+			pipe.SAdd(ctx, formatIndex(rFieldName, rFieldValue), recordId)
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+	return nil
+}
+
 func (rs RedisStore) DeleteRecord(ctx context.Context, collectionName string, recordId string) error {
 	dbCol, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {

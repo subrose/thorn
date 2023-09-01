@@ -105,6 +105,22 @@ func TestRedisStore(t *testing.T) {
 			t.Fatalf("Expected %d records, got %d", len(records), len(dbRecords))
 		}
 
+		// Can update records
+		updateRecord := Record{"name": "UpdatedName", "age": "99", "country": "UpdatedCountry"}
+		err = db.UpdateRecord(ctx, col.Name, recordIds[0], updateRecord)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify update of the record
+		updatedRecord, err := db.GetRecords(ctx, col.Name, []string{recordIds[0]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updatedRecord[recordIds[0]]["name"] != "UpdatedName" || updatedRecord[recordIds[0]]["age"] != "99" || updatedRecord[recordIds[0]]["country"] != "UpdatedCountry" {
+			t.Fatal("Record not updated correctly.")
+		}
+
 		// Can delete records
 		err = db.DeleteRecord(ctx, col.Name, recordIds[0])
 		if err != nil {
