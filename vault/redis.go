@@ -181,7 +181,11 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	return recordIds, nil
 }
 
-func (rs RedisStore) GetRecords(ctx context.Context, recordIds []string) (map[string]Record, error) {
+func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, recordIds []string) (map[string]Record, error) {
+	_, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return nil, err
+	}
 	records := map[string]Record{}
 
 	for _, recordId := range recordIds {
@@ -222,7 +226,7 @@ func (rs RedisStore) DeleteRecord(ctx context.Context, collectionName string, re
 		return err
 	}
 
-	dbRecord, err := rs.GetRecords(ctx, []string{recordId})
+	dbRecord, err := rs.GetRecords(ctx, collectionName, []string{recordId})
 	if err != nil {
 		return err
 	}

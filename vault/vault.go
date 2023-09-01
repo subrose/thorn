@@ -43,7 +43,7 @@ type VaultDB interface {
 	GetCollections(ctx context.Context) ([]string, error)
 	CreateCollection(ctx context.Context, c Collection) (string, error)
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
-	GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error)
+	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
 	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
 	GetPrincipal(ctx context.Context, username string) (Principal, error)
@@ -266,7 +266,7 @@ func (vault Vault) GetRecords(
 		}
 	}
 
-	encryptedRecords, err := vault.Db.GetRecords(ctx, recordIDs)
+	encryptedRecords, err := vault.Db.GetRecords(ctx, collectionName, recordIDs)
 	if err != nil {
 		return nil, err
 	}

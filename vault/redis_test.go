@@ -97,7 +97,7 @@ func TestRedisStore(t *testing.T) {
 		}
 
 		// Can get records
-		dbRecords, err := db.GetRecords(ctx, recordIds)
+		dbRecords, err := db.GetRecords(ctx, col.Name, recordIds)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestRedisStore(t *testing.T) {
 		}
 
 		// Verify deletion of the record
-		deleteRecord, err := db.GetRecords(ctx, []string{recordIds[0]})
+		deleteRecord, err := db.GetRecords(ctx, col.Name, []string{recordIds[0]})
 		if err == nil {
 			t.Fatal(err)
 		}
