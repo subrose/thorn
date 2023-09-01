@@ -132,6 +132,25 @@ func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string
 	return c.Name, nil
 }
 
+func (rs RedisStore) DeleteCollection(ctx context.Context, name string) error {
+	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, name)
+	exists, err := rs.Client.Exists(ctx, colId).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check collection existence: %w", err)
+	}
+	if exists == 0 {
+		return &NotFoundError{colId}
+	}
+	pipe := rs.Client.Pipeline()
+	pipe.Del(ctx, colId)
+	pipe.SRem(ctx, COLLECTIONS_PREFIX, colId)
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+	return nil
+}
+
 func formatIndex(fieldName string, value string) string {
 	// Given that the value is encrypted for now, this might not be needed.
 	return fmt.Sprintf("%s%s_%s", INDEX_PREFIX, fieldName, strings.ToLower(value))

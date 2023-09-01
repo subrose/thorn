@@ -138,6 +138,50 @@ func TestRedisStore(t *testing.T) {
 
 	})
 
+	t.Run("can delete collections", func(t *testing.T) {
+		ctx := context.Background()
+		db, err := initDB()
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		col := Collection{Name: "customers", Fields: map[string]Field{
+			"name": {
+				Type:      "string",
+				IsIndexed: false,
+			},
+			"age": {
+				Name:      "age",
+				Type:      "integer",
+				IsIndexed: false,
+			},
+			"country": {
+				Name:      "country",
+				Type:      "string",
+				IsIndexed: true,
+			},
+		}}
+
+		// Can create collection
+		colID, err := db.CreateCollection(ctx, col)
+		if err != nil || colID == "" {
+			t.Fatal(err)
+		}
+
+		// Can delete collection
+		err = db.DeleteCollection(ctx, colID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Collection should not exist after deletion
+		_, err = db.GetCollection(ctx, colID)
+		if err == nil {
+			t.Fatal("Expected error when getting deleted collection, got nil")
+		}
+	})
+
 	t.Run("can create and get principals", func(t *testing.T) {
 		ctx := context.Background()
 		db, err := initDB()

@@ -59,6 +59,29 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusOK, &returnedCollections)
 	})
 
+	t.Run("can delete a collection", func(t *testing.T) {
+		// Create a dummy collection
+		collectionToDelete := CollectionModel{
+			Name: "delete-me",
+			Fields: map[string]CollectionFieldModel{
+				"name": {Type: "name", IsIndexed: true},
+			},
+		}
+		request := newRequest(t, http.MethodPost, "/collections", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, collectionToDelete)
+
+		response := performRequest(t, app, request)
+		checkResponse(t, response, http.StatusCreated, nil)
+		// Delete it
+		request = newRequest(t, http.MethodDelete, "/collections/delete-me", map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response = performRequest(t, app, request)
+		checkResponse(t, response, http.StatusOK, nil)
+	})
+
 	t.Run("can create and get a record", func(t *testing.T) {
 		records := []map[string]interface{}{
 			{

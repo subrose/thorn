@@ -145,6 +145,29 @@ func TestVault(t *testing.T) {
 		}
 	})
 
+	t.Run("can delete collections", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "customers", Fields: map[string]Field{
+			"first_name": {
+				Name:      "first_name",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		err := vault.DeleteCollection(ctx, testPrincipal, col.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = vault.GetCollection(ctx, testPrincipal, col.Name)
+		switch err.(type) {
+		case *NotFoundError:
+			// success
+		default:
+			t.Error("Should throw a not found error when getting a deleted collection, got:", err)
+		}
+	})
+
 	t.Run("can update records", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "test_collection", Fields: map[string]Field{
