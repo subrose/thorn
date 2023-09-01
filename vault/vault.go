@@ -519,6 +519,47 @@ func (vault Vault) GetPolicy(
 	return vault.PolicyManager.GetPolicy(ctx, policyId)
 }
 
+func (vault Vault) DeletePolicy(
+	ctx context.Context,
+	principal Principal,
+	policyId string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.PolicyManager.DeletePolicy(ctx, policyId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault Vault) GetPolicies(
+	ctx context.Context,
+	principal Principal,
+) ([]Policy, error) {
+	request := Request{principal, PolicyActionRead, POLICIES_PPATH}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, &ForbiddenError{request}
+	}
+
+	policies, err := vault.PolicyManager.GetPolicies(ctx, principal.Policies)
+	if err != nil {
+		return nil, err
+	}
+	return policies, nil
+}
+
 func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,

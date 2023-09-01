@@ -118,6 +118,8 @@ func SetupApi(core *Core) *fiber.App {
 	policiesGroup.Use(authGuard(core))
 	policiesGroup.Get(":policyId", core.GetPolicyById)
 	policiesGroup.Post("", core.CreatePolicy)
+	policiesGroup.Get("", core.GetPolicies)
+	policiesGroup.Delete(":policyId", core.DeletePolicy)
 
 	app.Use(func(c *fiber.Ctx) error {
 		return c.SendStatus(404) // => 404 "Not Found"

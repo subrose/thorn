@@ -430,11 +430,22 @@ func (rawPolicy RawPolicy) toPolicy() Policy {
 
 func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
+	cmd := rs.Client.HGetAll(ctx, polRedisId)
+	if err := cmd.Err(); err != nil {
+		return Policy{}, err
+	}
+
+	result, err := cmd.Result()
+	if err != nil {
+		return Policy{}, err
+	}
+
+	if len(result) == 0 {
+		return Policy{}, &NotFoundError{polRedisId}
+	}
+
 	var rawPolicy RawPolicy
-	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
-		if err == redis.Nil {
-			return Policy{}, &NotFoundError{polRedisId}
-		}
+	if err := cmd.Scan(&rawPolicy); err != nil {
 		return Policy{}, err
 	}
 
@@ -500,8 +511,13 @@ func (rs RedisStore) CreatePolicy(ctx context.Context, p Policy) (string, error)
 }
 
 func (rs RedisStore) DeletePolicy(ctx context.Context, policyId string) error {
+	_, err := rs.GetPolicy(ctx, policyId)
+	if err != nil {
+		return err
+	}
+
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
-	_, err := rs.Client.Del(ctx, polRedisId).Result()
+	_, err = rs.Client.Del(ctx, polRedisId).Result()
 	if err != nil {
 		return fmt.Errorf("failed to delete policy: %w", err)
 	}
