@@ -37,7 +37,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		[]string{"/collections/customers*"},
 	})
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
-	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
+	vault := Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }
 
@@ -298,6 +298,28 @@ func TestVault(t *testing.T) {
 			t.Fatal(err)
 		}
 
+	})
+
+	t.Run("can delete a principal", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		// Create a principal
+		err := vault.CreatePrincipal(ctx, testPrincipal, "test_user", "test_password", "test principal", []string{"root"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Delete the principal
+		err = vault.DeletePrincipal(ctx, testPrincipal, "test_user")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Try to get the deleted principal
+		_, err = vault.GetPrincipal(ctx, testPrincipal, "test_user")
+		switch err.(type) {
+		case *NotFoundError:
+			// success
+		default:
+			t.Error("Should throw a not found error when trying to get a deleted principal, got:", err)
+		}
 	})
 
 	t.Run("cant create the same principal twice", func(t *testing.T) {

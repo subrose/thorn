@@ -75,3 +75,20 @@ func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 		Policies:    principal.Policies,
 	})
 }
+
+func (core *Core) DeletePrincipal(c *fiber.Ctx) error {
+	username := c.Params("username")
+	sessionPrincipal := GetSessionPrincipal(c)
+	err := core.vault.DeletePrincipal(c.Context(), sessionPrincipal, username)
+	if err != nil {
+		switch err.(type) {
+		case *_vault.ForbiddenError:
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		case *_vault.NotFoundError:
+			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Principal not found", nil})
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+		}
+	}
+	return c.SendStatus(http.StatusOK)
+}

@@ -62,4 +62,22 @@ func TestPrincipals(t *testing.T) {
 		checkResponse(t, response, http.StatusUnauthorized, nil)
 
 	})
+
+	t.Run("can delete a principal", func(t *testing.T) {
+		request := newRequest(t, http.MethodDelete, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response := performRequest(t, app, request)
+		checkResponse(t, response, http.StatusOK, nil)
+
+		// Check that the principal has been deleted
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+		}, nil)
+
+		response = performRequest(t, app, request)
+		checkResponse(t, response, http.StatusNotFound, nil)
+	})
+
 }

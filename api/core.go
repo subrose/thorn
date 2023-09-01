@@ -114,7 +114,6 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
 	var policyManager _vault.PolicyManager = db
-	var principalManager _vault.PrincipalManager = db
 	signer, err := _vault.NewHMACSigner([]byte(conf.VAULT_SIGNING_KEY))
 	if err != nil {
 		panic(err)
@@ -122,12 +121,11 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 
 	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
-		Db:               db,
-		Priv:             priv,
-		PrincipalManager: principalManager,
-		PolicyManager:    policyManager,
-		Logger:           vaultLogger,
-		Signer:           signer,
+		Db:            db,
+		Priv:          priv,
+		PolicyManager: policyManager,
+		Logger:        vaultLogger,
+		Signer:        signer,
 	}
 
 	c.vault = vault
