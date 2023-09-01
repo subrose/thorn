@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	_vault "github.com/subrose/vault"
 )
 
 func TestCollections(t *testing.T) {
@@ -122,15 +124,15 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusOK, nil)
 
 		// Get the updated record
-		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain,dob.plain,phone_number.plain", returnedRecordIds[0]), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
-		var returnedRecords map[string]interface{}
+		var returnedRecords map[string]_vault.Record
 		checkResponse(t, response, http.StatusOK, &returnedRecords)
 
-		if returnedRecords["name"] != "54321" || returnedRecords["phone_number"] != "54321" || returnedRecords["dob"] != "54321" {
+		if returnedRecords[returnedRecordIds[0]]["name"] != "54321" || returnedRecords[returnedRecordIds[0]]["phone_number"] != "54321" || returnedRecords[returnedRecordIds[0]]["dob"] != "54321" {
 			t.Error("Error updating record", returnedRecords)
 		}
 	})
