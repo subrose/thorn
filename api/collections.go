@@ -127,6 +127,30 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordIds)
 }
 
+func (core *Core) DeleteRecord(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+	recordId := c.Params("id")
+
+	err := core.vault.DeleteRecord(c.Context(), principal, collectionName, recordId)
+	if err != nil {
+		core.logger.Error("An error occurred deleting a record", err)
+		var valueErr *_vault.ValueError
+		if errors.As(err, &valueErr) {
+			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
+		}
+		switch err.(type) {
+		case *_vault.ForbiddenError:
+			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
+		case *_vault.NotFoundError:
+			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Record not found", nil})
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
+		}
+	}
+	return c.Status(http.StatusOK).SendString("Record deleted")
+}
+
 func parseFieldsQuery(fieldsQuery string) map[string]string {
 	fieldFormats := map[string]string{}
 	for _, field := range strings.Split(fieldsQuery, ",") {

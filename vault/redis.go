@@ -181,20 +181,20 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	return recordIds, nil
 }
 
-func (rs RedisStore) GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error) {
+func (rs RedisStore) GetRecords(ctx context.Context, recordIds []string) (map[string]Record, error) {
 	records := map[string]Record{}
 
-	for _, recordID := range recordIDs {
-		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordID)
+	for _, recordId := range recordIds {
+		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
 		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
-		if record == nil {
+		if len(record) == 0 {
 			return nil, &NotFoundError{redisKey}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordID, err)
+			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordId, err)
 		}
 
-		records[recordID] = record
+		records[recordId] = record
 	}
 	return records, nil
 }
@@ -214,6 +214,36 @@ func (rs RedisStore) GetRecordsFilter(ctx context.Context, collectionName string
 		return []string{}, err
 	}
 	return data, nil
+}
+
+func (rs RedisStore) DeleteRecord(ctx context.Context, collectionName string, recordId string) error {
+	dbCol, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return err
+	}
+
+	dbRecord, err := rs.GetRecords(ctx, []string{recordId})
+	if err != nil {
+		return err
+	}
+
+	pipe := rs.Client.Pipeline()
+	redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+	pipe.Del(ctx, redisKey)
+	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
+	pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
+	for fieldName, fieldValue := range dbRecord[recordId] {
+		if dbCol.Fields[fieldName].IsIndexed {
+			pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+
+	return nil
 }
 
 func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) error {

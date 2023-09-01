@@ -104,6 +104,22 @@ func TestRedisStore(t *testing.T) {
 		if len(dbRecords) != len(records) {
 			t.Fatalf("Expected %d records, got %d", len(records), len(dbRecords))
 		}
+
+		// Can delete records
+		err = db.DeleteRecord(ctx, col.Name, recordIds[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify deletion of the record
+		deleteRecord, err := db.GetRecords(ctx, []string{recordIds[0]})
+		if err == nil {
+			t.Fatal(err)
+		}
+		if len(deleteRecord) != 0 {
+			t.Fatal("Record not deleted.")
+		}
+
 	})
 
 	t.Run("can create and get principals", func(t *testing.T) {
