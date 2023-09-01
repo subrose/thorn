@@ -30,14 +30,6 @@ type Principal struct {
 	Policies    []string `redis:"policies"`
 }
 
-type Token struct {
-	PrincipalUsername string   `redis:"principal_username"` // principal username associated with the token
-	Policies          []string `redis:"policies"`
-	IssuedAt          int64    `redis:"issued_at"`  // timestamp the token was issued at
-	NotBefore         int64    `redis:"not_before"` // timestamp the token is valid from
-	ExpiresAt         int64    `redis:"expires_at"` // timestamp the token is set to expire
-}
-
 type VaultDB interface {
 	GetCollection(ctx context.Context, name string) (Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
@@ -46,12 +38,11 @@ type VaultDB interface {
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
 	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
-	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
 	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
+	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
 	GetPrincipal(ctx context.Context, username string) (Principal, error)
 	CreatePrincipal(ctx context.Context, principal Principal) error
-	CreateToken(ctx context.Context, tokenHash string, t Token) error
-	GetToken(ctx context.Context, tokenHash string) (Token, error)
+	DeletePrincipal(ctx context.Context, username string) error
 	Flush(ctx context.Context) error
 }
 
@@ -63,11 +54,6 @@ type Privatiser interface {
 type Signer interface {
 	Sign(message string) (string, error)
 	Verify(message, signature string) (bool, error)
-}
-
-type PrincipalManager interface {
-	CreatePrincipal(ctx context.Context, principal Principal) error
-	GetPrincipal(ctx context.Context, username string) (Principal, error)
 }
 
 type Logger interface {
@@ -114,12 +100,11 @@ type PolicyManager interface {
 }
 
 type Vault struct {
-	Db               VaultDB
-	Priv             Privatiser
-	PrincipalManager PrincipalManager
-	PolicyManager    PolicyManager
-	Logger           Logger
-	Signer           Signer
+	Db            VaultDB
+	Priv          Privatiser
+	PolicyManager PolicyManager
+	Logger        Logger
+	Signer        Signer
 }
 
 // TODO: These probably should be renamed to have _PATH
@@ -410,7 +395,7 @@ func (vault Vault) GetPrincipal(
 		return Principal{}, &ForbiddenError{request}
 	}
 
-	return vault.PrincipalManager.GetPrincipal(ctx, username)
+	return vault.Db.GetPrincipal(ctx, username)
 }
 
 func (vault Vault) CreatePrincipal(
@@ -439,7 +424,28 @@ func (vault Vault) CreatePrincipal(
 		Policies:    policies,
 	}
 
-	err = vault.PrincipalManager.CreatePrincipal(ctx, dbPrincipal)
+	err = vault.Db.CreatePrincipal(ctx, dbPrincipal)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault Vault) DeletePrincipal(
+	ctx context.Context,
+	principal Principal,
+	username string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeletePrincipal(ctx, username)
 	if err != nil {
 		return err
 	}
@@ -456,7 +462,7 @@ func (vault Vault) Login(
 		return Principal{}, newValueError(fmt.Errorf("username and password must be provided"))
 	}
 
-	dbPrincipal, err := vault.PrincipalManager.GetPrincipal(ctx, username)
+	dbPrincipal, err := vault.Db.GetPrincipal(ctx, username)
 	if err != nil {
 		vault.Logger.Error("Error getting principal", err)
 		return Principal{}, &ForbiddenError{}

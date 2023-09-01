@@ -48,7 +48,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	signer, _ := _vault.NewHMACSigner([]byte("testkey"))
 	var pm _vault.PolicyManager = db
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
-	vault := _vault.Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
+	vault := _vault.Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	bootstrapContext := context.Background()
 	_ = vault.Db.Flush(bootstrapContext)
 	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{

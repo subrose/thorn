@@ -201,13 +201,13 @@ func TestRedisStore(t *testing.T) {
 		}
 
 		// Can create principal
-		err = db.(PrincipalManager).CreatePrincipal(ctx, principal)
+		err = db.CreatePrincipal(ctx, principal)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Can get principal
-		dbPrincipalRead, err := db.(PrincipalManager).GetPrincipal(ctx, principal.Username)
+		dbPrincipalRead, err := db.GetPrincipal(ctx, principal.Username)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -227,6 +227,43 @@ func TestRedisStore(t *testing.T) {
 			if role != dbPrincipalRead.Policies[i] {
 				t.Fatalf("Principal policies not matching at index %d. Expected %s, got %s", i, role, dbPrincipalRead.Policies[i])
 			}
+		}
+	})
+
+	t.Run("can delete principals", func(t *testing.T) {
+		ctx := context.Background()
+		db, err := initDB()
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Note: password is not encrypted when storing this way, but it's just for testing purposes.
+		// The principal object should be created at the vault level.
+		principal := Principal{
+			Username:    "test",
+			Password:    "test",
+			Description: "test",
+			CreatedAt:   "0",
+			Policies:    []string{"read-customers", "write-credit-cards"},
+		}
+
+		// Can create principal
+		err = db.CreatePrincipal(ctx, principal)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Can delete principal
+		err = db.DeletePrincipal(ctx, principal.Username)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Principal should not exist after deletion
+		_, err = db.GetPrincipal(ctx, principal.Username)
+		if err == nil {
+			t.Fatal("Expected error when getting deleted principal, got nil")
 		}
 	})
 

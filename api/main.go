@@ -101,6 +101,7 @@ func SetupApi(core *Core) *fiber.App {
 	principalGroup.Use(authGuard(core))
 	principalGroup.Get(":username", core.GetPrincipal)
 	principalGroup.Post("", core.CreatePrincipal)
+	principalGroup.Delete(":username", core.DeletePrincipal)
 
 	collectionsGroup := app.Group("/collections")
 	collectionsGroup.Use(authGuard(core))
