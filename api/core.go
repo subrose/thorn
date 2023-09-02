@@ -96,7 +96,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	c.conf = conf
 
 	// Logger
-	apiLogger, err := _logger.NewLogger("API", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	apiLogger, err := _logger.NewLogger("API", "stdout", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	vaultLogger, err := _logger.NewLogger("VAULT", "stdout", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
 		Db:            db,
 		Priv:          priv,
