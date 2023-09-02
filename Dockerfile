@@ -1,3 +1,11 @@
+
+FROM golang:1.21-bullseye as dev
+
+WORKDIR /app
+RUN go install github.com/cosmtrek/air@latest
+COPY . .
+RUN go mod download
+
 FROM golang:1.21-bullseye as build
 
 WORKDIR /app
