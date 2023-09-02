@@ -26,7 +26,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: build
-    entrypoint: ["air", ".", "-c", "./.air.toml", "-buildvcs=false"]
+    entrypoint: ["/go/bin/api", "--configFile", "./conf/test.conf.toml"]
     ports:
       - 3001:3001
     depends_on:
@@ -63,7 +63,7 @@ services:
     working_dir: /code
     depends_on:
       - keydb
-    command: sh -c "cd vault && go test && cd .. && cd api && go test && cd .."
+    command: sh -c "go test ./vault && go test ./api"
     volumes:
       - "./:/code"
 volumes:

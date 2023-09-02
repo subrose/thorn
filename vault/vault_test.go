@@ -36,7 +36,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
 	})
-	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
 	vault := Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }

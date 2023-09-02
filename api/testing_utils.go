@@ -47,7 +47,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	priv := _vault.NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := _vault.NewHMACSigner([]byte("testkey"))
 	var pm _vault.PolicyManager = db
-	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
 	vault := _vault.Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
 	bootstrapContext := context.Background()
 	_ = vault.Db.Flush(bootstrapContext)

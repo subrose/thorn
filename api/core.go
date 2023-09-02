@@ -28,7 +28,8 @@ type CoreConfig struct {
 	API_HOST                string
 	API_PORT                int
 	LOG_LEVEL               string
-	LOG_OUTPUT              string
+	LOG_HANDLER             string
+	LOG_SINK                string
 	DEV_MODE                bool
 }
 
@@ -76,7 +77,8 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	conf.API_PORT = Config.Int("api_port")
 	conf.VAULT_SIGNING_KEY = Config.String("signing_key")
 	conf.LOG_LEVEL = Config.String("log_level")
-	conf.LOG_OUTPUT = Config.String("log_output")
+	conf.LOG_HANDLER = Config.String("log_handler")
+	conf.LOG_SINK = Config.String("log_sink")
 	conf.DEV_MODE = Config.Bool("system_dev_mode")
 
 	return conf, nil
@@ -96,7 +98,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	c.conf = conf
 
 	// Logger
-	apiLogger, err := _logger.NewLogger("API", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	apiLogger, err := _logger.NewLogger("API", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +121,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
 		Db:            db,
 		Priv:          priv,
