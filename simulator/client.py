@@ -65,6 +65,18 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
 
+    def delete_collection(
+        self,
+        collection: str,
+        expected_statuses: Optional[list[int]] = None,
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/collections/{collection}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
     def create_records(
         self,
         collection: str,
@@ -94,6 +106,34 @@ class Actor:
         check_expected_status(response, expected_statuses)
         return response.json()
 
+    def delete_record(
+        self,
+        collection: str,
+        record_id: str,
+        expected_statuses: Optional[list[int]] = None,
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/collections/{collection}/records/{record_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
+    def update_record(
+        self,
+        collection: str,
+        record_id: str,
+        record: dict[str, str],
+        expected_statuses: Optional[list[int]] = None,
+    ) -> dict[str, str]:
+        response = requests.put(
+            f"{self.vault_url}/collections/{collection}/records/{record_id}",
+            json=record,
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
     def create_policy(
         self, policy: Policy, expected_statuses: Optional[list[int]] = None
     ) -> None:
@@ -109,6 +149,24 @@ class Actor:
     ) -> None:
         response = requests.get(
             f"{self.vault_url}/policies/{policy_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
+    def delete_policy(
+        self, policy_id: str, expected_statuses: Optional[list[int]] = None
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/policies/{policy_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
+    def get_policies(self, expected_statuses: Optional[list[int]] = None) -> None:
+        response = requests.get(
+            f"{self.vault_url}/policies",
             auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
