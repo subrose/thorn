@@ -157,8 +157,5 @@ func (core *Core) Init() error {
 }
 
 func (core *Core) SendErrorResponse(c *fiber.Ctx, status int, message string, err error) error {
-	if err != nil {
-		core.logger.Error("", err)
-	}
 	return c.Status(status).JSON(ErrorResponse{status, message, nil})
 }

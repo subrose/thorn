@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -124,6 +125,7 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	records := new([]_vault.Record)
 	if err := c.BodyParser(records); err != nil {
+		core.logger.Error(fmt.Sprintf("An error occurred parsing records: %s", records), err)
 		return core.SendErrorResponse(c, http.StatusBadRequest, "malformed record body", err)
 	}
 
@@ -239,6 +241,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		case *_vault.ValueError:
 			return core.SendErrorResponse(c, http.StatusBadRequest, err.Error(), err)
 		default:
+			core.logger.Error(fmt.Sprintf("Error getting record: %s", err), nil)
 			return core.SendErrorResponse(c, http.StatusInternalServerError, "Something went wrong", err)
 		}
 	}
