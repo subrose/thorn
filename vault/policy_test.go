@@ -53,7 +53,7 @@ func getDummyPolicy(principal string) []Policy {
 	}
 }
 
-func MakePM() PolicyManager {
+func MakePM() DummyPolicyManager {
 	ctx := context.Background()
 	policies := getDummyPolicy("test")
 	dpm := DummyPolicyManager{

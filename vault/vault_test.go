@@ -23,21 +23,20 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := NewHMACSigner([]byte("testkey"))
-	var pm PolicyManager = db
-	_, _ = pm.CreatePolicy(ctx, Policy{
+	_, _ = db.CreatePolicy(ctx, Policy{
 		"root",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead, PolicyActionWrite},
 		[]string{"*"},
 	})
-	_, _ = pm.CreatePolicy(ctx, Policy{
+	_, _ = db.CreatePolicy(ctx, Policy{
 		"read-all-customers",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
 	})
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
-	vault := Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
+	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }
 

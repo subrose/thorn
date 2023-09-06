@@ -43,6 +43,10 @@ type VaultDB interface {
 	GetPrincipal(ctx context.Context, username string) (Principal, error)
 	CreatePrincipal(ctx context.Context, principal Principal) error
 	DeletePrincipal(ctx context.Context, username string) error
+	GetPolicy(ctx context.Context, policyId string) (Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	DeletePolicy(ctx context.Context, policyId string) error
 	Flush(ctx context.Context) error
 }
 
@@ -91,20 +95,11 @@ type Request struct {
 	Resource  string
 }
 
-type PolicyManager interface {
-	GetPolicy(ctx context.Context, policyId string) (Policy, error)
-	GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error)
-	CreatePolicy(ctx context.Context, p Policy) (string, error)
-	DeletePolicy(ctx context.Context, policyId string) error
-	// EvaluateAction(a Action) bool
-}
-
 type Vault struct {
-	Db            VaultDB
-	Priv          Privatiser
-	PolicyManager PolicyManager
-	Logger        Logger
-	Signer        Signer
+	Db     VaultDB
+	Priv   Privatiser
+	Logger Logger
+	Signer Signer
 }
 
 // TODO: These probably should be renamed to have _PATH
@@ -499,7 +494,7 @@ func (vault Vault) CreatePolicy(
 		return "", &ForbiddenError{request}
 	}
 
-	return vault.PolicyManager.CreatePolicy(ctx, p)
+	return vault.Db.CreatePolicy(ctx, p)
 }
 
 func (vault Vault) GetPolicy(
@@ -516,7 +511,7 @@ func (vault Vault) GetPolicy(
 		return Policy{}, &ForbiddenError{request}
 	}
 
-	return vault.PolicyManager.GetPolicy(ctx, policyId)
+	return vault.Db.GetPolicy(ctx, policyId)
 }
 
 func (vault Vault) DeletePolicy(
@@ -533,7 +528,7 @@ func (vault Vault) DeletePolicy(
 		return &ForbiddenError{request}
 	}
 
-	err = vault.PolicyManager.DeletePolicy(ctx, policyId)
+	err = vault.Db.DeletePolicy(ctx, policyId)
 	if err != nil {
 		return err
 	}
@@ -553,7 +548,7 @@ func (vault Vault) GetPolicies(
 		return nil, &ForbiddenError{request}
 	}
 
-	policies, err := vault.PolicyManager.GetPolicies(ctx, principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, principal.Policies)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +559,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.PolicyManager.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
 	if err != nil {
 		return false, err
 	}

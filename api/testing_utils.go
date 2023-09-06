@@ -43,20 +43,38 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		coreConfig.DB_PASSWORD,
 		coreConfig.DB_DB,
 	)
+	if err != nil {
+		t.Fatal("Failed to create db", err)
+	}
 
 	priv := _vault.NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
-	signer, _ := _vault.NewHMACSigner([]byte("testkey"))
-	var pm _vault.PolicyManager = db
-	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
-	vault := _vault.Vault{Db: db, Priv: priv, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
+	if err != nil {
+		t.Fatal("Failed to create privatiser", err)
+	}
+	signer, err := _vault.NewHMACSigner([]byte("testkey"))
+	if err != nil {
+		t.Fatal("Failed to create signer", err)
+	}
+	vaultLogger, err := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
+	if err != nil {
+		t.Fatal("Failed to create logger", err)
+	}
+	vault := _vault.Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
 	bootstrapContext := context.Background()
-	_ = vault.Db.Flush(bootstrapContext)
-	_, _ = pm.CreatePolicy(bootstrapContext, _vault.Policy{
+	err = vault.Db.Flush(bootstrapContext)
+	if err != nil {
+		t.Fatal("Failed to flush db", err)
+	}
+	_, err = db.CreatePolicy(bootstrapContext, _vault.Policy{
 		PolicyId:  "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
 		Resources: []string{"*"},
 	})
+
+	if err != nil {
+		t.Fatal("Failed to create root policy", err)
+	}
 
 	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_USERNAME, coreConfig.VAULT_ADMIN_PASSWORD, "admin principal", []string{"root"})
 	if err != nil {
