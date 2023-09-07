@@ -11,12 +11,12 @@
 
 # Customer service team needs to access to all customer details to process refunds
 
-from client import Actor
-from client import Policy
+import os
+
+from client import Actor, Policy
 from faker import Faker
 from faker_e164.providers import E164Provider
 from wait import wait_for_api
-import os
 
 VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
 wait_for_api(VAULT_URL)
