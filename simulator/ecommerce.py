@@ -176,4 +176,4 @@ for record_id, record in records_map.items():
     assert plain_record[record_id]["phone"] == record["phone"]
 
 
-print("ecommerce usecase completed successfully!")
+print("Ecommerce usecase ok!")
