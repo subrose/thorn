@@ -70,7 +70,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 		return dbCol, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
 	}
 	if len(col) == 0 {
-		return dbCol, &NotFoundError{colId}
+		return dbCol, &NotFoundError{"collection", name}
 	}
 	pipe := rs.Client.Pipeline()
 	for _, v := range col {
@@ -181,9 +181,6 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
 	dbCol, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return []string{}, &NotFoundError{colId}
-		}
 		return []string{}, err
 	}
 
@@ -198,7 +195,7 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 			// TODO: Validate types and schema here
 			field, ok := dbCol.Fields[rFieldName]
 			if !ok {
-				return []string{}, newValueError(fmt.Errorf("field %s does not exist in collection %s", rFieldName, collectionName))
+				return []string{}, &ValueError{fmt.Sprintf("field %s does not exist in collection %s", rFieldName, collectionName)}
 			}
 			pipe.HSet(
 				ctx,
@@ -232,7 +229,7 @@ func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, reco
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
 		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
 		if len(record) == 0 {
-			return nil, &NotFoundError{redisKey}
+			return nil, &NotFoundError{"record", recordId}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordId, err)
@@ -272,7 +269,7 @@ func (rs RedisStore) UpdateRecord(ctx context.Context, collectionName string, re
 	for rFieldName, rFieldValue := range record {
 		field, ok := dbCol.Fields[rFieldName]
 		if !ok {
-			return newValueError(fmt.Errorf("field %s does not exist in collection %s", rFieldName, collectionName))
+			return &ValueError{fmt.Sprintf("field %s does not exist in collection %s", rFieldName, collectionName)}
 		}
 		pipe.HSet(
 			ctx,
@@ -368,7 +365,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	pipeRes, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return Principal{}, &NotFoundError{principalId}
+			return Principal{}, &NotFoundError{"principal", principalId}
 		}
 		return Principal{}, err
 	}
@@ -378,7 +375,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return Principal{}, &NotFoundError{principalId}
+		return Principal{}, &NotFoundError{"principal", principalId}
 	}
 	return dbPrincipal, nil
 }
@@ -392,7 +389,7 @@ func (rs RedisStore) DeletePrincipal(ctx context.Context, username string) error
 	}
 
 	if exists == 0 {
-		return &NotFoundError{principalId}
+		return &NotFoundError{"principal", principalId}
 	}
 
 	pipe := rs.Client.Pipeline()
@@ -441,7 +438,7 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, er
 	}
 
 	if len(result) == 0 {
-		return Policy{}, &NotFoundError{polRedisId}
+		return Policy{}, &NotFoundError{"policy", policyId}
 	}
 
 	var rawPolicy RawPolicy

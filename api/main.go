@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	_vault "github.com/subrose/vault"
 )
 
@@ -16,7 +19,7 @@ const PRINCIPAL_CONTEXT_KEY = "principal"
 func ApiLogger(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		t1 := time.Now()
-		_ = ctx.Next()
+		err := ctx.Next()
 		t2 := time.Now()
 		dt := float64(t2.Sub(t1))
 		core.logger.WriteRequestLog(
@@ -28,8 +31,7 @@ func ApiLogger(core *Core) fiber.Handler {
 			dt,
 			ctx.Response().StatusCode(),
 		)
-
-		return nil
+		return err
 	}
 }
 
@@ -41,31 +43,41 @@ func authGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		authHeader := ctx.Get("Authorization")
 		if authHeader == "" {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Missing Authorization header",
+			return ctx.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
+				http.StatusUnauthorized,
+				"Authorization header is required",
+				nil,
 			})
 		}
 
 		const prefix = "Basic "
 		if !strings.HasPrefix(authHeader, prefix) {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid Authorization header",
+			return ctx.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
+				http.StatusUnauthorized,
+				"Invalid authorisation header",
+				nil,
 			})
 		}
 
 		encodedCredentials := authHeader[len(prefix):]
 		decoded, err := base64.StdEncoding.DecodeString(encodedCredentials)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid base64 encoding",
-			})
+			return ctx.Status(fiber.StatusUnauthorized).JSON(
+				ErrorResponse{
+					http.StatusUnauthorized,
+					"Invalid base64 encoding",
+					nil,
+				})
 		}
 
 		credentials := strings.SplitN(string(decoded), ":", 2)
 		if len(credentials) != 2 {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid Authorization value",
-			})
+			return ctx.Status(fiber.StatusUnauthorized).JSON(
+				ErrorResponse{
+					http.StatusUnauthorized,
+					"Invalid Authorization value",
+					nil,
+				})
 		}
 
 		username := credentials[0]
@@ -73,28 +85,55 @@ func authGuard(core *Core) fiber.Handler {
 
 		principal, err := core.vault.Login(ctx.Context(), username, password)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Invalid username or password",
-			})
+			return ctx.Status(fiber.StatusUnauthorized).JSON(
+				ErrorResponse{
+					http.StatusUnauthorized,
+					"Invalid username or password",
+					nil,
+				})
 		}
 
-		// Set principal in context
 		ctx.Locals(PRINCIPAL_CONTEXT_KEY, principal)
-		// Continue stack
-		_ = ctx.Next()
+		err = ctx.Next()
 
-		return nil
+		return err
+	}
+}
+
+func customErrorHandler(ctx *fiber.Ctx, err error) error {
+	var e *fiber.Error
+	if errors.As(err, &e) {
+		code := e.Code
+		return ctx.Status(code).SendString(err.Error())
+	}
+
+	// Handle custom errors from the vault package
+	var ve *_vault.ValueError
+	var fe *_vault.ForbiddenError
+	var ne *_vault.NotFoundError
+	switch {
+	case errors.As(err, &ve):
+		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, ve.Error(), nil})
+	case errors.As(err, &fe):
+		return ctx.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, fe.Error(), nil})
+	case errors.As(err, &ne):
+		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, ne.Error(), nil})
+	default:
+		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
+		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Internal Server Error", nil})
 	}
 }
 
 func SetupApi(core *Core) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
+		ErrorHandler:          customErrorHandler,
 	})
 	app.Use(ApiLogger(core))
+	app.Use(recover.New())
 
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusOK).SendString("OK")
+		return c.Status(http.StatusOK).SendString("OK")
 	})
 
 	principalGroup := app.Group("/principals")
@@ -122,7 +161,7 @@ func SetupApi(core *Core) *fiber.App {
 	policiesGroup.Delete(":policyId", core.DeletePolicy)
 
 	app.Use(func(c *fiber.Ctx) error {
-		return c.SendStatus(404) // => 404 "Not Found"
+		return c.SendStatus(404)
 	})
 
 	return app
@@ -151,7 +190,7 @@ func main() {
 
 	app := SetupApi(core)
 	listenAddr := fmt.Sprintf("%s:%v", coreConfig.API_HOST, coreConfig.API_PORT)
-	fmt.Println("Listening on", listenAddr)
+	core.logger.Info(fmt.Sprintf("Listening on %s", listenAddr))
 	err = app.Listen(listenAddr)
 	if err != nil {
 		panic(err)

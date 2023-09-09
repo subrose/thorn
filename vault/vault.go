@@ -64,7 +64,7 @@ type Logger interface {
 	Debug(msg string)
 	Info(msg string)
 	Warn(msg string)
-	Error(msg string, err error)
+	Error(msg string)
 }
 
 type PolicyAction string
@@ -130,10 +130,6 @@ func (vault Vault) GetCollection(
 		return Collection{}, err
 	}
 
-	if col.Name == "" {
-		return Collection{}, &NotFoundError{name}
-	}
-
 	return col, nil
 }
 
@@ -172,7 +168,7 @@ func (vault Vault) CreateCollection(
 	}
 
 	if len(col.Name) < 3 {
-		return "", newValueError(fmt.Errorf("collection name must be at least 3 characters"))
+		return "", &ValueError{Msg: "collection name must be at least 3 characters"}
 	}
 	collectionId, err := vault.Db.CreateCollection(ctx, col)
 	if err != nil {
@@ -243,7 +239,7 @@ func (vault Vault) GetRecords(
 ) (map[string]Record, error) {
 
 	if len(recordIDs) == 0 {
-		return nil, newValueError(fmt.Errorf("record ids must be provided"))
+		return nil, &ValueError{Msg: "recordIDs must not be empty"}
 	}
 
 	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
@@ -276,7 +272,7 @@ func (vault Vault) GetRecords(
 	}
 
 	if len(encryptedRecords) == 0 {
-		return nil, &NotFoundError{recordIDs[0]} //TODO: specify the records that were not found...
+		return nil, &NotFoundError{"record", recordIDs[0]} //TODO: specify the records that were not found...
 	}
 
 	records := make(map[string]Record, len(encryptedRecords))
@@ -454,12 +450,12 @@ func (vault Vault) Login(
 ) (principal Principal, err error) {
 
 	if username == "" || password == "" {
-		return Principal{}, newValueError(fmt.Errorf("username and password must be provided"))
+		return Principal{}, &ValueError{Msg: "username and password must be provided"}
 	}
 
 	dbPrincipal, err := vault.Db.GetPrincipal(ctx, username)
 	if err != nil {
-		vault.Logger.Error("Error getting principal", err)
+		vault.Logger.Error("Error getting principal")
 		return Principal{}, &ForbiddenError{}
 	}
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
@@ -483,7 +479,7 @@ func (vault Vault) CreatePolicy(
 	// Ensure resource starts with a slash
 	for _, resource := range p.Resources {
 		if !strings.HasPrefix(resource, "/") {
-			return "", newValueError(fmt.Errorf("resources must start with a slash - '%s' is not a valid resource", resource))
+			return "", &ValueError{Msg: fmt.Sprintf("resources must start with a slash - '%s' is not a valid resource", resource)}
 		}
 	}
 	allowed, err := vault.ValidateAction(ctx, request)
