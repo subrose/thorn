@@ -92,16 +92,16 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var ae *AuthError
 	switch {
 	case errors.As(err, &ve):
-		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, ve.Error(), nil})
+		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{ve.Error(), nil})
 	case errors.As(err, &fe):
-		return ctx.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, fe.Error(), nil})
+		return ctx.Status(http.StatusForbidden).JSON(ErrorResponse{fe.Error(), nil})
 	case errors.As(err, &ne):
-		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, ne.Error(), nil})
+		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{ne.Error(), nil})
 	case errors.As(err, &ae):
-		return ctx.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, ae.Error(), nil})
+		return ctx.Status(http.StatusUnauthorized).JSON(ErrorResponse{ae.Error(), nil})
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
-		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Internal Server Error", nil})
+		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{"Internal Server Error", nil})
 	}
 }
 

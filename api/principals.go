@@ -22,7 +22,7 @@ type PrincipalResponse struct {
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	var newPrincipal NewPrincipal
 	if err := c.BodyParser(&newPrincipal); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Invalid request body", nil})
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{"Invalid request body", nil})
 	}
 
 	errors := Validate(newPrincipal)

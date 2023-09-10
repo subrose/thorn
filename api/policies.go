@@ -30,7 +30,7 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 	sessionPrincipal := GetSessionPrincipal(c)
 	var policy _vault.Policy
 	if err := c.BodyParser(&policy); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, "Invalid request body", nil})
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{"Invalid request body", nil})
 	}
 
 	validation_errors := Validate(policy)
