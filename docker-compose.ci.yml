@@ -3,13 +3,12 @@ services:
   keydb:
     image: eqalpha/keydb:x86_64_v6.3.3
     container_name: keydb
-    command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
+    command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
     ports:
       - 6379:6379
     restart: unless-stopped
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
-      - ./keydb/data:/data
   api:
     profiles: ["simulations"]
     environment:
@@ -66,6 +65,3 @@ services:
     command: sh -c "go test ./vault && go test ./api"
     volumes:
       - "./:/code"
-volumes:
-  data:
-    driver: local

@@ -67,6 +67,7 @@ func authGuard(core *Core) fiber.Handler {
 
 		principal, err := core.vault.Login(ctx.Context(), username, password)
 		if err != nil {
+			core.logger.Error(fmt.Sprintf("Error logging in: %s", err.Error()))
 			return &AuthError{"Invalid username or password"}
 		}
 

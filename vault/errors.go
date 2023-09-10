@@ -9,6 +9,12 @@ var (
 	ErrIndexError = errors.New("index")
 )
 
+type AuthError struct{ Msg string }
+
+func (e *AuthError) Error() string {
+	return e.Msg
+}
+
 type ForbiddenError struct{ request Request }
 
 func (e *ForbiddenError) Error() string {

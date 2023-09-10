@@ -455,16 +455,12 @@ func (vault Vault) Login(
 
 	dbPrincipal, err := vault.Db.GetPrincipal(ctx, username)
 	if err != nil {
-		vault.Logger.Error("Error getting principal")
-		return Principal{}, &ForbiddenError{}
-	}
-	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return Principal{}, &ForbiddenError{}
+		return Principal{}, err
 	}
 
 	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
 	if compareErr != nil {
-		return Principal{}, &ForbiddenError{}
+		return Principal{}, &AuthError{"Invalid username or password"}
 	}
 
 	return dbPrincipal, nil

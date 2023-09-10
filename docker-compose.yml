@@ -31,7 +31,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
-      - ./keydb/data:/data
 volumes:
   data:
     driver: local
