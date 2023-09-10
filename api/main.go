@@ -43,41 +43,23 @@ func authGuard(core *Core) fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		authHeader := ctx.Get("Authorization")
 		if authHeader == "" {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				http.StatusUnauthorized,
-				"Authorization header is required",
-				nil,
-			})
+			return &AuthError{"Authorization header is required"}
 		}
 
 		const prefix = "Basic "
 		if !strings.HasPrefix(authHeader, prefix) {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				http.StatusUnauthorized,
-				"Invalid authorisation header",
-				nil,
-			})
+			return &AuthError{"Invalid authorisation header"}
 		}
 
 		encodedCredentials := authHeader[len(prefix):]
 		decoded, err := base64.StdEncoding.DecodeString(encodedCredentials)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(
-				ErrorResponse{
-					http.StatusUnauthorized,
-					"Invalid base64 encoding",
-					nil,
-				})
+			return &AuthError{"Invalid base64 encoding"}
 		}
 
 		credentials := strings.SplitN(string(decoded), ":", 2)
 		if len(credentials) != 2 {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(
-				ErrorResponse{
-					http.StatusUnauthorized,
-					"Invalid Authorization value",
-					nil,
-				})
+			return &AuthError{"Invalid Authorization value"}
 		}
 
 		username := credentials[0]
@@ -85,12 +67,7 @@ func authGuard(core *Core) fiber.Handler {
 
 		principal, err := core.vault.Login(ctx.Context(), username, password)
 		if err != nil {
-			return ctx.Status(fiber.StatusUnauthorized).JSON(
-				ErrorResponse{
-					http.StatusUnauthorized,
-					"Invalid username or password",
-					nil,
-				})
+			return &AuthError{"Invalid username or password"}
 		}
 
 		ctx.Locals(PRINCIPAL_CONTEXT_KEY, principal)
@@ -111,6 +88,7 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var ve *_vault.ValueError
 	var fe *_vault.ForbiddenError
 	var ne *_vault.NotFoundError
+	var ae *AuthError
 	switch {
 	case errors.As(err, &ve):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{http.StatusBadRequest, ve.Error(), nil})
@@ -118,6 +96,8 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, fe.Error(), nil})
 	case errors.As(err, &ne):
 		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, ne.Error(), nil})
+	case errors.As(err, &ae):
+		return ctx.Status(http.StatusUnauthorized).JSON(ErrorResponse{http.StatusUnauthorized, ae.Error(), nil})
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
 		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Internal Server Error", nil})
