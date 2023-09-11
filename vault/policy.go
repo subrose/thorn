@@ -27,7 +27,7 @@ func Match(pattern, str string) bool {
 	return matchRune([]rune(pattern), []rune(str))
 }
 
-func containsAction(p Policy, action PolicyAction) bool {
+func containsAction(p *Policy, action PolicyAction) bool {
 	for _, a := range p.Actions {
 		if a == action {
 			return true
@@ -36,7 +36,7 @@ func containsAction(p Policy, action PolicyAction) bool {
 	return false
 }
 
-func EvaluateRequest(request Request, policies []Policy) bool {
+func EvaluateRequest(request Request, policies []*Policy) bool {
 	allowed := false
 
 	for _, p := range policies {
