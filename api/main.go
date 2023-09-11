@@ -71,8 +71,10 @@ func authGuard(core *Core) fiber.Handler {
 			return &AuthError{"Invalid username or password"}
 		}
 
-		ctx.Locals(PRINCIPAL_CONTEXT_KEY, principal)
-		err = ctx.Next()
+		// Set principal in context
+		ctx.Locals(PRINCIPAL_CONTEXT_KEY, *principal)
+		// Continue stack
+		_ = ctx.Next()
 
 		return err
 	}

@@ -117,7 +117,9 @@ func TestRedisStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if updatedRecord[recordIds[0]]["name"] != "UpdatedName" || updatedRecord[recordIds[0]]["age"] != "99" || updatedRecord[recordIds[0]]["country"] != "UpdatedCountry" {
+		if (*updatedRecord[recordIds[0]])["name"] != "UpdatedName" ||
+			(*updatedRecord[recordIds[0]])["age"] != "99" ||
+			(*updatedRecord[recordIds[0]])["country"] != "UpdatedCountry" {
 			t.Fatal("Record not updated correctly.")
 		}
 

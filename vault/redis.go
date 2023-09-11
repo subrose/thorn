@@ -62,15 +62,15 @@ func (rs RedisStore) GetCollections(ctx context.Context) ([]string, error) {
 	return members, nil
 }
 
-func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection, error) {
+func (rs RedisStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, name)
 	dbCol := Collection{}
 	col, err := rs.Client.HGetAll(ctx, colId).Result()
 	if err != nil {
-		return dbCol, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
+		return nil, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
 	}
 	if len(col) == 0 {
-		return dbCol, &NotFoundError{"collection", name}
+		return nil, &NotFoundError{colId}
 	}
 	pipe := rs.Client.Pipeline()
 	for _, v := range col {
@@ -78,7 +78,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 	}
 	fields, err := pipe.Exec(ctx)
 	if err != nil {
-		return dbCol, fmt.Errorf("failed to execute Redis pipeline: %w", err)
+		return nil, fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 	dbCol.Fields = make(map[string]Field, len(fields))
 	for _, field := range fields {
@@ -89,7 +89,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 		}
 	}
 	dbCol.Name = name
-	return dbCol, nil
+	return &dbCol, nil
 }
 
 func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string, error) {
@@ -157,7 +157,7 @@ func (rs RedisStore) DeleteCollection(ctx context.Context, name string) error {
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
 		pipe.Del(ctx, redisKey)
 		pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
-		for fieldName, fieldValue := range dbRecord[recordId] {
+		for fieldName, fieldValue := range *dbRecord[recordId] {
 			if dbCollection.Fields[fieldName].IsIndexed {
 				pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
 			}
@@ -218,21 +218,30 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	return recordIds, nil
 }
 
-func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, recordIds []string) (map[string]Record, error) {
+func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, recordIds []string) (map[string]*Record, error) {
 	_, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {
 		return nil, err
 	}
-	records := map[string]Record{}
+	records := map[string]*Record{}
 
 	for _, recordId := range recordIds {
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
 		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
 		if len(record) == 0 {
 			return nil, &NotFoundError{"record", recordId}
+    }
+		recordMap, err := rs.Client.HGetAll(ctx, redisKey).Result()
+		if len(recordMap) == 0 {
+			return nil, &NotFoundError{redisKey}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordId, err)
+		}
+
+		record := &Record{}
+		for key, value := range recordMap {
+			(*record)[key] = value
 		}
 
 		records[recordId] = record
@@ -305,7 +314,7 @@ func (rs RedisStore) DeleteRecord(ctx context.Context, collectionName string, re
 	pipe.Del(ctx, redisKey)
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
 	pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
-	for fieldName, fieldValue := range dbRecord[recordId] {
+	for fieldName, fieldValue := range *dbRecord[recordId] {
 		if dbCol.Fields[fieldName].IsIndexed {
 			pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
 		}
@@ -355,7 +364,7 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) e
 	return nil
 }
 
-func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Principal, error) {
+func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
 	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, username)
 	var dbPrincipal Principal
 
@@ -365,19 +374,19 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	pipeRes, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return Principal{}, &NotFoundError{"principal", principalId}
+			return nil, &NotFoundError{principalId}
 		}
-		return Principal{}, err
+		return nil, err
 	}
 	err = pipeRes[0].(*redis.MapStringStringCmd).Scan(&dbPrincipal)
 	if err != nil {
-		return Principal{}, err
+		return nil, err
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return Principal{}, &NotFoundError{"principal", principalId}
+		return nil, &NotFoundError{principalId}
 	}
-	return dbPrincipal, nil
+	return &dbPrincipal, nil
 }
 
 func (rs RedisStore) DeletePrincipal(ctx context.Context, username string) error {
@@ -410,7 +419,7 @@ type RawPolicy struct {
 	Resources string       `redis:"resources"`
 }
 
-func (rawPolicy RawPolicy) toPolicy() Policy {
+func (rawPolicy RawPolicy) toPolicy() *Policy {
 	var actions []PolicyAction
 	for _, action := range strings.Split(rawPolicy.Actions, ",") {
 		actions = append(actions, PolicyAction(action))
@@ -422,35 +431,35 @@ func (rawPolicy RawPolicy) toPolicy() Policy {
 		Resources: strings.Split(rawPolicy.Resources, ","),
 	}
 
-	return policy
+	return &policy
 }
 
-func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
+func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
 	cmd := rs.Client.HGetAll(ctx, polRedisId)
 	if err := cmd.Err(); err != nil {
-		return Policy{}, err
+		return nil, err
 	}
 
 	result, err := cmd.Result()
 	if err != nil {
-		return Policy{}, err
+		return nil, err
 	}
 
 	if len(result) == 0 {
-		return Policy{}, &NotFoundError{"policy", policyId}
+		return nil, &NotFoundError{polRedisId}
 	}
 
 	var rawPolicy RawPolicy
 	if err := cmd.Scan(&rawPolicy); err != nil {
-		return Policy{}, err
+		return nil, err
 	}
 
 	return rawPolicy.toPolicy(), nil
 }
 
-func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
-	policies := []Policy{}
+func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
+	policies := []*Policy{}
 	pipeline := rs.Client.Pipeline()
 
 	// Prepare the commands
