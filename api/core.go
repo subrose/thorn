@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/env"
@@ -152,8 +151,4 @@ func (core *Core) Init() error {
 	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
 
 	return err
-}
-
-func (core *Core) SendErrorResponse(c *fiber.Ctx, status int, message string, err error) error {
-	return c.Status(status).JSON(ErrorResponse{status, message, nil})
 }

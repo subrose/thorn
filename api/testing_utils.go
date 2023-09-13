@@ -126,7 +126,6 @@ func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int
 			t.Fatalf("Expected status code %d, got %d - Error Message: %s", expectedStatusCode, response.StatusCode, errorResponse.Message)
 		}
 		t.Fatalf("Expected status code %d, got %d", expectedStatusCode, response.StatusCode)
-
 	}
 
 	// If target is provided, unmarshal the response body into the target struct

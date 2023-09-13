@@ -103,7 +103,7 @@ func (l Logger) Warn(msg string) {
 	l.logger.Warn(msg)
 }
 
-func (l Logger) Error(msg string, err error) {
+func (l Logger) Error(msg string) {
 	l.logger.Error(msg)
 }
 
