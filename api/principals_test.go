@@ -69,6 +69,7 @@ func TestPrincipals(t *testing.T) {
 		}, nil)
 
 		response := performRequest(t, app, request)
+
 		checkResponse(t, response, http.StatusOK, nil)
 
 		// Check that the principal has been deleted

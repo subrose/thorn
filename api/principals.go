@@ -51,6 +51,7 @@ func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 	username := c.Params("username")
 	sessionPrincipal := GetSessionPrincipal(c)
 	principal, err := core.vault.GetPrincipal(c.Context(), sessionPrincipal, username)
+
 	if err != nil {
 		return err
 	}

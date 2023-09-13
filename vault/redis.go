@@ -70,7 +70,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (*Collectio
 		return nil, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
 	}
 	if len(col) == 0 {
-		return nil, &NotFoundError{colId}
+		return nil, &NotFoundError{"collection", name}
 	}
 	pipe := rs.Client.Pipeline()
 	for _, v := range col {
@@ -227,13 +227,9 @@ func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, reco
 
 	for _, recordId := range recordIds {
 		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
-		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
-		if len(record) == 0 {
-			return nil, &NotFoundError{"record", recordId}
-    }
 		recordMap, err := rs.Client.HGetAll(ctx, redisKey).Result()
 		if len(recordMap) == 0 {
-			return nil, &NotFoundError{redisKey}
+			return nil, &NotFoundError{"record", recordId}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordId, err)
@@ -374,7 +370,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (*Princi
 	pipeRes, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return nil, &NotFoundError{principalId}
+			return nil, &NotFoundError{"principal", principalId}
 		}
 		return nil, err
 	}
@@ -384,7 +380,7 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (*Princi
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return nil, &NotFoundError{principalId}
+		return nil, &NotFoundError{"principal", principalId}
 	}
 	return &dbPrincipal, nil
 }
@@ -397,7 +393,7 @@ func (rs RedisStore) DeletePrincipal(ctx context.Context, username string) error
 		return fmt.Errorf("failed to check principal existence: %w", err)
 	}
 
-	if exists == 0 {
+	if exists != 1 {
 		return &NotFoundError{"principal", principalId}
 	}
 
@@ -447,7 +443,7 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (*Policy, e
 	}
 
 	if len(result) == 0 {
-		return nil, &NotFoundError{polRedisId}
+		return nil, &NotFoundError{"policy", polRedisId}
 	}
 
 	var rawPolicy RawPolicy

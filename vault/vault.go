@@ -450,12 +450,12 @@ func (vault Vault) Login(
 ) (principal *Principal, err error) {
 
 	if username == "" || password == "" {
-		return nil, newValueError(fmt.Errorf("username and password must be provided"))
+		return nil, &ValueError{Msg: "username and password must not be empty"}
 	}
 
 	dbPrincipal, err := vault.Db.GetPrincipal(ctx, username)
 	if err != nil {
-		vault.Logger.Error("Error getting principal", err)
+		vault.Logger.Error("Error getting principal")
 		return nil, &ForbiddenError{}
 	}
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {

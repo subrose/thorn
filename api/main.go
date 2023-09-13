@@ -74,7 +74,7 @@ func authGuard(core *Core) fiber.Handler {
 		// Set principal in context
 		ctx.Locals(PRINCIPAL_CONTEXT_KEY, *principal)
 		// Continue stack
-		_ = ctx.Next()
+		err = ctx.Next()
 
 		return err
 	}
