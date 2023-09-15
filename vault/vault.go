@@ -213,17 +213,32 @@ func (vault Vault) CreateRecords(
 	if !allowed {
 		return nil, &ForbiddenError{request}
 	}
+	collection, err := vault.Db.GetCollection(ctx, collectionName)
+	if err != nil {
+		return nil, err
+	}
 
 	encryptedRecords := make([]Record, len(records))
-
+	// TODO: This is inefficient - needs to be optimised and potentially moved to the DB layer
 	for i, record := range records {
 		encryptedRecord := make(Record)
-		for recordFieldName, recordFieldValue := range record {
-			encryptedValue, err := vault.Priv.Encrypt(recordFieldValue)
+		for fieldName, fieldValue := range record {
+			// Ensure field exists on collection
+			if _, ok := collection.Fields[fieldName]; !ok {
+				return nil, &ValueError{fmt.Sprintf("Field %s not found on collection %s", fieldName, collectionName)}
+			}
+
+			// Validate field PType
+			_, err := GetPType(PTypeName(collection.Fields[fieldName].Type), fieldValue)
 			if err != nil {
 				return nil, err
 			}
-			encryptedRecord[recordFieldName] = encryptedValue
+			// Encrypt field value
+			encryptedValue, err := vault.Priv.Encrypt(fieldValue)
+			if err != nil {
+				return nil, err
+			}
+			encryptedRecord[fieldName] = encryptedValue
 		}
 		encryptedRecords[i] = encryptedRecord
 	}

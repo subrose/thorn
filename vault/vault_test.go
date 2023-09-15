@@ -226,7 +226,7 @@ func TestVault(t *testing.T) {
 
 	t.Run("cant store records with invalid fields", func(t *testing.T) {
 		vault, _, _ := initVault(t)
-		col := Collection{Name: "smol_collection", Fields: map[string]Field{
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
 			"first_name": {
 				Name:      "first_name",
 				Type:      "string",
@@ -236,9 +236,9 @@ func TestVault(t *testing.T) {
 		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
 		inputRecords := []Record{{"invalid_field": "John"}}
 		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
-		var valueErr *ValueError
-		if err == nil || !errors.As(err, &valueErr) {
-			t.Fatalf("Expected an invalid field error, got %s", err)
+		var ve *ValueError
+		if err == nil || !errors.As(err, &ve) {
+			t.Fatalf("Expected a value error, got %s", err)
 		}
 	})
 

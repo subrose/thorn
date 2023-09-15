@@ -15,7 +15,7 @@ func TestStringPType(t *testing.T) {
 	masked, _ := str.Get("masked")
 
 	assert.Equal(t, plain, value)
-	assert.Equal(t, masked, "****")
+	assert.Equal(t, masked, "*")
 
 }
 
@@ -28,7 +28,7 @@ func TestNamePType(t *testing.T) {
 	masked, _ := name.Get("masked")
 
 	assert.Equal(t, plain, value)
-	assert.Equal(t, masked, "*** ***")
+	assert.Equal(t, masked, "A** D**")
 }
 
 func TestPhonePType(t *testing.T) {

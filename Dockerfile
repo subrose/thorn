@@ -1,4 +1,3 @@
-
 FROM golang:1.21-bullseye as dev
 
 WORKDIR /app
@@ -19,6 +18,7 @@ FROM python:3.11 as simulator
 
 COPY simulator/requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
+RUN apt-get update && apt-get install -y redis-tools
 COPY simulator/ ./
 
 ## Deploy

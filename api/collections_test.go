@@ -14,9 +14,9 @@ func TestCollections(t *testing.T) {
 	customerCollection := CollectionModel{
 		Name: "customers",
 		Fields: map[string]CollectionFieldModel{
-			"name":         {Type: "name", IsIndexed: true},
-			"phone_number": {Type: "phoneNumber", IsIndexed: true},
-			"dob":          {Type: "date", IsIndexed: false},
+			"name":         {Type: "string", IsIndexed: true},
+			"phone_number": {Type: "string", IsIndexed: true},
+			"dob":          {Type: "string", IsIndexed: false},
 		},
 	}
 
@@ -40,11 +40,11 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusOK, &returnedCollection)
 
 		if returnedCollection.Name != "customers" {
-			t.Error("Error getting collection", returnedCollection)
+			t.Errorf("Error getting collection name, got %s", returnedCollection.Name)
 		}
 
-		if returnedCollection.Fields["name"].Type != "name" {
-			t.Error("Error getting collection", returnedCollection)
+		if returnedCollection.Fields["name"].Type != "string" {
+			t.Errorf("Error getting collection field name type, got %s", returnedCollection.Fields["name"].Type)
 		}
 	})
 
@@ -136,7 +136,7 @@ func TestCollections(t *testing.T) {
 		updateRecord := map[string]interface{}{
 			"name":         "54321",
 			"phone_number": "54321",
-			"dob":          "54321",
+			"dob":          "12345",
 		}
 
 		request = newRequest(t, http.MethodPut, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
@@ -155,8 +155,10 @@ func TestCollections(t *testing.T) {
 		var returnedRecords map[string]_vault.Record
 		checkResponse(t, response, http.StatusOK, &returnedRecords)
 
-		if returnedRecords[returnedRecordIds[0]]["name"] != "54321" || returnedRecords[returnedRecordIds[0]]["phone_number"] != "54321" || returnedRecords[returnedRecordIds[0]]["dob"] != "54321" {
-			t.Error("Error updating record", returnedRecords)
+		if returnedRecords[returnedRecordIds[0]]["name"] != updateRecord["name"] ||
+			returnedRecords[returnedRecordIds[0]]["phone_number"] != updateRecord["phone_number"] ||
+			returnedRecords[returnedRecordIds[0]]["dob"] != updateRecord["dob"] {
+			t.Errorf("Error updating record, got %s", returnedRecords[returnedRecordIds[0]])
 		}
 	})
 

@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrIndexError = errors.New("index")
+	ErrIndexError   = errors.New("index")
+	ErrNotSupported = errors.New("notsupported")
 )
 
 type AuthError struct{ Msg string }

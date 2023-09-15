@@ -1,28 +1,26 @@
 package vault
 
 import (
-	"errors"
 	"fmt"
 	"net/mail"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nyaruka/phonenumbers"
-	"github.com/retgits/creditcard"
 )
-
-var ErrNotSupported = errors.New("notsupported")
-var ErrValidation = errors.New("invalid")
 
 type PTypeName string
 
 const (
-	PhoneNumberType PTypeName = "phone_number"
-	NameType        PTypeName = "name"
-	StringType      PTypeName = "string"
-	EmailType       PTypeName = "email"
-	CreditCardType  PTypeName = "credit_card"
-	RegexType       PTypeName = "regex"
+	PhoneNumberType      PTypeName = "phone_number"
+	NameType             PTypeName = "name"
+	StringType           PTypeName = "string"
+	EmailType            PTypeName = "email"
+	CreditCardNumberType PTypeName = "cc_number"
+	RegexType            PTypeName = "regex"
+	IntegerType          PTypeName = "integer"
+	DateType             PTypeName = "date"
 )
 
 const (
@@ -32,7 +30,9 @@ const (
 
 type PType interface {
 	Get(format string) (string, error)
-	// New(val string) (PType, error)
+	GetPlain() string
+	GetMasked() string
+	Validate() error
 }
 
 type String struct {
@@ -40,22 +40,19 @@ type String struct {
 }
 
 func (s String) Get(format string) (string, error) {
-	switch format {
-	case PLAIN_FORMAT:
-		return s.val, nil
-	case MASKED_FORMAT:
-		return s.GetMasked(), nil
-	default:
-		return "", ErrNotSupported
-	}
+	return getFormat(s, format)
+}
+
+func (s String) GetPlain() string {
+	return s.val
 }
 
 func (s String) GetMasked() string {
-	return allStars(s.val)
+	return "*"
 }
 
-func (s String) Validate() bool {
-	return true
+func (s String) Validate() error {
+	return nil
 }
 
 type Name struct {
@@ -63,14 +60,11 @@ type Name struct {
 }
 
 func (n Name) Get(format string) (string, error) {
-	switch format {
-	case PLAIN_FORMAT:
-		return n.val, nil
-	case MASKED_FORMAT:
-		return n.GetMasked(), nil
-	default:
-		return "", ErrNotSupported
-	}
+	return getFormat(n, format)
+}
+
+func (n Name) GetPlain() string {
+	return n.val
 }
 
 func (n Name) GetMasked() string {
@@ -78,16 +72,13 @@ func (n Name) GetMasked() string {
 	maskedNames := []string{}
 
 	for _, name := range names {
-		maskedNames = append(maskedNames, allStars(name))
+		maskedNames = append(maskedNames, string(name[0])+allStars(name[1:]))
 	}
 	return strings.Join(maskedNames, " ")
-
 }
 
-func (n Name) Validate() bool {
-	// Turns out it's not that easy to validate a name...
-	// See https://stackoverflow.com/questions/2385701/regular-expression-for-first-and-last-name
-	return true
+func (n Name) Validate() error {
+	return nil
 }
 
 type PhoneNumber struct {
@@ -95,38 +86,28 @@ type PhoneNumber struct {
 }
 
 func (pn PhoneNumber) Get(format string) (string, error) {
-	switch format {
-	case PLAIN_FORMAT:
-		return phonenumbers.Format(pn.val, phonenumbers.E164), nil
-	case MASKED_FORMAT:
-		return pn.GetMasked(), nil
-	default:
-		return "", ErrNotSupported
-	}
+	return getFormat(pn, format)
+}
+
+func (pn PhoneNumber) GetPlain() string {
+	return phonenumbers.Format(pn.val, phonenumbers.E164)
 }
 
 func (pn PhoneNumber) GetMasked() string {
 	rawNumber := phonenumbers.Format(pn.val, phonenumbers.E164)
-
-	// Extract the country code correctly
 	cCodeStr := strconv.Itoa(int(*pn.val.CountryCode))
-	withoutCountryCode := rawNumber[len(cCodeStr)+1:] // +1 to skip the "+" sign in the E164 format
-
-	// Show the first 3 digits (assuming these are the area or national code)
-	// and mask the rest
+	withoutCountryCode := rawNumber[len(cCodeStr)+1:]
 	var masked string
 	if len(withoutCountryCode) > 3 {
 		masked = withoutCountryCode[:3] + strings.Repeat("*", len(withoutCountryCode)-3)
 	} else {
-		// If the number is shorter than expected, mask it all
 		masked = strings.Repeat("*", len(withoutCountryCode))
 	}
-
 	return fmt.Sprintf("+%s%s", cCodeStr, masked)
 }
 
-func (pn PhoneNumber) Validate() bool {
-	return true
+func (pn PhoneNumber) Validate() error {
+	return nil
 }
 
 type Email struct {
@@ -134,68 +115,127 @@ type Email struct {
 }
 
 func (em Email) Get(format string) (string, error) {
-	switch format {
-	case PLAIN_FORMAT:
-		return em.GetPlain(), nil
-	case MASKED_FORMAT:
-		return em.GetMasked(), nil
-	default:
-		return "", ErrNotSupported
-	}
+	return getFormat(em, format)
 }
 
 func (em Email) GetPlain() string {
-	raw := em.address.String()
-
-	return raw[1 : len(raw)-1]
-
+	return em.address.Address
 }
 
 func (em Email) GetMasked() string {
-	components := strings.Split(em.GetPlain(), "@")
+	components := strings.Split(em.address.Address, "@")
 	username, domain := components[0], components[1]
-
 	return strings.Join([]string{allStars(username), domain}, "@")
 }
 
-func (em Email) Validate() bool {
-	return true
+func (em Email) Validate() error {
+	return nil
 }
 
-type CreditCard struct {
-	cardNumber creditcard.Card
+type CreditCardNumber struct {
+	cardNumber string
 }
 
-func (c CreditCard) Get(format string) (string, error) {
-	// This needs to be exported as an object since it contains other things.
-	switch format {
-	case PLAIN_FORMAT:
-		return c.cardNumber.Number, nil
-	case MASKED_FORMAT:
-		return c.GetMasked(), nil
-	default:
-		return "", ErrNotSupported
+func (c CreditCardNumber) Get(format string) (string, error) {
+	return getFormat(c, format)
+}
+
+func (c CreditCardNumber) GetPlain() string {
+	return c.cardNumber
+}
+
+func (c CreditCardNumber) GetMasked() string {
+	return strings.Repeat("*", len(c.cardNumber)-4) + c.cardNumber[len(c.cardNumber)-4:]
+}
+
+func (c CreditCardNumber) Validate() error {
+	var sum int
+	var alternate bool
+	numberLen := len(c.cardNumber)
+	if numberLen < 13 || numberLen > 19 {
+		return &ValueError{Msg: "Invalid card number, must be between 13 and 19 digits"}
 	}
+	for i := numberLen - 1; i > -1; i-- {
+		mod, err := strconv.Atoi(string(c.cardNumber[i]))
+		if err != nil {
+			return &ValueError{Msg: "Invalid card number, failed to parse"}
+		}
+		if alternate {
+			mod *= 2
+			if mod > 9 {
+				mod = (mod % 10) + 1
+			}
+		}
+		alternate = !alternate
+		sum += mod
+	}
+	if sum%10 != 0 {
+		return &ValueError{Msg: "Invalid card number, failed sum check"}
+	}
+	return nil
 }
 
-func (c CreditCard) GetMasked() string {
-	return "****"
+type Integer struct {
+	val int
 }
 
-func (c CreditCard) Validate() bool {
-	return true
+func (i Integer) Get(format string) (string, error) {
+	return getFormat(i, format)
+}
+
+func (i Integer) GetPlain() string {
+	return strconv.Itoa(i.val)
+}
+
+func (i Integer) GetMasked() string {
+	return "*"
+}
+
+func (i Integer) Validate() error {
+	return nil
+}
+
+type Date struct {
+	val time.Time
+}
+
+func (d Date) Get(format string) (string, error) {
+	return getFormat(d, format)
+}
+
+func (d Date) GetPlain() string {
+	return d.val.Format("2006-01-02")
+}
+
+func (d Date) GetMasked() string {
+	return "****-**-**"
+}
+
+func (d Date) Validate() error {
+	return nil
 }
 
 func allStars(s string) string {
 	return strings.Repeat("*", len(s))
 }
 
+func getFormat(p PType, format string) (string, error) {
+	switch format {
+	case PLAIN_FORMAT:
+		return p.GetPlain(), nil
+	case MASKED_FORMAT:
+		return p.GetMasked(), nil
+	default:
+		return "", ErrNotSupported
+	}
+}
+
 func GetPType(pType PTypeName, value string) (PType, error) {
 	switch pType {
 	case StringType:
 		newString := String{value}
-		if !newString.Validate() {
-			return nil, ErrValidation
+		if err := newString.Validate(); err != nil {
+			return nil, err
 		}
 		return newString, nil
 	case PhoneNumberType:
@@ -203,11 +243,15 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 		if err != nil {
 			return nil, err
 		}
-		return PhoneNumber{parsedPhoneNumber}, nil
+		phoneNumber := PhoneNumber{parsedPhoneNumber}
+		if err := phoneNumber.Validate(); err != nil {
+			return nil, err
+		}
+		return phoneNumber, nil
 	case NameType:
 		newName := Name{value}
-		if !newName.Validate() {
-			return nil, ErrValidation
+		if err := newName.Validate(); err != nil {
+			return nil, err
 		}
 		return newName, nil
 	case EmailType:
@@ -215,12 +259,42 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 		if err != nil {
 			return nil, err
 		}
-		return Email{*emailAddress}, nil
-	case CreditCardType:
-		// TODO: Build from json?
-		return nil, ErrNotSupported
+		email := Email{*emailAddress}
+		if err := email.Validate(); err != nil {
+			return nil, err
+		}
+		return email, nil
+	case CreditCardNumberType:
+		newCCNumber := CreditCardNumber{value}
+		if err := newCCNumber.Validate(); err != nil {
+			return nil, err
+		}
+		return newCCNumber, nil
+	case IntegerType:
+		intValue, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, err
+		}
+		newInteger := Integer{intValue}
+		if err := newInteger.Validate(); err != nil {
+			return nil, err
+		}
+		return newInteger, nil
+	case DateType:
+		dateValue, err := time.Parse("2006-01-02", value)
+		if err != nil {
+			return nil, err
+		}
+		newDate := Date{dateValue}
+		if err := newDate.Validate(); err != nil {
+			return nil, err
+		}
+		return newDate, nil
 	default:
-		// Defaulting to string
-		return String{value}, nil
+		newString := String{value}
+		if err := newString.Validate(); err != nil {
+			return nil, err
+		}
+		return newString, nil
 	}
 }
