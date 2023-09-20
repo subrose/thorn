@@ -239,7 +239,7 @@ func GetPType(pType PTypeName, value string) (PType, error) {
 		}
 		return newString, nil
 	case PhoneNumberType:
-		parsedPhoneNumber, err := phonenumbers.Parse(value, "UK")
+		parsedPhoneNumber, err := phonenumbers.Parse(value, "")
 		if err != nil {
 			return nil, err
 		}

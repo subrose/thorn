@@ -14,9 +14,9 @@ func TestCollections(t *testing.T) {
 	customerCollection := CollectionModel{
 		Name: "customers",
 		Fields: map[string]CollectionFieldModel{
-			"name":         {Type: "string", IsIndexed: true},
-			"phone_number": {Type: "string", IsIndexed: true},
-			"dob":          {Type: "string", IsIndexed: false},
+			"name":         {Type: "name", IsIndexed: true},
+			"phone_number": {Type: "phone_number", IsIndexed: true},
+			"dob":          {Type: "date", IsIndexed: false},
 		},
 	}
 
@@ -43,7 +43,7 @@ func TestCollections(t *testing.T) {
 			t.Errorf("Error getting collection name, got %s", returnedCollection.Name)
 		}
 
-		if returnedCollection.Fields["name"].Type != "string" {
+		if returnedCollection.Fields["name"].Type != "name" {
 			t.Errorf("Error getting collection field name type, got %s", returnedCollection.Fields["name"].Type)
 		}
 	})
@@ -86,8 +86,8 @@ func TestCollections(t *testing.T) {
 		records := []map[string]interface{}{
 			{
 				"name":         "123345",
-				"phone_number": "12345",
-				"dob":          "12345",
+				"phone_number": "+447890123456",
+				"dob":          "1970-01-01",
 			},
 		}
 
@@ -116,8 +116,8 @@ func TestCollections(t *testing.T) {
 		records := []map[string]interface{}{
 			{
 				"name":         "123345",
-				"phone_number": "12345",
-				"dob":          "12345",
+				"phone_number": "+447890123456",
+				"dob":          "1970-01-01",
 			},
 		}
 
@@ -135,8 +135,8 @@ func TestCollections(t *testing.T) {
 		// Update the record
 		updateRecord := map[string]interface{}{
 			"name":         "54321",
-			"phone_number": "54321",
-			"dob":          "12345",
+			"phone_number": "+447890123457",
+			"dob":          "1980-01-01",
 		}
 
 		request = newRequest(t, http.MethodPut, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
@@ -167,8 +167,8 @@ func TestCollections(t *testing.T) {
 		records := []map[string]interface{}{
 			{
 				"name":         "123345",
-				"phone_number": "12345",
-				"dob":          "12345",
+				"phone_number": "+447890123456",
+				"dob":          "1970-01-01",
 			},
 		}
 
@@ -204,8 +204,8 @@ func TestCollections(t *testing.T) {
 		badRecords := []map[string]interface{}{
 			{
 				"xxx":          "123345",
-				"phone_number": "12345",
-				"dob":          "12345",
+				"phone_number": "+447890123456",
+				"dob":          "1970-01-01",
 			},
 		}
 
