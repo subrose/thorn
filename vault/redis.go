@@ -535,5 +535,12 @@ func (rs RedisStore) DeleteToken(ctx context.Context, tokenId string) error {
 	return rs.Client.Del(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId)).Err()
 }
 func (rs RedisStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	return rs.Client.Get(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId)).Result()
+	res, err := rs.Client.Get(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId)).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", &NotFoundError{"token", tokenId}
+		}
+		return "", err
+	}
+	return res, nil
 }
