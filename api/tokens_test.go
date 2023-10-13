@@ -53,9 +53,7 @@ func TestTokens(t *testing.T) {
 			Name string `json:"name" validate:"required"`
 		}
 		checkResponse(t, response, http.StatusOK, &value)
-		if !assert.IsEqual(value.Name, "Jiminson McFoo") {
-			t.Errorf("output = '%v', want = '%v'", value.Name, "Jiminson McFoo")
-		}
+		assert.Equal(t, value.Name, "Jiminson McFoo")
 
 	})
 }
