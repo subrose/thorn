@@ -50,10 +50,12 @@ func TestTokens(t *testing.T) {
 		response := performRequest(t, app, request)
 
 		var value struct {
-			name string
+			Name string `json:"name" validate:"required"`
 		}
 		checkResponse(t, response, http.StatusOK, &value)
-		assert.IsEqual(value.name, "asd")
+		if !assert.IsEqual(value.Name, "Jiminson McFoo") {
+			t.Errorf("output = '%v', want = '%v'", value.Name, "Jiminson McFoo")
+		}
 
 	})
 }
