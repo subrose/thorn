@@ -149,6 +149,11 @@ func SetupApi(core *Core) *fiber.App {
 	policiesGroup.Get("", core.GetPolicies)
 	policiesGroup.Delete(":policyId", core.DeletePolicy)
 
+	tokensGroup := app.Group("/tokens")
+	tokensGroup.Use(authGuard(core))
+	tokensGroup.Get(":tokenId", core.GetTokenById)
+	tokensGroup.Post("", core.CreateToken)
+
 	app.Use(func(c *fiber.Ctx) error {
 		return c.SendStatus(404)
 	})
