@@ -25,5 +25,6 @@ key = "#.9U#JW#XbB12345"
 secret = "abc&1*~#^2^#s0^=)^^7%b34"
 
 [log]
-output = "console"
+handler = "text"
+sink = "stdout"
 level = "debug"

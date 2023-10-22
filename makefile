@@ -1,5 +1,8 @@
 .PHONY: run-gosec check-formatting lint-vault lint-api checks
 
+dev:
+	docker-compose -f docker-compose.yml up
+
 tests:
 	go test ./vault
 	go test ./api

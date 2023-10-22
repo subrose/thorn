@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
@@ -63,15 +62,15 @@ func (rs RedisStore) GetCollections(ctx context.Context) ([]string, error) {
 	return members, nil
 }
 
-func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection, error) {
+func (rs RedisStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, name)
 	dbCol := Collection{}
 	col, err := rs.Client.HGetAll(ctx, colId).Result()
 	if err != nil {
-		return dbCol, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
+		return nil, fmt.Errorf("failed to get data from Redis with key %s: %w", colId, err)
 	}
 	if len(col) == 0 {
-		return dbCol, &NotFoundError{colId}
+		return nil, &NotFoundError{"collection", name}
 	}
 	pipe := rs.Client.Pipeline()
 	for _, v := range col {
@@ -79,7 +78,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 	}
 	fields, err := pipe.Exec(ctx)
 	if err != nil {
-		return dbCol, fmt.Errorf("failed to execute Redis pipeline: %w", err)
+		return nil, fmt.Errorf("failed to execute Redis pipeline: %w", err)
 	}
 	dbCol.Fields = make(map[string]Field, len(fields))
 	for _, field := range fields {
@@ -90,7 +89,7 @@ func (rs RedisStore) GetCollection(ctx context.Context, name string) (Collection
 		}
 	}
 	dbCol.Name = name
-	return dbCol, nil
+	return &dbCol, nil
 }
 
 func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string, error) {
@@ -132,6 +131,47 @@ func (rs RedisStore) CreateCollection(ctx context.Context, c Collection) (string
 	return c.Name, nil
 }
 
+func (rs RedisStore) DeleteCollection(ctx context.Context, name string) error {
+	dbCollection, err := rs.GetCollection(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, name)
+	recordIds, err := rs.Client.SMembers(ctx, fmt.Sprintf("%s:r", colId)).Result()
+	if err != nil {
+		return err
+	}
+
+	pipe := rs.Client.Pipeline()
+	// Delete the collection
+	pipe.Del(ctx, colId)
+	pipe.SRem(ctx, COLLECTIONS_PREFIX, colId)
+	// Delete all records and indexes for the collection
+	for _, recordId := range recordIds {
+		dbRecord, err := rs.GetRecords(ctx, name, []string{recordId})
+		if err != nil {
+			return err
+		}
+
+		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+		pipe.Del(ctx, redisKey)
+		pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
+		for fieldName, fieldValue := range *dbRecord[recordId] {
+			if dbCollection.Fields[fieldName].IsIndexed {
+				pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
+			}
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+
+	return nil
+}
+
 func formatIndex(fieldName string, value string) string {
 	// Given that the value is encrypted for now, this might not be needed.
 	return fmt.Sprintf("%s%s_%s", INDEX_PREFIX, fieldName, strings.ToLower(value))
@@ -141,9 +181,6 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
 	dbCol, err := rs.GetCollection(ctx, collectionName)
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return []string{}, &NotFoundError{colId}
-		}
 		return []string{}, err
 	}
 
@@ -158,7 +195,7 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 			// TODO: Validate types and schema here
 			field, ok := dbCol.Fields[rFieldName]
 			if !ok {
-				return []string{}, newValueError(fmt.Errorf("field %s does not exist in collection %s", rFieldName, collectionName))
+				return []string{}, &ValueError{fmt.Sprintf("field %s does not exist in collection %s", rFieldName, collectionName)}
 			}
 			pipe.HSet(
 				ctx,
@@ -181,20 +218,29 @@ func (rs RedisStore) CreateRecords(ctx context.Context, collectionName string, r
 	return recordIds, nil
 }
 
-func (rs RedisStore) GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error) {
-	records := map[string]Record{}
+func (rs RedisStore) GetRecords(ctx context.Context, collectionName string, recordIds []string) (map[string]*Record, error) {
+	_, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return nil, err
+	}
+	records := map[string]*Record{}
 
-	for _, recordID := range recordIDs {
-		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordID)
-		record, err := rs.Client.HGetAll(ctx, redisKey).Result()
-		if record == nil {
-			return nil, &NotFoundError{redisKey}
+	for _, recordId := range recordIds {
+		redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+		recordMap, err := rs.Client.HGetAll(ctx, redisKey).Result()
+		if len(recordMap) == 0 {
+			return nil, &NotFoundError{"record", recordId}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordID, err)
+			return nil, fmt.Errorf("failed to get record with ID %s: %w", recordId, err)
 		}
 
-		records[recordID] = record
+		record := &Record{}
+		for key, value := range recordMap {
+			(*record)[key] = value
+		}
+
+		records[recordId] = record
 	}
 	return records, nil
 }
@@ -214,6 +260,68 @@ func (rs RedisStore) GetRecordsFilter(ctx context.Context, collectionName string
 		return []string{}, err
 	}
 	return data, nil
+}
+
+func (rs RedisStore) UpdateRecord(ctx context.Context, collectionName string, recordId string, record Record) error {
+	dbCol, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return err
+	}
+
+	redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+	pipe := rs.Client.Pipeline()
+	pipe.Del(ctx, redisKey)
+	for rFieldName, rFieldValue := range record {
+		field, ok := dbCol.Fields[rFieldName]
+		if !ok {
+			return &ValueError{fmt.Sprintf("field %s does not exist in collection %s", rFieldName, collectionName)}
+		}
+		pipe.HSet(
+			ctx,
+			redisKey,
+			rFieldName,
+			rFieldValue,
+		)
+		if field.IsIndexed {
+			pipe.SAdd(ctx, formatIndex(rFieldName, rFieldValue), recordId)
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+	return nil
+}
+
+func (rs RedisStore) DeleteRecord(ctx context.Context, collectionName string, recordId string) error {
+	dbCol, err := rs.GetCollection(ctx, collectionName)
+	if err != nil {
+		return err
+	}
+
+	dbRecord, err := rs.GetRecords(ctx, collectionName, []string{recordId})
+	if err != nil {
+		return err
+	}
+
+	pipe := rs.Client.Pipeline()
+	redisKey := fmt.Sprintf("%s%s", RECORDS_PREFIX, recordId)
+	pipe.Del(ctx, redisKey)
+	colId := fmt.Sprintf("%s%s", COLLECTIONS_PREFIX, collectionName)
+	pipe.SRem(ctx, fmt.Sprintf("%s:r", colId), recordId)
+	for fieldName, fieldValue := range *dbRecord[recordId] {
+		if dbCol.Fields[fieldName].IsIndexed {
+			pipe.SRem(ctx, formatIndex(fieldName, fieldValue), recordId)
+		}
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+
+	return nil
 }
 
 func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) error {
@@ -252,47 +360,7 @@ func (rs RedisStore) CreatePrincipal(ctx context.Context, principal Principal) e
 	return nil
 }
 
-func (rs RedisStore) CreateToken(ctx context.Context, tokenHash string, t Token) error {
-	tokenId := fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenHash)
-	_, err := rs.Client.HSet(
-		ctx,
-		tokenId,
-		"principal_username", t.PrincipalUsername,
-		"created_at", t.IssuedAt,
-		"not_before", t.NotBefore,
-		"expires_at", t.ExpiresAt,
-		"policies", strings.Join(t.Policies, ","),
-	).Result()
-
-	if err != nil {
-		return fmt.Errorf("failed to create token: %w", err)
-	}
-
-	return nil
-}
-
-func (rs RedisStore) GetToken(ctx context.Context, tokenHash string) (Token, error) {
-	tokenId := fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenHash)
-	var token Token
-	// Get token and split csv policies, we can't use Scan because of the custom policies type
-	tokenMap, err := rs.Client.HGetAll(ctx, tokenId).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return Token{}, &NotFoundError{tokenId}
-		}
-		return Token{}, err
-	}
-	token.PrincipalUsername = tokenMap["principal_username"]
-	token.Policies = strings.Split(tokenMap["policies"], ",")
-	// Errors below ignored assuming data is always valid in Redis
-	token.IssuedAt, _ = strconv.ParseInt(tokenMap["created_at"], 10, 64)
-	token.ExpiresAt, _ = strconv.ParseInt(tokenMap["expires_at"], 10, 64)
-	token.NotBefore, _ = strconv.ParseInt(tokenMap["not_before"], 10, 64)
-
-	return token, nil
-}
-
-func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Principal, error) {
+func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
 	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, username)
 	var dbPrincipal Principal
 
@@ -302,19 +370,42 @@ func (rs RedisStore) GetPrincipal(ctx context.Context, username string) (Princip
 	pipeRes, err := pipe.Exec(ctx)
 	if err != nil {
 		if err == redis.Nil {
-			return Principal{}, &NotFoundError{principalId}
+			return nil, &NotFoundError{"principal", principalId}
 		}
-		return Principal{}, err
+		return nil, err
 	}
 	err = pipeRes[0].(*redis.MapStringStringCmd).Scan(&dbPrincipal)
 	if err != nil {
-		return Principal{}, err
+		return nil, err
 	}
 	dbPrincipal.Policies = pipeRes[1].(*redis.StringSliceCmd).Val()
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return Principal{}, &NotFoundError{principalId}
+		return nil, &NotFoundError{"principal", principalId}
 	}
-	return dbPrincipal, nil
+	return &dbPrincipal, nil
+}
+
+func (rs RedisStore) DeletePrincipal(ctx context.Context, username string) error {
+	principalId := fmt.Sprintf("%s%s", PRINCIPAL_PREFIX, username)
+
+	exists, err := rs.Client.Exists(ctx, principalId).Result()
+	if err != nil {
+		return fmt.Errorf("failed to check principal existence: %w", err)
+	}
+
+	if exists != 1 {
+		return &NotFoundError{"principal", principalId}
+	}
+
+	pipe := rs.Client.Pipeline()
+	pipe.Del(ctx, principalId)
+	pipe.SRem(ctx, PRINCIPAL_PREFIX, principalId)
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to execute Redis pipeline: %w", err)
+	}
+	return nil
 }
 
 type RawPolicy struct {
@@ -324,7 +415,7 @@ type RawPolicy struct {
 	Resources string       `redis:"resources"`
 }
 
-func (rawPolicy RawPolicy) toPolicy() Policy {
+func (rawPolicy RawPolicy) toPolicy() *Policy {
 	var actions []PolicyAction
 	for _, action := range strings.Split(rawPolicy.Actions, ",") {
 		actions = append(actions, PolicyAction(action))
@@ -336,24 +427,35 @@ func (rawPolicy RawPolicy) toPolicy() Policy {
 		Resources: strings.Split(rawPolicy.Resources, ","),
 	}
 
-	return policy
+	return &policy
 }
 
-func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (Policy, error) {
+func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
+	cmd := rs.Client.HGetAll(ctx, polRedisId)
+	if err := cmd.Err(); err != nil {
+		return nil, err
+	}
+
+	result, err := cmd.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(result) == 0 {
+		return nil, &NotFoundError{"policy", polRedisId}
+	}
+
 	var rawPolicy RawPolicy
-	if err := rs.Client.HGetAll(ctx, polRedisId).Scan(&rawPolicy); err != nil {
-		if err == redis.Nil {
-			return Policy{}, &NotFoundError{polRedisId}
-		}
-		return Policy{}, err
+	if err := cmd.Scan(&rawPolicy); err != nil {
+		return nil, err
 	}
 
 	return rawPolicy.toPolicy(), nil
 }
 
-func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
-	policies := []Policy{}
+func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
+	policies := []*Policy{}
 	pipeline := rs.Client.Pipeline()
 
 	// Prepare the commands
@@ -411,8 +513,13 @@ func (rs RedisStore) CreatePolicy(ctx context.Context, p Policy) (string, error)
 }
 
 func (rs RedisStore) DeletePolicy(ctx context.Context, policyId string) error {
+	_, err := rs.GetPolicy(ctx, policyId)
+	if err != nil {
+		return err
+	}
+
 	polRedisId := fmt.Sprintf("%s%s", POLICY_PREFIX, policyId)
-	_, err := rs.Client.Del(ctx, polRedisId).Result()
+	_, err = rs.Client.Del(ctx, polRedisId).Result()
 	if err != nil {
 		return fmt.Errorf("failed to delete policy: %w", err)
 	}

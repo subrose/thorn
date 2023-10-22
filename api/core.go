@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/env"
@@ -28,7 +27,8 @@ type CoreConfig struct {
 	API_HOST                string
 	API_PORT                int
 	LOG_LEVEL               string
-	LOG_OUTPUT              string
+	LOG_HANDLER             string
+	LOG_SINK                string
 	DEV_MODE                bool
 }
 
@@ -76,7 +76,8 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	conf.API_PORT = Config.Int("api_port")
 	conf.VAULT_SIGNING_KEY = Config.String("signing_key")
 	conf.LOG_LEVEL = Config.String("log_level")
-	conf.LOG_OUTPUT = Config.String("log_output")
+	conf.LOG_HANDLER = Config.String("log_handler")
+	conf.LOG_SINK = Config.String("log_sink")
 	conf.DEV_MODE = Config.Bool("system_dev_mode")
 
 	return conf, nil
@@ -96,7 +97,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	c.conf = conf
 
 	// Logger
-	apiLogger, err := _logger.NewLogger("API", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	apiLogger, err := _logger.NewLogger("API", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
 	}
@@ -113,21 +114,17 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	}
 
 	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
-	var policyManager _vault.PolicyManager = db
-	var principalManager _vault.PrincipalManager = db
 	signer, err := _vault.NewHMACSigner([]byte(conf.VAULT_SIGNING_KEY))
 	if err != nil {
 		panic(err)
 	}
 
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_OUTPUT, conf.LOG_LEVEL, conf.DEV_MODE)
+	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
-		Db:               db,
-		Priv:             priv,
-		PrincipalManager: principalManager,
-		PolicyManager:    policyManager,
-		Logger:           vaultLogger,
-		Signer:           signer,
+		Db:     db,
+		Priv:   priv,
+		Logger: vaultLogger,
+		Signer: signer,
 	}
 
 	c.vault = vault
@@ -140,7 +137,7 @@ func (core *Core) Init() error {
 	if core.conf.DEV_MODE {
 		_ = core.vault.Db.Flush(ctx)
 	}
-	_, _ = core.vault.PolicyManager.CreatePolicy(ctx, _vault.Policy{
+	_, _ = core.vault.Db.CreatePolicy(ctx, _vault.Policy{
 		PolicyId:  "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
@@ -154,11 +151,4 @@ func (core *Core) Init() error {
 	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
 
 	return err
-}
-
-func (core *Core) SendErrorResponse(c *fiber.Ctx, status int, message string, err error) error {
-	if err != nil {
-		core.logger.Error("", err)
-	}
-	return c.Status(status).JSON(ErrorResponse{status, message, nil})
 }

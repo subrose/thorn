@@ -22,6 +22,7 @@ def check_expected_status(
         raise Exception(
             f"""Request failed
             path={response.request.path_url}, body={response.request.body}
+            headers={response.request.headers}
             {response.status_code} not in {expected_status_codes=} 
             {response.reason}, {response.text}
             """

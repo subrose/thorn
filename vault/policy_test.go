@@ -16,11 +16,11 @@ func (pm DummyPolicyManager) GetPolicy(ctx context.Context, policyId string) (Po
 	return pm.policies[policyId], nil
 }
 
-func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error) {
-	results := []Policy{}
+func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
+	results := []*Policy{}
 	for _, pid := range policyIds {
 		pol, _ := pm.GetPolicy(ctx, pid)
-		results = append(results, pol)
+		results = append(results, &pol)
 	}
 	return results, nil
 }
@@ -53,7 +53,7 @@ func getDummyPolicy(principal string) []Policy {
 	}
 }
 
-func MakePM() PolicyManager {
+func MakePM() DummyPolicyManager {
 	ctx := context.Background()
 	policies := getDummyPolicy("test")
 	dpm := DummyPolicyManager{

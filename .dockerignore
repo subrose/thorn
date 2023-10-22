@@ -1,22 +1,19 @@
 # Exclude locally vendored dependencies.
-
 vendor/
 
 # Exclude "build-time" ignore files.
-
 .dockerignore
 .gcloudignore
+.DS_Store
+.vscode
 
 # Exclude git history and configuration.
-
 .gitignore
 
 # Exclude CI files
-
 .github
 
 # Exclude assets
-
-website/
-img/
-\*.md
+website
+img
+*.md

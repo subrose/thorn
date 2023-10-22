@@ -1,7 +1,7 @@
 package main
 
 import (
-	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -23,13 +23,9 @@ func (core *Core) GetCollection(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	principal := GetSessionPrincipal(c)
 	dbCollection, err := core.vault.GetCollection(c.Context(), principal, collectionName)
+
 	if err != nil {
-		switch err.(type) {
-		case *_vault.NotFoundError:
-			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Collection not found", nil})
-		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
-		}
+		return err
 	}
 
 	collection := CollectionModel{
@@ -42,19 +38,14 @@ func (core *Core) GetCollection(c *fiber.Ctx) error {
 			IsIndexed: field.IsIndexed,
 		}
 	}
-	return c.JSON(collection)
+	return c.Status(http.StatusOK).JSON(collection)
 }
 
 func (core *Core) GetCollections(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collections, err := core.vault.GetCollections(c.Context(), principal)
 	if err != nil {
-		switch err.(type) {
-		case *_vault.ForbiddenError:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
-		}
+		return err
 	}
 	return c.Status(http.StatusOK).JSON(collections)
 }
@@ -84,20 +75,21 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 
 	_, err := core.vault.CreateCollection(c.Context(), principal, newCollection)
 	if err != nil {
-		var valueErr *_vault.ValueError
-		if errors.As(err, &valueErr) {
-			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
-		}
-		switch err.(type) {
-		case *_vault.ForbiddenError:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		case *_vault.ConflictError:
-			return c.Status(http.StatusConflict).JSON(ErrorResponse{http.StatusConflict, "Collection already exists", nil})
-		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
-		}
+		return err
 	}
 	return c.Status(http.StatusCreated).SendString("Collection created")
+}
+
+func (core *Core) DeleteCollection(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+
+	err := core.vault.DeleteCollection(c.Context(), principal, collectionName)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(http.StatusOK).SendString("Collection deleted")
 }
 
 func (core *Core) CreateRecords(c *fiber.Ctx) error {
@@ -105,26 +97,52 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	records := new([]_vault.Record)
 	if err := c.BodyParser(records); err != nil {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "malformed record body", err)
+		core.logger.Error(fmt.Sprintf("An error occurred parsing records: %s", records))
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "malformed record body",
+		}
 	}
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
 	if err != nil {
-		core.logger.Error("An error occurred creating a record", err)
-		var valueErr *_vault.ValueError
-		if errors.As(err, &valueErr) {
-			return c.Status(http.StatusBadRequest).JSON(valueErr.Unwrap().Error())
-		}
-		switch err.(type) {
-		case *_vault.ForbiddenError:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		case *_vault.NotFoundError:
-			return c.Status(http.StatusNotFound).JSON(ErrorResponse{http.StatusNotFound, "Collection not found", nil})
-		default:
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse{http.StatusInternalServerError, "Something went wrong", nil})
-		}
+		core.logger.Error("An error occurred creating a record")
+		return err
 	}
 	return c.Status(http.StatusCreated).JSON(recordIds)
+}
+
+func (core *Core) UpdateRecord(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+	recordId := c.Params("id")
+	record := new(_vault.Record)
+	if err := c.BodyParser(record); err != nil {
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "malformed record body",
+		}
+	}
+
+	err := core.vault.UpdateRecord(c.Context(), principal, collectionName, recordId, *record)
+	if err != nil {
+		core.logger.Error("An error occurred updating a record")
+		return err
+	}
+	return c.Status(http.StatusOK).SendString("Record updated")
+}
+
+func (core *Core) DeleteRecord(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+	recordId := c.Params("id")
+
+	err := core.vault.DeleteRecord(c.Context(), principal, collectionName, recordId)
+	if err != nil {
+		core.logger.Error("An error occurred deleting a record")
+		return err
+	}
+	return c.Status(http.StatusOK).SendString("Record deleted")
 }
 
 func parseFieldsQuery(fieldsQuery string) map[string]string {
@@ -145,40 +163,37 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	fieldsQuery := c.Query("formats")
 
 	if fieldsQuery == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "formats query is required", nil)
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "formats query is required",
+		}
 	}
 
 	returnFormats := parseFieldsQuery(fieldsQuery)
 
 	if collectionName == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "collection name is required", nil)
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "collection name is required",
+		}
 	}
+
 	if recordId == "" {
-		return core.SendErrorResponse(c, http.StatusBadRequest, "record_id is required", nil)
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "record id is required",
+		}
 	}
 
 	recordIds := []string{recordId}
 	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, returnFormats)
 	if err != nil {
-		switch err.(type) {
-		case *_vault.ForbiddenError:
-			return c.Status(http.StatusForbidden).JSON(ErrorResponse{http.StatusForbidden, err.Error(), nil})
-		case *_vault.NotFoundError:
-			return core.SendErrorResponse(c, http.StatusNotFound, err.Error(), err)
-		case *_vault.ValueError:
-			return core.SendErrorResponse(c, http.StatusBadRequest, err.Error(), err)
-		default:
-			return core.SendErrorResponse(c, http.StatusInternalServerError, "Something went wrong", err)
-		}
+		return err
 	}
 
-	// Loop through the record and figure out which fields were accessed
+	// Replace loop with append function
 	accessedFields := []string{}
-	for _, record := range records {
-		for fieldName := range record {
-			accessedFields = append(accessedFields, fieldName)
-		}
-	}
+	accessedFields = append(accessedFields, strings.Split(fieldsQuery, ",")...)
 
 	core.logger.WriteAuditLog(
 		c.Method(),

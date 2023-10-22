@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Format the log messages nicely
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
@@ -18,7 +18,7 @@ logging.basicConfig(
 @tenacity.retry(
     wait=tenacity.wait_fixed(2),
     stop=tenacity.stop_after_attempt(50),
-    before_sleep=tenacity.before_sleep_log(logger, logging.DEBUG),
+    before_sleep=tenacity.before_sleep_log(logger, logging.INFO),
     retry=tenacity.retry_if_exception_type(tenacity.TryAgain),
 )
 def wait_for_api(vault_url: str) -> None:

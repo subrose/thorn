@@ -23,21 +23,20 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := NewHMACSigner([]byte("testkey"))
-	var pm PolicyManager = db
-	_, _ = pm.CreatePolicy(ctx, Policy{
+	_, _ = db.CreatePolicy(ctx, Policy{
 		"root",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead, PolicyActionWrite},
 		[]string{"*"},
 	})
-	_, _ = pm.CreatePolicy(ctx, Policy{
+	_, _ = db.CreatePolicy(ctx, Policy{
 		"read-all-customers",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
 	})
-	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "debug", true)
-	vault := Vault{Db: db, Priv: priv, PrincipalManager: db, PolicyManager: pm, Logger: vaultLogger, Signer: signer}
+	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
+	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
 	return vault, db, priv
 }
 
@@ -145,6 +144,86 @@ func TestVault(t *testing.T) {
 		}
 	})
 
+	t.Run("can delete collections and associated records", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "customers", Fields: map[string]Field{
+			"first_name": {
+				Name:      "first_name",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		// Create a dummy record
+		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+			{"first_name": "dummy"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = vault.DeleteCollection(ctx, testPrincipal, col.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = vault.GetCollection(ctx, testPrincipal, col.Name)
+		switch err.(type) {
+		case *NotFoundError:
+			// success
+		default:
+			t.Error("Should throw a not found error when getting a deleted collection, got:", err)
+		}
+		// Try to get the deleted record
+		_, err = vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+			"first_name": "plain",
+		})
+		// Expect a NotFoundError
+		var notFoundErr *NotFoundError
+		if err == nil || !errors.As(err, &notFoundErr) {
+			t.Fatalf("Expected a NotFoundError for records of deleted collection, got %s", err)
+		}
+	})
+
+	t.Run("can update records", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
+			"test_field": {
+				Name:      "test_field",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+
+		// Create collection
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+
+		// Create a dummy record
+		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+			{"test_field": "dummy"},
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Update the record
+		updateRecord := Record{"test_field": "updated"}
+		err = vault.UpdateRecord(ctx, testPrincipal, col.Name, recordID[0], updateRecord)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify update of the record
+		updatedRecord, err := vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+			"test_field": "plain",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updatedRecord[recordID[0]]["test_field"] != "updated" {
+			t.Fatal("Record not updated correctly.")
+		}
+	})
+
 	t.Run("cant store records with invalid fields", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "smol_collection", Fields: map[string]Field{
@@ -163,6 +242,46 @@ func TestVault(t *testing.T) {
 		}
 	})
 
+	t.Run("can delete records", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
+			"test_field": {
+				Name:      "test_field",
+				Type:      "string",
+				IsIndexed: false,
+			},
+		}}
+
+		// Create collection
+		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+
+		// Create a dummy record
+		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+			{"test_field": "dummy"},
+		})
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Delete the record
+		err = vault.DeleteRecord(ctx, testPrincipal, col.Name, recordID[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Try to get the deleted record
+		_, err = vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+			"test_field": "plain",
+		})
+
+		// Expect a NotFoundError
+		var notFoundErr *NotFoundError
+		if err == nil || !errors.As(err, &notFoundErr) {
+			t.Fatalf("Expected a NotFoundError, got %s", err)
+		}
+	})
+
 	t.Run("can create and get principals", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		// Can't get principals that don't exist:
@@ -178,6 +297,28 @@ func TestVault(t *testing.T) {
 			t.Fatal(err)
 		}
 
+	})
+
+	t.Run("can delete a principal", func(t *testing.T) {
+		vault, _, _ := initVault(t)
+		// Create a principal
+		err := vault.CreatePrincipal(ctx, testPrincipal, "test_user", "test_password", "test principal", []string{"root"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Delete the principal
+		err = vault.DeletePrincipal(ctx, testPrincipal, "test_user")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Try to get the deleted principal
+		_, err = vault.GetPrincipal(ctx, testPrincipal, "test_user")
+		switch err.(type) {
+		case *NotFoundError:
+			// success
+		default:
+			t.Error("Should throw a not found error when trying to get a deleted principal, got:", err)
+		}
 	})
 
 	t.Run("cant create the same principal twice", func(t *testing.T) {

@@ -30,25 +30,23 @@ type Principal struct {
 	Policies    []string `redis:"policies"`
 }
 
-type Token struct {
-	PrincipalUsername string   `redis:"principal_username"` // principal username associated with the token
-	Policies          []string `redis:"policies"`
-	IssuedAt          int64    `redis:"issued_at"`  // timestamp the token was issued at
-	NotBefore         int64    `redis:"not_before"` // timestamp the token is valid from
-	ExpiresAt         int64    `redis:"expires_at"` // timestamp the token is set to expire
-}
-
 type VaultDB interface {
-	GetCollection(ctx context.Context, name string) (Collection, error)
+	GetCollection(ctx context.Context, name string) (*Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
 	CreateCollection(ctx context.Context, c Collection) (string, error)
+	DeleteCollection(ctx context.Context, name string) error
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
-	GetRecords(ctx context.Context, recordIDs []string) (map[string]Record, error)
+	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
-	GetPrincipal(ctx context.Context, username string) (Principal, error)
+	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
+	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
+	GetPrincipal(ctx context.Context, username string) (*Principal, error)
 	CreatePrincipal(ctx context.Context, principal Principal) error
-	CreateToken(ctx context.Context, tokenHash string, t Token) error
-	GetToken(ctx context.Context, tokenHash string) (Token, error)
+	DeletePrincipal(ctx context.Context, username string) error
+	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	DeletePolicy(ctx context.Context, policyId string) error
 	Flush(ctx context.Context) error
 }
 
@@ -62,16 +60,11 @@ type Signer interface {
 	Verify(message, signature string) (bool, error)
 }
 
-type PrincipalManager interface {
-	CreatePrincipal(ctx context.Context, principal Principal) error
-	GetPrincipal(ctx context.Context, username string) (Principal, error)
-}
-
 type Logger interface {
 	Debug(msg string)
 	Info(msg string)
 	Warn(msg string)
-	Error(msg string, err error)
+	Error(msg string)
 }
 
 type PolicyAction string
@@ -102,21 +95,11 @@ type Request struct {
 	Resource  string
 }
 
-type PolicyManager interface {
-	GetPolicy(ctx context.Context, policyId string) (Policy, error)
-	GetPolicies(ctx context.Context, policyIds []string) ([]Policy, error)
-	CreatePolicy(ctx context.Context, p Policy) (string, error)
-	DeletePolicy(ctx context.Context, policyId string) error
-	// EvaluateAction(a Action) bool
-}
-
 type Vault struct {
-	Db               VaultDB
-	Priv             Privatiser
-	PrincipalManager PrincipalManager
-	PolicyManager    PolicyManager
-	Logger           Logger
-	Signer           Signer
+	Db     VaultDB
+	Priv   Privatiser
+	Logger Logger
+	Signer Signer
 }
 
 // TODO: These probably should be renamed to have _PATH
@@ -132,23 +115,19 @@ func (vault Vault) GetCollection(
 	ctx context.Context,
 	principal Principal,
 	name string,
-) (Collection, error) {
+) (*Collection, error) {
 	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
-		return Collection{}, err
+		return nil, err
 	}
 	if !allowed {
-		return Collection{}, &ForbiddenError{request}
+		return nil, &ForbiddenError{request}
 	}
 
 	col, err := vault.Db.GetCollection(ctx, name)
 	if err != nil {
-		return Collection{}, err
-	}
-
-	if col.Name == "" {
-		return Collection{}, &NotFoundError{name}
+		return nil, err
 	}
 
 	return col, nil
@@ -189,13 +168,35 @@ func (vault Vault) CreateCollection(
 	}
 
 	if len(col.Name) < 3 {
-		return "", newValueError(fmt.Errorf("collection name must be at least 3 characters"))
+		return "", &ValueError{Msg: "collection name must be at least 3 characters"}
 	}
 	collectionId, err := vault.Db.CreateCollection(ctx, col)
 	if err != nil {
 		return "", err
 	}
 	return collectionId, nil
+}
+
+func (vault Vault) DeleteCollection(
+	ctx context.Context,
+	principal Principal,
+	name string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeleteCollection(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (vault Vault) CreateRecords(
@@ -238,7 +239,7 @@ func (vault Vault) GetRecords(
 ) (map[string]Record, error) {
 
 	if len(recordIDs) == 0 {
-		return nil, newValueError(fmt.Errorf("record ids must be provided"))
+		return nil, &ValueError{Msg: "recordIDs must not be empty"}
 	}
 
 	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
@@ -265,13 +266,13 @@ func (vault Vault) GetRecords(
 		}
 	}
 
-	encryptedRecords, err := vault.Db.GetRecords(ctx, recordIDs)
+	encryptedRecords, err := vault.Db.GetRecords(ctx, collectionName, recordIDs)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(encryptedRecords) == 0 {
-		return nil, &NotFoundError{recordIDs[0]} //TODO: specify the records that were not found...
+		return nil, &NotFoundError{"record", recordIDs[0]} //TODO: specify the records that were not found...
 	}
 
 	records := make(map[string]Record, len(encryptedRecords))
@@ -279,7 +280,7 @@ func (vault Vault) GetRecords(
 		decryptedRecord := make(Record)
 		for field, format := range returnFormats {
 
-			decryptedValue, err := vault.Priv.Decrypt(record[field])
+			decryptedValue, err := vault.Priv.Decrypt((*record)[field])
 			if err != nil {
 				return nil, err
 			}
@@ -317,21 +318,75 @@ func (vault Vault) GetRecordsFilter(
 	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
 }
 
+func (vault Vault) UpdateRecord(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	recordID string,
+	record Record,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	encryptedRecord := make(Record)
+	for recordFieldName, recordFieldValue := range record {
+		encryptedValue, err := vault.Priv.Encrypt(recordFieldValue)
+		if err != nil {
+			return err
+		}
+		encryptedRecord[recordFieldName] = encryptedValue
+	}
+
+	err = vault.Db.UpdateRecord(ctx, collectionName, recordID, encryptedRecord)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault Vault) DeleteRecord(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	recordID string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeleteRecord(ctx, collectionName, recordID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (vault Vault) GetPrincipal(
 	ctx context.Context,
 	principal Principal,
 	username string,
-) (Principal, error) {
+) (*Principal, error) {
 	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
-		return Principal{}, err
+		return nil, err
 	}
 	if !allowed {
-		return Principal{}, &ForbiddenError{request}
+		return nil, &ForbiddenError{request}
 	}
 
-	return vault.PrincipalManager.GetPrincipal(ctx, username)
+	return vault.Db.GetPrincipal(ctx, username)
 }
 
 func (vault Vault) CreatePrincipal(
@@ -360,7 +415,28 @@ func (vault Vault) CreatePrincipal(
 		Policies:    policies,
 	}
 
-	err = vault.PrincipalManager.CreatePrincipal(ctx, dbPrincipal)
+	err = vault.Db.CreatePrincipal(ctx, dbPrincipal)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault Vault) DeletePrincipal(
+	ctx context.Context,
+	principal Principal,
+	username string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeletePrincipal(ctx, username)
 	if err != nil {
 		return err
 	}
@@ -371,24 +447,24 @@ func (vault Vault) Login(
 	ctx context.Context,
 	username,
 	password string,
-) (principal Principal, err error) {
+) (principal *Principal, err error) {
 
 	if username == "" || password == "" {
-		return Principal{}, newValueError(fmt.Errorf("username and password must be provided"))
+		return nil, &ValueError{Msg: "username and password must not be empty"}
 	}
 
-	dbPrincipal, err := vault.PrincipalManager.GetPrincipal(ctx, username)
+	dbPrincipal, err := vault.Db.GetPrincipal(ctx, username)
 	if err != nil {
-		vault.Logger.Error("Error getting principal", err)
-		return Principal{}, &ForbiddenError{}
+		vault.Logger.Error("Error getting principal")
+		return nil, &ForbiddenError{}
 	}
 	if dbPrincipal.Username == "" || dbPrincipal.Password == "" {
-		return Principal{}, &ForbiddenError{}
+		return nil, &ForbiddenError{}
 	}
 
 	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
 	if compareErr != nil {
-		return Principal{}, &ForbiddenError{}
+		return nil, &ForbiddenError{}
 	}
 
 	return dbPrincipal, nil
@@ -403,7 +479,7 @@ func (vault Vault) CreatePolicy(
 	// Ensure resource starts with a slash
 	for _, resource := range p.Resources {
 		if !strings.HasPrefix(resource, "/") {
-			return "", newValueError(fmt.Errorf("resources must start with a slash - '%s' is not a valid resource", resource))
+			return "", &ValueError{Msg: fmt.Sprintf("resources must start with a slash - '%s' is not a valid resource", resource)}
 		}
 	}
 	allowed, err := vault.ValidateAction(ctx, request)
@@ -414,31 +490,72 @@ func (vault Vault) CreatePolicy(
 		return "", &ForbiddenError{request}
 	}
 
-	return vault.PolicyManager.CreatePolicy(ctx, p)
+	return vault.Db.CreatePolicy(ctx, p)
 }
 
 func (vault Vault) GetPolicy(
 	ctx context.Context,
 	principal Principal,
 	policyId string,
-) (Policy, error) {
+) (*Policy, error) {
 	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
-		return Policy{}, err
+		return nil, err
 	}
 	if !allowed {
-		return Policy{}, &ForbiddenError{request}
+		return nil, &ForbiddenError{request}
 	}
 
-	return vault.PolicyManager.GetPolicy(ctx, policyId)
+	return vault.Db.GetPolicy(ctx, policyId)
+}
+
+func (vault Vault) DeletePolicy(
+	ctx context.Context,
+	principal Principal,
+	policyId string,
+) error {
+	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeletePolicy(ctx, policyId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault Vault) GetPolicies(
+	ctx context.Context,
+	principal Principal,
+) ([]*Policy, error) {
+	request := Request{principal, PolicyActionRead, POLICIES_PPATH}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, &ForbiddenError{request}
+	}
+
+	policies, err := vault.Db.GetPolicies(ctx, principal.Policies)
+	if err != nil {
+		return nil, err
+	}
+	return policies, nil
 }
 
 func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.PolicyManager.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
 	if err != nil {
 		return false, err
 	}
