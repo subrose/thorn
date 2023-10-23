@@ -44,7 +44,7 @@ services:
     depends_on:
       - api
       - keydb
-    command: sh -c "cd simulator && python password_manager.py && python ecommerce.py"
+    command: sh -c "cd simulator && ./simulate.sh"
     volumes:
       - "./:/code"
   tests:

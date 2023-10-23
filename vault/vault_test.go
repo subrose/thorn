@@ -226,7 +226,7 @@ func TestVault(t *testing.T) {
 
 	t.Run("cant store records with invalid fields", func(t *testing.T) {
 		vault, _, _ := initVault(t)
-		col := Collection{Name: "smol_collection", Fields: map[string]Field{
+		col := Collection{Name: "test_collection", Fields: map[string]Field{
 			"first_name": {
 				Name:      "first_name",
 				Type:      "string",
@@ -236,9 +236,9 @@ func TestVault(t *testing.T) {
 		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
 		inputRecords := []Record{{"invalid_field": "John"}}
 		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
-		var valueErr *ValueError
-		if err == nil || !errors.As(err, &valueErr) {
-			t.Fatalf("Expected an invalid field error, got %s", err)
+		var ve *ValueError
+		if err == nil || !errors.As(err, &ve) {
+			t.Fatalf("Expected a value error, got %s", err)
 		}
 	})
 
@@ -474,5 +474,87 @@ func TestVaultLogin(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected an error, got nil")
 		}
+	})
+}
+
+func TestTokens(t *testing.T) {
+	ctx := context.Background()
+	vault, _, _ := initVault(t)
+
+	// create principals
+	rootPrincipal := Principal{
+		Username:    "root",
+		Password:    "root",
+		Policies:    []string{"root"},
+		Description: "root principal",
+	}
+	testPrincipal := Principal{
+		Username:    "test_user",
+		Password:    "test_password",
+		Policies:    []string{"read-all-customers"},
+		Description: "test principal",
+	}
+	err := vault.CreatePrincipal(ctx, rootPrincipal, rootPrincipal.Username, rootPrincipal.Password, rootPrincipal.Description, rootPrincipal.Policies)
+	assert.NoError(t, err, "failed to create root principal")
+
+	err = vault.CreatePrincipal(ctx, rootPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	assert.NoError(t, err, "failed to create test principal")
+
+	// create collections
+	_, err = vault.CreateCollection(ctx, rootPrincipal, Collection{
+		Name:   "customers",
+		Fields: map[string]Field{"name": {"name", "string", false}, "foo": {"foo", "string", false}},
+	})
+	assert.NoError(t, err, "failed to create customer collection")
+	_, err = vault.CreateCollection(ctx, rootPrincipal, Collection{
+		Name:   "employees",
+		Fields: map[string]Field{"name": {"name", "string", false}, "foo": {"foo", "string", false}},
+	})
+	assert.NoError(t, err, "failed to create employees collection")
+
+	// create records
+	customerRecords, err := vault.CreateRecords(ctx, rootPrincipal, "customers", []Record{{"name": "Joe Buyer", "foo": "bar"}})
+	assert.NoError(t, err, "failed to create customer records")
+	employeeRecords, err := vault.CreateRecords(ctx, rootPrincipal, "employees", []Record{{"name": "Joe Boss", "foo": "baz"}})
+	assert.NoError(t, err, "failed to create employee records")
+
+	t.Run("create token fails without access to underlying record", func(t *testing.T) {
+		rId := employeeRecords[0]
+		_, err := vault.CreateToken(ctx, testPrincipal, "employees", rId, "name", "plain")
+		var fe *ForbiddenError
+		assert.ErrorAs(t, err, &fe)
+	})
+
+	t.Run("create and retrieve token", func(t *testing.T) {
+		rId := customerRecords[0]
+		tokenId, err := vault.CreateToken(ctx, testPrincipal, "customers", rId, "name", "plain")
+		assert.NoError(t, err)
+		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")
+
+		record, err := vault.GetTokenValue(ctx, testPrincipal, tokenId)
+		if assert.NoError(t, err, "failed to get token value") {
+			assert.Equal(t, "Joe Buyer", record["name"])
+		}
+	})
+	t.Run("create and retrieve token by another principal", func(t *testing.T) {
+		rId := customerRecords[0]
+		tokenId, err := vault.CreateToken(ctx, rootPrincipal, "customers", rId, "name", "plain")
+		assert.NoError(t, err)
+		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")
+
+		record, err := vault.GetTokenValue(ctx, testPrincipal, tokenId)
+		if assert.NoError(t, err, "failed to get token value") {
+			assert.Equal(t, "Joe Buyer", record["name"])
+		}
+	})
+	t.Run("getting token value fails without access to underlying record", func(t *testing.T) {
+		rId := customerRecords[0]
+		tokenId, err := vault.CreateToken(ctx, rootPrincipal, "employees", rId, "name", "plain")
+		assert.NoError(t, err)
+		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")
+
+		_, err = vault.GetTokenValue(ctx, testPrincipal, tokenId)
+		var fe *ForbiddenError
+		assert.ErrorAs(t, err, &fe)
 	})
 }

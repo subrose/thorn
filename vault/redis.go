@@ -525,3 +525,27 @@ func (rs RedisStore) DeletePolicy(ctx context.Context, policyId string) error {
 	}
 	return nil
 }
+
+// TODO:
+// - Set expiration?
+func (rs RedisStore) CreateToken(ctx context.Context, tokenId string, value string) error {
+	return rs.Client.Set(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId), value, 0).Err()
+}
+func (rs RedisStore) DeleteToken(ctx context.Context, tokenId string) error {
+	err := rs.Client.Del(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId)).Err()
+	if err == redis.Nil {
+		return &NotFoundError{"token", tokenId}
+	}
+
+	return err
+}
+func (rs RedisStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
+	res, err := rs.Client.Get(ctx, fmt.Sprintf("%s%s", TOKEN_PREFIX, tokenId)).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", &NotFoundError{"token", tokenId}
+		}
+		return "", err
+	}
+	return res, nil
+}

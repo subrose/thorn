@@ -80,7 +80,7 @@ func authGuard(core *Core) fiber.Handler {
 	}
 }
 
-func customErrorHandler(ctx *fiber.Ctx, err error) error {
+func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var e *fiber.Error
 	if errors.As(err, &e) {
 		code := e.Code
@@ -92,6 +92,7 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var fe *_vault.ForbiddenError
 	var ne *_vault.NotFoundError
 	var ae *AuthError
+	var co *_vault.ConflictError
 	switch {
 	case errors.As(err, &ve):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{ve.Error(), nil})
@@ -101,8 +102,13 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{ne.Error(), nil})
 	case errors.As(err, &ae):
 		return ctx.Status(http.StatusUnauthorized).JSON(ErrorResponse{ae.Error(), nil})
+	case errors.Is(err, _vault.ErrNotSupported):
+		return ctx.Status(http.StatusNotImplemented).JSON(ErrorResponse{err.Error(), nil})
+	case errors.As(err, &co):
+		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{co.Error(), nil})
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
+		core.logger.Error(fmt.Sprintf("Unhandled error: %s", err.Error()))
 		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{"Internal Server Error", nil})
 	}
 }
@@ -110,7 +116,7 @@ func customErrorHandler(ctx *fiber.Ctx, err error) error {
 func SetupApi(core *Core) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
-		ErrorHandler:          customErrorHandler,
+		ErrorHandler:          core.customErrorHandler,
 	})
 	app.Use(ApiLogger(core))
 	app.Use(recover.New())
@@ -142,6 +148,11 @@ func SetupApi(core *Core) *fiber.App {
 	policiesGroup.Post("", core.CreatePolicy)
 	policiesGroup.Get("", core.GetPolicies)
 	policiesGroup.Delete(":policyId", core.DeletePolicy)
+
+	tokensGroup := app.Group("/tokens")
+	tokensGroup.Use(authGuard(core))
+	tokensGroup.Get(":tokenId", core.GetTokenById)
+	tokensGroup.Post("", core.CreateToken)
 
 	app.Use(func(c *fiber.Ctx) error {
 		return c.SendStatus(404)
