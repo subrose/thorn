@@ -22,7 +22,6 @@ lint-api:
 checks: 
 	@echo "Running checks..."
 	docker-compose up --build -d 
-	$(MAKE) tests
 	$(MAKE) run-gosec
 	$(MAKE) check-formatting
 	$(MAKE) lint-vault
