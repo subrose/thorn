@@ -11,6 +11,11 @@ type SqlStore struct {
 	db *gorm.DB
 }
 
+type GormRecord struct {
+	Id     string
+	Record Record
+}
+
 func NewSqlStore() (*SqlStore, error) {
 	dsn := "host=localhost user=postgres password=postgres dbname=postgres port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
