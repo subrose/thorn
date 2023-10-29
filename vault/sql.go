@@ -54,35 +54,36 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 }
 
 func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
-	var ids []string
+	var recordIds []string
 	for _, record := range records {
-		err := st.db.Create(&record).Error
+		recordId := GenerateId()
+		gormRecord := GormRecord{Id: recordId, Record: record}
+		err := st.db.Create(&gormRecord).Error
 		if err != nil {
 			return nil, err
 		}
-		ids = append(ids, record.ID)
+		recordIds = append(recordIds, recordId)
 	}
-	return ids, nil
+	return recordIds, nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
-	var records []Record
-	err := st.db.Where("id IN ?", recordIDs).Find(&records).Error
-	recordMap := make(map[string]*Record)
-	for _, record := range records {
-		recordMap[record.ID] = &record
+	var gormRecords []GormRecord
+	err := st.db.Where("id IN ?", recordIDs).Find(&gormRecords).Error
+	if err != nil {
+		return nil, err
 	}
-	return recordMap, err
+	var records = make(map[string]*Record)
+	for _, gormRecord := range gormRecords {
+		records[gormRecord.Id] = &gormRecord.Record
+	}
+	return records, nil
+
 }
 
 func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error) {
-	var records []Record
-	err := st.db.Where(fieldName+" = ?", value).Find(&records).Error
-	var ids []string
-	for _, record := range records {
-		ids = append(ids, record.ID)
-	}
-	return ids, err
+	panic("not implemented") // TODO: Implement}
+
 }
 
 func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error {
@@ -124,7 +125,7 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 }
 
 func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	return p.ID, st.db.Create(&p).Error
+	return p.PolicyId, st.db.Create(&p).Error
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
@@ -132,18 +133,14 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	token := Token{ID: tokenId, Value: value}
-	return st.db.Create(&token).Error
+	panic("not implemented") // TODO: Implement
 }
 
 func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
-	return st.db.Delete(&Token{}, tokenId).Error
+	panic("not implemented") // TODO: Implement
 }
-
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	var token Token
-	err := st.db.First(&token, "id = ?", tokenId).Error
-	return token.Value, err
+	panic("not implemented") // TODO: Implement
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
