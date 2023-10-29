@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -38,11 +37,13 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	}
 	app := SetupApi(core)
 	// TODO: Use a mock db for unit testing
-	db, _ := _vault.NewRedisStore(
-		fmt.Sprintf("%s:%d", coreConfig.DB_HOST, coreConfig.DB_PORT),
-		coreConfig.DB_PASSWORD,
-		coreConfig.DB_DB,
-	)
+	// db, _ := _vault.NewRedisStore(
+	// 	fmt.Sprintf("%s:%d", coreConfig.DB_HOST, coreConfig.DB_PORT),
+	// 	coreConfig.DB_PASSWORD,
+	// 	coreConfig.DB_DB,
+	// )
+	db, _ := _vault.NewSqlStore()
+
 	if err != nil {
 		t.Fatal("Failed to create db", err)
 	}

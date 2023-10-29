@@ -109,6 +109,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		conf.DB_PASSWORD,
 		conf.DB_DB,
 	)
+	// db := _vault.SqlStore{}
 	if err != nil {
 		panic(err)
 	}

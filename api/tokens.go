@@ -19,11 +19,9 @@ func (core *Core) CreateToken(c *fiber.Ctx) error {
 func (core *Core) GetTokenById(c *fiber.Ctx) error {
 	tokenId := c.Params("tokenId")
 	sessionPrincipal := GetSessionPrincipal(c)
-	// policy, err := core.vault.GetPolicy(c.Context(), sessionPrincipal, policyId)
 	token, err := core.vault.GetTokenValue(c.Context(), sessionPrincipal, tokenId)
 	if err != nil {
 		return err
-		// return c.Status(http.StatusBadRequest).JSON(err)
 	}
 	return c.Status(http.StatusOK).JSON(token)
 }
