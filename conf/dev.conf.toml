@@ -1,8 +1,9 @@
 [db]
 host = "localhost"
-port = 6379
-user = "default"
-password = ""
+port = 5432
+name = "postgres"
+user = "postgres"
+password = "postgres"
 db = 0
 
 [system]

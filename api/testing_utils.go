@@ -36,13 +36,19 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		t.Fatal("Failed to create core", err)
 	}
 	app := SetupApi(core)
-	// TODO: Use a mock db for unit testing
-	// db, _ := _vault.NewRedisStore(
+
+	// TODO: Switch on db type
+	// db, _ = _vault.NewRedisStore(
 	// 	fmt.Sprintf("%s:%d", coreConfig.DB_HOST, coreConfig.DB_PORT),
 	// 	coreConfig.DB_PASSWORD,
 	// 	coreConfig.DB_DB,
 	// )
-	db, _ := _vault.NewSqlStore()
+	db, err := _vault.NewSqlStore(_vault.FormatDsn(
+		coreConfig.DB_HOST,
+		coreConfig.DB_USER,
+		coreConfig.DB_PASSWORD,
+		coreConfig.DB_NAME,
+		coreConfig.DB_PORT))
 
 	if err != nil {
 		t.Fatal("Failed to create db", err)
