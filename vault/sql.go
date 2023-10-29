@@ -31,7 +31,13 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
-	panic("not implemented") // TODO: Implement
+	var cols []Collection
+	err := st.db.Find(&cols).Error
+	var names []string
+	for _, col := range cols {
+		names = append(names, col.Name)
+	}
+	return names, err
 }
 
 func (st SqlStore) CreateCollection(ctx context.Context, c Collection) (string, error) {
@@ -39,69 +45,107 @@ func (st SqlStore) CreateCollection(ctx context.Context, c Collection) (string, 
 }
 
 func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
-	return st.db.Delete(name).Error
+	var col Collection
+	err := st.db.First(&col, "name = ?", name).Error
+	if err != nil {
+		return err
+	}
+	return st.db.Delete(&col).Error
 }
 
 func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
-	panic("not implemented") // TODO: Implement
+	var ids []string
+	for _, record := range records {
+		err := st.db.Create(&record).Error
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, record.ID)
+	}
+	return ids, nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
-	panic("not implemented") // TODO: Implement
+	var records []Record
+	err := st.db.Where("id IN ?", recordIDs).Find(&records).Error
+	recordMap := make(map[string]*Record)
+	for _, record := range records {
+		recordMap[record.ID] = &record
+	}
+	return recordMap, err
 }
 
 func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error) {
-	panic("not implemented") // TODO: Implement
+	var records []Record
+	err := st.db.Where(fieldName+" = ?", value).Find(&records).Error
+	var ids []string
+	for _, record := range records {
+		ids = append(ids, record.ID)
+	}
+	return ids, err
 }
 
 func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Model(&Record{}).Where("id = ?", recordID).Updates(record).Error
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Delete(&Record{}, recordID).Error
 }
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
-	panic("not implemented") // TODO: Implement
+	var principal Principal
+	err := st.db.First(&principal, "username = ?", username).Error
+	return &principal, err
 }
 
 func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Create(&principal).Error
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Delete(&Principal{}, username).Error
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
-	panic("not implemented") // TODO: Implement
+	var policy Policy
+	err := st.db.First(&policy, "id = ?", policyId).Error
+	return &policy, err
 }
 
 func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
-	panic("not implemented") // TODO: Implement
+	var policies []Policy
+	err := st.db.Where("id IN ?", policyIds).Find(&policies).Error
+	var policyPtrs []*Policy
+	for _, policy := range policies {
+		policyPtrs = append(policyPtrs, &policy)
+	}
+	return policyPtrs, err
 }
 
 func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	panic("not implemented") // TODO: Implement
+	return p.ID, st.db.Create(&p).Error
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Delete(&Policy{}, policyId).Error
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	panic("not implemented") // TODO: Implement
+	token := Token{ID: tokenId, Value: value}
+	return st.db.Create(&token).Error
 }
 
 func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Delete(&Token{}, tokenId).Error
 }
 
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	panic("not implemented") // TODO: Implement
+	var token Token
+	err := st.db.First(&token, "id = ?", tokenId).Error
+	return token.Value, err
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
-	panic("not implemented") // TODO: Implement
+	return st.db.Exec("DELETE FROM collections; DELETE FROM records; DELETE FROM principals; DELETE FROM policies; DELETE FROM tokens;").Error
 }
