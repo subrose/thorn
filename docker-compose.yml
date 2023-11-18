@@ -2,10 +2,10 @@ version: "3.8"
 services:
   api:
     environment:
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_DB_HOST=postgres
+      - VAULT_DB_PORT=5432
+      - VAULT_DB_USER=postgres
+      - VAULT_DB_PASSWORD=postgres
       - VAULT_API_HOST=0.0.0.0
       - VAULT_API_PORT=3001
       - VAULT_ADMIN_USERNAME=admin
@@ -31,6 +31,16 @@ services:
     restart: unless-stopped
     volumes:
       - ./keydb/redis.conf:/etc/keydb/redis.conf
+  postgres:
+    image: postgres:14-alpine
+    ports:
+      - 5432:5432
+    volumes:
+      - ~/apps/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
 volumes:
   data:
     driver: local

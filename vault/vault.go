@@ -16,7 +16,7 @@ type Field struct {
 }
 
 type Collection struct {
-	Name   string           `redis:"name"`
+	Name   string           `redis:"name" gorm:"primaryKey"`
 	Fields map[string]Field `redis:"fields"`
 }
 

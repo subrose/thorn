@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/knadh/koanf"
@@ -17,8 +16,10 @@ import (
 type CoreConfig struct {
 	DB_HOST                 string
 	DB_PORT                 int
+	DB_USER                 string
 	DB_PASSWORD             string
 	DB_DB                   int
+	DB_NAME                 string
 	VAULT_ENCRYPTION_KEY    string
 	VAULT_ENCRYPTION_SECRET string
 	VAULT_SIGNING_KEY       string
@@ -66,8 +67,10 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	// Inject
 	conf.DB_HOST = Config.String("db_host")
 	conf.DB_PORT = Config.Int("db_port")
+	conf.DB_USER = Config.String("db_user")
 	conf.DB_PASSWORD = Config.String("db_password")
 	conf.DB_DB = Config.Int("db_db")
+	conf.DB_NAME = Config.String("db_name")
 	conf.VAULT_ENCRYPTION_KEY = Config.String("encryption_key")
 	conf.VAULT_ENCRYPTION_SECRET = Config.String("encryption_secret")
 	conf.VAULT_ADMIN_USERNAME = Config.String("admin_access_key")
@@ -104,11 +107,14 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 
 	c.logger = apiLogger
 	// Vault
-	db, err := _vault.NewRedisStore(
-		fmt.Sprintf("%v:%v", conf.DB_HOST, conf.DB_PORT),
-		conf.DB_PASSWORD,
-		conf.DB_DB,
-	)
+	// TODO: switch on db type
+	// db, err = _vault.NewRedisStore(
+	// 	fmt.Sprintf("%v:%v", conf.DB_HOST, conf.DB_PORT),
+	// 	conf.DB_PASSWORD,
+	// 	conf.DB_DB,
+	// )
+	db, err := _vault.NewSqlStore(_vault.FormatDsn(conf.DB_HOST, conf.DB_USER, conf.DB_PASSWORD, conf.DB_NAME, conf.DB_PORT))
+
 	if err != nil {
 		panic(err)
 	}

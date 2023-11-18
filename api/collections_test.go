@@ -232,7 +232,7 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusUnauthorized, nil)
 
 		request = newRequest(t, http.MethodGet, "/collections/customers/records/123345", map[string]string{
-			"Authorization": createBasicAuthHeader("bad", "bad"),
+			"Authorization": createBasicAuthHeader("admin", "bad"),
 		}, nil)
 		response = performRequest(t, app, request)
 		checkResponse(t, response, http.StatusUnauthorized, nil)
