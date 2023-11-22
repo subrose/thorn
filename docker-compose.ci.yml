@@ -1,21 +1,29 @@
 version: "3.8"
 services:
-  keydb:
-    image: eqalpha/keydb:x86_64_v6.3.3
-    container_name: keydb
-    command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
+  # keydb:
+  #   image: eqalpha/keydb:x86_64_v6.3.3
+  #   container_name: keydb
+  #   command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
+  #   ports:
+  #     - 6379:6379
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./keydb/redis.conf:/etc/keydb/redis.conf
+  postgres:
+    image: postgres:16.1-alpine
     ports:
-      - 6379:6379
-    restart: unless-stopped
-    volumes:
-      - ./keydb/redis.conf:/etc/keydb/redis.conf
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
   api:
     profiles: ["simulations"]
     environment:
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_DB_HOST=postgres
+      - VAULT_DB_PORT=5432
+      - VAULT_DB_USER=postgres
+      - VAULT_DB_PASSWORD=postgres
       - VAULT_API_HOST=0.0.0.0
       - VAULT_API_PORT=3001
       - VAULT_ADMIN_USERNAME=admin

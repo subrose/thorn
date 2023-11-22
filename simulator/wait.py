@@ -25,6 +25,7 @@ def wait_for_api(vault_url: str) -> None:
     try:
         response = requests.get(f"{vault_url}/health")
         response.raise_for_status()
+        print("API is up and ready")
     except requests.exceptions.ConnectionError:
         logger.info("Waiting for api to be ready ...")
         raise tenacity.TryAgain

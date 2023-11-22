@@ -19,24 +19,22 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - keydb
+      - postgres
     volumes:
       - "./:/app"
-  keydb:
-    image: eqalpha/keydb:arm64_v6.3.3
-    container_name: keydb
-    command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
-    ports:
-      - 6379:6379
-    restart: unless-stopped
-    volumes:
-      - ./keydb/redis.conf:/etc/keydb/redis.conf
+  # keydb:
+  #   image: eqalpha/keydb:arm64_v6.3.3
+  #   container_name: keydb
+  #   command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
+  #   ports:
+  #     - 6379:6379
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./keydb/redis.conf:/etc/keydb/redis.conf
   postgres:
-    image: postgres:14-alpine
+    image: postgres:16.1-alpine
     ports:
       - 5432:5432
-    volumes:
-      - ~/apps/postgres:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres

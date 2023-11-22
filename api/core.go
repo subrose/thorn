@@ -114,7 +114,6 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	// 	conf.DB_DB,
 	// )
 	db, err := _vault.NewSqlStore(_vault.FormatDsn(conf.DB_HOST, conf.DB_USER, conf.DB_PASSWORD, conf.DB_NAME, conf.DB_PORT))
-
 	if err != nil {
 		panic(err)
 	}

@@ -1,5 +1,12 @@
 package vault
 
+// TODO:
+// - Dynamic collection creation (no updates)
+// - Error handling
+// - Tidy DB Models
+// - Ensure we never log sensitive data
+// - Add indexes
+
 import (
 	"context"
 	"encoding/json"
@@ -47,7 +54,9 @@ func FormatDsn(host string, user string, password string, dbName string, port in
 }
 
 func NewSqlStore(dsn string) (*SqlStore, error) {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		TranslateError: true,
+	})
 	db.AutoMigrate(&GormCollection{}, &GormRecord{}, &GormPrincipal{}, &GormPolicy{}, &GormToken{})
 
 	return &SqlStore{db}, err
@@ -84,7 +93,15 @@ func (st SqlStore) CreateCollection(ctx context.Context, c Collection) (string, 
 	}
 
 	gormCol := GormCollection{Name: c.Name, Collection: datatypes.JSON(b)}
-	return c.Name, st.db.Create(&gormCol).Error
+	result := st.db.Create(&gormCol)
+	if result.Error != nil {
+		switch result.Error {
+		case gorm.ErrDuplicatedKey:
+			return "", &ConflictError{c.Name}
+		}
+	}
+
+	return c.Name, nil
 }
 
 func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
@@ -172,7 +189,14 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) err
 		return err
 	}
 	gPrincipal := GormPrincipal{Username: principal.Username, Principal: datatypes.JSON(p)}
-	return st.db.Create(&gPrincipal).Error
+	err = st.db.Create(&gPrincipal).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return &ConflictError{principal.Username}
+		}
+		return err
+	}
+	return nil
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
@@ -215,7 +239,14 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 		return "", err
 	}
 	gormPol := GormPolicy{PolicyId: p.PolicyId, Policy: datatypes.JSON(pol)}
-	return p.PolicyId, st.db.Create(&gormPol).Error
+	err = st.db.Create(&gormPol).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return "", &ConflictError{p.PolicyId}
+		}
+		return "", err
+	}
+	return p.PolicyId, nil
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
