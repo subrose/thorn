@@ -2,8 +2,6 @@ package vault
 
 // TODO:
 // - Dynamic collection creation (no updates)
-// - Error handling
-// - Ensure we never log sensitive data
 // - Add indexes
 
 import (
@@ -320,6 +318,7 @@ func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
 	gt := DbToken{ID: tokenId}
 	return st.db.Delete(&gt).Error
 }
+
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
 	var gt DbToken
 	err := st.db.First(&gt, "id = ?", tokenId).Error
