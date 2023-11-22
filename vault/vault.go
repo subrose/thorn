@@ -22,14 +22,6 @@ type Collection struct {
 
 type Record map[string]string // field name -> value
 
-type Principal struct {
-	Username    string   `redis:"username"`
-	Password    string   `redis:"password"`
-	Description string   `redis:"description"`
-	CreatedAt   string   `redis:"created_at"`
-	Policies    []string `redis:"policies"`
-}
-
 type Privatiser interface {
 	Encrypt(string) (string, error)
 	Decrypt(string) (string, error)
@@ -69,6 +61,14 @@ type Policy struct {
 	Resources []string       `redis:"resources" json:"resources" validate:"required"`
 }
 
+type Principal struct {
+	Username    string   `redis:"username"`
+	Password    string   `redis:"password"`
+	Description string   `redis:"description"`
+	CreatedAt   string   `redis:"created_at"`
+	Policies    []string `redis:"policies"`
+}
+
 type Request struct {
 	Principal Principal
 	Action    PolicyAction
@@ -105,7 +105,7 @@ type VaultDB interface {
 	CreatePrincipal(ctx context.Context, principal Principal) error
 	DeletePrincipal(ctx context.Context, username string) error
 	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
-	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
+	GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error)
 	CreatePolicy(ctx context.Context, p Policy) (string, error)
 	DeletePolicy(ctx context.Context, policyId string) error
 	CreateToken(ctx context.Context, tokenId string, value string) error
@@ -549,7 +549,7 @@ func (vault Vault) DeletePolicy(
 	return nil
 }
 
-func (vault Vault) GetPolicies(
+func (vault Vault) GetPrincipalPolicies(
 	ctx context.Context,
 	principal Principal,
 ) ([]*Policy, error) {
@@ -562,7 +562,7 @@ func (vault Vault) GetPolicies(
 		return nil, &ForbiddenError{request}
 	}
 
-	policies, err := vault.Db.GetPolicies(ctx, principal.Policies)
+	policies, err := vault.Db.GetPoliciesById(ctx, principal.Policies)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +573,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPoliciesById(ctx, request.Principal.Policies)
 	if err != nil {
 		return false, err
 	}

@@ -43,12 +43,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	// 	coreConfig.DB_PASSWORD,
 	// 	coreConfig.DB_DB,
 	// )
-	db, err := _vault.NewSqlStore(_vault.FormatDsn(
-		coreConfig.DB_HOST,
-		coreConfig.DB_USER,
-		coreConfig.DB_PASSWORD,
-		coreConfig.DB_NAME,
-		coreConfig.DB_PORT))
+	db, err := _vault.NewSqlStore(coreConfig.DATABASE_URL)
 
 	if err != nil {
 		t.Fatal("Failed to create db", err)

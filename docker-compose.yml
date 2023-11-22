@@ -2,10 +2,7 @@ version: "3.8"
 services:
   api:
     environment:
-      - VAULT_DB_HOST=postgres
-      - VAULT_DB_PORT=5432
-      - VAULT_DB_USER=postgres
-      - VAULT_DB_PASSWORD=postgres
+      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
       - VAULT_API_HOST=0.0.0.0
       - VAULT_API_PORT=3001
       - VAULT_ADMIN_USERNAME=admin

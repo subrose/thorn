@@ -9,7 +9,7 @@ import (
 
 func (core *Core) GetPolicies(c *fiber.Ctx) error {
 	sessionPrincipal := GetSessionPrincipal(c)
-	policies, err := core.vault.GetPolicies(c.Context(), sessionPrincipal)
+	policies, err := core.vault.GetPrincipalPolicies(c.Context(), sessionPrincipal)
 	if err != nil {
 		return err
 	}
@@ -56,3 +56,5 @@ func (core *Core) DeletePolicy(c *fiber.Ctx) error {
 	}
 	return c.SendStatus(http.StatusNoContent)
 }
+
+// Note: You cannot update a policy

@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -24,20 +23,24 @@ type SqlStore struct {
 	db *gorm.DB
 }
 
-type GormRecord struct {
+type DbRecord struct {
 	Id             string
 	CollectionName string
 	Record         datatypes.JSON
 }
 
-type GormCollection struct {
+type DbCollection struct {
 	Name       string `gorm:"primaryKey"`
 	Collection datatypes.JSON
 }
 
-type GormPrincipal struct {
-	Username  string `gorm:"primaryKey"`
-	Principal datatypes.JSON
+type DbPrincipal struct {
+	Username    string `gorm:"primaryKey"`
+	Password    string
+	Description string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	PolicyIds   pq.StringArray `gorm:"type:text[]"`
 }
 
 type DbPolicy struct {
@@ -49,27 +52,22 @@ type DbPolicy struct {
 	UpdatedAt time.Time
 }
 
-type GormToken struct {
-	TokenId string `gorm:"primaryKey"`
-	Value   string
-}
-
-func FormatDsn(host string, user string, password string, dbName string, port int) string {
-	// TODO: Add sslmode
-	return fmt.Sprintf("host=%v user=%v password=%v dbname=%v port=%v sslmode=disable", host, user, password, dbName, port)
+type DbToken struct {
+	ID    string `gorm:"primaryKey"`
+	Value string
 }
 
 func NewSqlStore(dsn string) (*SqlStore, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		TranslateError: true,
 	})
-	db.AutoMigrate(&GormCollection{}, &GormRecord{}, &GormPrincipal{}, &DbPolicy{}, &GormToken{})
+	db.AutoMigrate(&DbCollection{}, &DbRecord{}, &DbPrincipal{}, &DbPolicy{}, &DbToken{})
 
 	return &SqlStore{db}, err
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
-	var gc GormCollection
+	var gc DbCollection
 	err := st.db.First(&gc, "name = ?", name).Error
 	if err != nil {
 		return nil, err
@@ -81,7 +79,7 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
-	var gcs []GormCollection
+	var gcs []DbCollection
 
 	err := st.db.Find(&gcs).Error
 
@@ -98,7 +96,7 @@ func (st SqlStore) CreateCollection(ctx context.Context, c Collection) (string, 
 		return "", err
 	}
 
-	gormCol := GormCollection{Name: c.Name, Collection: datatypes.JSON(b)}
+	gormCol := DbCollection{Name: c.Name, Collection: datatypes.JSON(b)}
 	result := st.db.Create(&gormCol)
 	if result.Error != nil {
 		switch result.Error {
@@ -111,14 +109,14 @@ func (st SqlStore) CreateCollection(ctx context.Context, c Collection) (string, 
 }
 
 func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
-	gc := GormCollection{Name: name, Collection: nil}
+	gc := DbCollection{Name: name, Collection: nil}
 
 	return st.db.Delete(&gc).Error
 }
 
 func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
 	recordIds := make([]string, len(records))
-	gormRecords := make([]GormRecord, len(records))
+	gormRecords := make([]DbRecord, len(records))
 
 	for i, record := range records {
 		recordId := GenerateId()
@@ -126,7 +124,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 		if err != nil {
 			return nil, err
 		}
-		gormRecords[i] = GormRecord{Id: recordId, CollectionName: collectionName, Record: datatypes.JSON(jsonBytes)}
+		gormRecords[i] = DbRecord{Id: recordId, CollectionName: collectionName, Record: datatypes.JSON(jsonBytes)}
 		recordIds[i] = recordId
 	}
 	err := st.db.CreateInBatches(&gormRecords, len(records)).Error
@@ -137,7 +135,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
-	var grs []GormRecord
+	var grs []DbRecord
 	err := st.db.Where("id IN ?", recordIDs).Find(&grs).Error
 	if err != nil {
 		return nil, err
@@ -165,18 +163,18 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 	if err != nil {
 		return err
 	}
-	gr := GormRecord{Id: recordID, CollectionName: collectionName, Record: datatypes.JSON(r)}
-	return st.db.Model(&GormRecord{}).Where("id = ?", recordID).Updates(gr).Error
+	gr := DbRecord{Id: recordID, CollectionName: collectionName, Record: datatypes.JSON(r)}
+	return st.db.Model(&DbRecord{}).Where("id = ?", recordID).Updates(gr).Error
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
-	gr := GormRecord{Id: recordID, CollectionName: collectionName}
+	gr := DbRecord{Id: recordID, CollectionName: collectionName}
 	return st.db.Delete(&gr).Error
 }
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
-	var gPrincipal GormPrincipal
-	err := st.db.First(&gPrincipal, "username = ?", username).Error
+	var dbPrincipal DbPrincipal
+	err := st.db.First(&dbPrincipal, "username = ?", username).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"principal", username}
@@ -184,18 +182,24 @@ func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principa
 		return nil, err
 	}
 
-	var principal Principal
-	err = json.Unmarshal(gPrincipal.Principal, &principal)
+	principal := Principal{
+		Username:    dbPrincipal.Username,
+		Password:    dbPrincipal.Password,
+		Description: dbPrincipal.Description,
+		Policies:    dbPrincipal.PolicyIds,
+	}
+
 	return &principal, err
 }
 
 func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) error {
-	p, err := json.Marshal(principal)
-	if err != nil {
-		return err
+	dbPrincipal := DbPrincipal{
+		Username:    principal.Username,
+		Password:    principal.Password,
+		Description: principal.Description,
+		PolicyIds:   principal.Policies,
 	}
-	gPrincipal := GormPrincipal{Username: principal.Username, Principal: datatypes.JSON(p)}
-	err = st.db.Create(&gPrincipal).Error
+	err := st.db.Create(&dbPrincipal).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return &ConflictError{principal.Username}
@@ -206,7 +210,7 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) err
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
-	return st.db.Delete(&GormPrincipal{}, "username = ?", username).Error
+	return st.db.Delete(&DbPrincipal{}, "username = ?", username).Error
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
@@ -223,7 +227,7 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 	return &p, err
 }
 
-func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
+func (st SqlStore) GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error) {
 	var dBPolicies []DbPolicy
 	err := st.db.Find(&dBPolicies, policyIds).Error
 	if err != nil {
@@ -270,16 +274,16 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	gt := GormToken{TokenId: tokenId, Value: value}
+	gt := DbToken{ID: tokenId, Value: value}
 	return st.db.Create(&gt).Error
 }
 
 func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
-	gt := GormToken{TokenId: tokenId}
+	gt := DbToken{ID: tokenId}
 	return st.db.Delete(&gt).Error
 }
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	var gt GormToken
+	var gt DbToken
 	err := st.db.First(&gt, "token_id = ?", tokenId).Error
 	return gt.Value, err
 }

@@ -1,10 +1,5 @@
 [db]
-host = "localhost"
-port = 5432
-name = "postgres"
-user = "postgres"
-password = "postgres"
-db = 0
+url = "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
 
 [system]
 env_prefix = "VAULT_"

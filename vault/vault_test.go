@@ -12,11 +12,7 @@ import (
 
 func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	ctx := context.Background()
-	db, err := NewRedisStore(
-		os.Getenv("KEYDB_CONN_STRING"),
-		"",
-		0,
-	)
+	db, err := NewSqlStore(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		panic(err)
 	}
