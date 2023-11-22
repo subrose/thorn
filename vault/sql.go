@@ -3,7 +3,6 @@ package vault
 // TODO:
 // - Dynamic collection creation (no updates)
 // - Error handling
-// - Tidy DB Models
 // - Ensure we never log sensitive data
 // - Add indexes
 
@@ -11,12 +10,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"os"
 	"time"
 
 	"github.com/lib/pq"
 	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type SqlStore struct {
@@ -58,10 +60,30 @@ type DbToken struct {
 }
 
 func NewSqlStore(dsn string) (*SqlStore, error) {
+	// Todo: Make sure we never log in production
+	dbLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             time.Second,   // Slow SQL threshold
+			LogLevel:                  logger.Silent, // Log level
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  false,
+		},
+	)
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		TranslateError: true,
+		Logger:         dbLogger,
 	})
-	db.AutoMigrate(&DbCollection{}, &DbRecord{}, &DbPrincipal{}, &DbPolicy{}, &DbToken{})
+
+	if err != nil {
+		return nil, err
+	}
+	err = db.AutoMigrate(&DbCollection{}, &DbRecord{}, &DbPrincipal{}, &DbPolicy{}, &DbToken{})
+	if err != nil {
+		return nil, err
+	}
 
 	return &SqlStore{db}, err
 }
@@ -70,11 +92,17 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 	var gc DbCollection
 	err := st.db.First(&gc, "name = ?", name).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &NotFoundError{"collection", name}
+		}
 		return nil, err
 	}
 
 	var col Collection
-	json.Unmarshal(gc.Collection, &col)
+	err = json.Unmarshal(gc.Collection, &col)
+	if err != nil {
+		return nil, err
+	}
 	return &col, err
 }
 
@@ -222,7 +250,17 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 		}
 		return nil, err
 	}
-	var p Policy
+
+	var policyActions []PolicyAction
+	for _, action := range gp.Actions {
+		policyActions = append(policyActions, PolicyAction(action))
+	}
+	p := Policy{
+		PolicyId:  gp.ID,
+		Effect:    PolicyEffect(gp.Effect),
+		Actions:   policyActions,
+		Resources: gp.Resources,
+	}
 
 	return &p, err
 }
@@ -284,7 +322,7 @@ func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
 }
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
 	var gt DbToken
-	err := st.db.First(&gt, "token_id = ?", tokenId).Error
+	err := st.db.First(&gt, "id = ?", tokenId).Error
 	return gt.Value, err
 }
 

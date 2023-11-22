@@ -34,7 +34,7 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - keydb
+      - postgres
     volumes:
       - "./:/app"
   simulations:
@@ -48,7 +48,7 @@ services:
     working_dir: /code
     depends_on:
       - api
-      - keydb
+      - postgres
     command: sh -c "cd simulator && ./simulate.sh"
     volumes:
       - "./:/code"
@@ -59,14 +59,10 @@ services:
       dockerfile: Dockerfile
       target: build
     environment:
-      - KEYDB_CONN_STRING=keydb:6379
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
     working_dir: /code
     depends_on:
-      - keydb
+      - postgres
     command: sh -c "go test ./vault && go test ./api"
     volumes:
       - "./:/code"
