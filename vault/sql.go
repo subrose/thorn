@@ -40,7 +40,7 @@ type DbPrincipal struct {
 	Description string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	PolicyIds   pq.StringArray `gorm:"type:text[]"`
+	Policies    []DbPolicy `gorm:"many2many:principal_policies;"`
 }
 
 type DbPolicy struct {
@@ -200,7 +200,7 @@ func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, reco
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
 	var dbPrincipal DbPrincipal
-	err := st.db.First(&dbPrincipal, "username = ?", username).Error
+	err := st.db.Preload("Policies").First(&dbPrincipal, "username = ?", username).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"principal", username}
@@ -208,35 +208,75 @@ func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principa
 		return nil, err
 	}
 
+	policyIds := make([]string, len(dbPrincipal.Policies))
+	for i, policy := range dbPrincipal.Policies {
+		policyIds[i] = policy.ID
+	}
+
 	principal := Principal{
 		Username:    dbPrincipal.Username,
 		Password:    dbPrincipal.Password,
 		Description: dbPrincipal.Description,
-		Policies:    dbPrincipal.PolicyIds,
+		Policies:    policyIds,
 	}
 
 	return &principal, err
 }
 
 func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) error {
+
 	dbPrincipal := DbPrincipal{
 		Username:    principal.Username,
 		Password:    principal.Password,
 		Description: principal.Description,
-		PolicyIds:   principal.Policies,
 	}
-	err := st.db.Create(&dbPrincipal).Error
+	tx := st.db.Begin()
+	if err := tx.Error; err != nil {
+		return err
+	}
+	err := tx.Create(&dbPrincipal).Error
 	if err != nil {
+		tx.Rollback()
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return &ConflictError{principal.Username}
 		}
 		return err
 	}
+	var dbPolicies []DbPolicy
+	if err := tx.Where("id IN ?", principal.Policies).Find(&dbPolicies).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Model(&dbPrincipal).Association("Policies").Append(&dbPolicies); err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+
 	return nil
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
-	return st.db.Delete(&DbPrincipal{}, "username = ?", username).Error
+	// Start a transaction
+	tx := st.db.Begin()
+	if err := tx.Error; err != nil {
+		return err
+	}
+
+	// First, delete associations in the many-to-many join table
+	if err := tx.Table("principal_policies").Where("db_principal_username = ?", username).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Now, delete the principal itself
+	if err := tx.Where("username = ?", username).Delete(&DbPrincipal{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit the transaction
+	return tx.Commit().Error
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
@@ -265,7 +305,7 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 
 func (st SqlStore) GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error) {
 	var dBPolicies []DbPolicy
-	err := st.db.Find(&dBPolicies, policyIds).Error
+	err := st.db.Where("id IN ?", policyIds).Find(&dBPolicies).Error
 	if err != nil {
 		return nil, err
 	}
@@ -304,9 +344,36 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 	return p.PolicyId, nil
 }
 
-func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
-	gp := DbPolicy{ID: policyId}
-	return st.db.Delete(gp).Error
+func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
+	// Start a transaction
+	tx := st.db.Begin()
+	if err := tx.Error; err != nil {
+		return err
+	}
+
+	// Check if the policy exists
+	var policy DbPolicy
+	if err := tx.First(&policy, "id = ?", policyID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &NotFoundError{"policy", policyID}
+		}
+		return err
+	}
+
+	// Directly delete associations in the many-to-many join table
+	if err := tx.Table("principal_policies").Where("db_policy_id = ?", policyID).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Delete the policy itself
+	if err := tx.Where("id = ?", policyID).Delete(&DbPolicy{}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Commit the transaction
+	return tx.Commit().Error
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
@@ -326,6 +393,9 @@ func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, e
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
+	// Delete fk constraints first
+	st.db.Exec("delete from principal_policies")
+	// Delete all records
 	tables := []string{}
 	st.db.Raw("SELECT tablename FROM pg_tables WHERE schemaname='public'").Scan(&tables)
 	for _, table := range tables {

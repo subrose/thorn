@@ -56,6 +56,18 @@ class Actor:
         check_expected_status(response, expected_statuses)
         return response.json()
 
+    def delete_principal(
+        self,
+        username: str,
+        expected_statuses: Optional[list[int]] = None,
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/principals/{username}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return
+
     def create_collection(
         self, schema: dict[str, Any], expected_statuses: Optional[list[int]] = None
     ) -> None:
@@ -114,3 +126,13 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         return response.json()
+
+    def delete_policy(
+        self, policy_id: str, expected_statuses: Optional[list[int]] = None
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/policies/{policy_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return

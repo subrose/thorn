@@ -70,7 +70,7 @@ func TestPrincipals(t *testing.T) {
 
 		response := performRequest(t, app, request)
 
-		checkResponse(t, response, http.StatusOK, nil)
+		checkResponse(t, response, http.StatusNoContent, nil)
 
 		// Check that the principal has been deleted
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{

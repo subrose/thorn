@@ -69,5 +69,5 @@ func (core *Core) DeletePrincipal(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(http.StatusNoContent)
 }
