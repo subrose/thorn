@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -38,9 +40,13 @@ type GormPrincipal struct {
 	Principal datatypes.JSON
 }
 
-type GormPolicy struct {
-	PolicyId string `gorm:"primaryKey"`
-	Policy   datatypes.JSON
+type DbPolicy struct {
+	ID        string `gorm:"primaryKey"`
+	Effect    string
+	Actions   pq.StringArray `gorm:"type:text[]"`
+	Resources pq.StringArray `gorm:"type:text[]"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type GormToken struct {
@@ -57,7 +63,7 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		TranslateError: true,
 	})
-	db.AutoMigrate(&GormCollection{}, &GormRecord{}, &GormPrincipal{}, &GormPolicy{}, &GormToken{})
+	db.AutoMigrate(&GormCollection{}, &GormRecord{}, &GormPrincipal{}, &DbPolicy{}, &GormToken{})
 
 	return &SqlStore{db}, err
 }
@@ -204,8 +210,8 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
-	var gp GormPolicy
-	err := st.db.First(&gp, "policy_id = ?", policyId).Error
+	var gp DbPolicy
+	err := st.db.First(&gp, "id = ?", policyId).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"policy", policyId}
@@ -213,33 +219,42 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 		return nil, err
 	}
 	var p Policy
-	err = json.Unmarshal(gp.Policy, &p)
 
 	return &p, err
 }
 
 func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
-	var gPolicies []GormPolicy
-	err := st.db.Where("policy_id IN ?", policyIds).Find(&gPolicies).Error
+	var dBPolicies []DbPolicy
+	err := st.db.Find(&dBPolicies, policyIds).Error
 	if err != nil {
 		return nil, err
 	}
-	var policyPtrs []*Policy
-	for _, policy := range gPolicies {
-		var p Policy
-		json.Unmarshal(policy.Policy, &p)
-		policyPtrs = append(policyPtrs, &p)
+
+	policies := make([]*Policy, len(dBPolicies))
+	for i, dbp := range dBPolicies {
+		actions := dbp.Actions
+		var policyActions []PolicyAction
+		for _, action := range actions {
+			policyActions = append(policyActions, PolicyAction(action))
+		}
+
+		policies[i] = &Policy{
+			PolicyId:  dbp.ID,
+			Effect:    PolicyEffect(dbp.Effect),
+			Actions:   policyActions,
+			Resources: dbp.Resources,
+		}
 	}
-	return policyPtrs, err
+	return policies, nil
 }
 
 func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	pol, err := json.Marshal(p)
-	if err != nil {
-		return "", err
+	actionStrings := make([]string, len(p.Actions))
+	for i, action := range p.Actions {
+		actionStrings[i] = string(action)
 	}
-	gormPol := GormPolicy{PolicyId: p.PolicyId, Policy: datatypes.JSON(pol)}
-	err = st.db.Create(&gormPol).Error
+	dbPolicy := DbPolicy{ID: p.PolicyId, Effect: string(p.Effect), Actions: actionStrings, Resources: p.Resources}
+	err := st.db.Create(&dbPolicy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
 			return "", &ConflictError{p.PolicyId}
@@ -250,7 +265,7 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyId string) error {
-	gp := GormPolicy{PolicyId: policyId}
+	gp := DbPolicy{ID: policyId}
 	return st.db.Delete(gp).Error
 }
 
@@ -270,5 +285,10 @@ func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, e
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
-	return st.db.Exec("DELETE FROM gorm_collections;DELETE FROM gorm_records; DELETE FROM gorm_principals; DELETE FROM gorm_policies;").Error
+	tables := []string{}
+	st.db.Raw("SELECT tablename FROM pg_tables WHERE schemaname='public'").Scan(&tables)
+	for _, table := range tables {
+		st.db.Exec("DELETE FROM " + table)
+	}
+	return nil
 }

@@ -16,7 +16,7 @@ type Field struct {
 }
 
 type Collection struct {
-	Name   string           `redis:"name" gorm:"primaryKey"`
+	Name   string           `redis:"name"`
 	Fields map[string]Field `redis:"fields"`
 }
 
@@ -28,29 +28,6 @@ type Principal struct {
 	Description string   `redis:"description"`
 	CreatedAt   string   `redis:"created_at"`
 	Policies    []string `redis:"policies"`
-}
-
-type VaultDB interface {
-	GetCollection(ctx context.Context, name string) (*Collection, error)
-	GetCollections(ctx context.Context) ([]string, error)
-	CreateCollection(ctx context.Context, c Collection) (string, error)
-	DeleteCollection(ctx context.Context, name string) error
-	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
-	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
-	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
-	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
-	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
-	GetPrincipal(ctx context.Context, username string) (*Principal, error)
-	CreatePrincipal(ctx context.Context, principal Principal) error
-	DeletePrincipal(ctx context.Context, username string) error
-	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
-	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
-	CreatePolicy(ctx context.Context, p Policy) (string, error)
-	DeletePolicy(ctx context.Context, policyId string) error
-	CreateToken(ctx context.Context, tokenId string, value string) error
-	DeleteToken(ctx context.Context, tokenId string) error
-	GetTokenValue(ctx context.Context, tokenId string) (string, error)
-	Flush(ctx context.Context) error
 }
 
 type Privatiser interface {
@@ -113,6 +90,29 @@ const (
 	POLICIES_PPATH    = "/policies"
 	FIELDS_PPATH      = "/fields"
 )
+
+type VaultDB interface {
+	GetCollection(ctx context.Context, name string) (*Collection, error)
+	GetCollections(ctx context.Context) ([]string, error)
+	CreateCollection(ctx context.Context, c Collection) (string, error)
+	DeleteCollection(ctx context.Context, name string) error
+	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
+	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
+	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
+	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
+	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
+	GetPrincipal(ctx context.Context, username string) (*Principal, error)
+	CreatePrincipal(ctx context.Context, principal Principal) error
+	DeletePrincipal(ctx context.Context, username string) error
+	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	DeletePolicy(ctx context.Context, policyId string) error
+	CreateToken(ctx context.Context, tokenId string, value string) error
+	DeleteToken(ctx context.Context, tokenId string) error
+	GetTokenValue(ctx context.Context, tokenId string) (string, error)
+	Flush(ctx context.Context) error
+}
 
 func (vault Vault) GetCollection(
 	ctx context.Context,
