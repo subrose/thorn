@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img width="300" src="/img/logo-wide.png" alt="subrose">
+  <img width="300" src="/img/logo.png" alt="subrose">
 </h1>
 <p align="center">
   <p align="center">Open-source, data privacy vault to store and manage PII in a fully compliant manner.</p>
@@ -12,21 +12,21 @@
 </h4>
 
 <h4 align="center">
-  <a href="https://github.com/subrose/vault/blob/main/LICENSE">
+  <a href="https://github.com/subrose/thorn/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="Subrose is released under the MIT license." />
   </a>
-  <a href="https://github.com/subrose/vault/blob/main/CONTRIBUTING.md">
+  <a href="https://github.com/subrose/thorn/blob/main/CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen" alt="PRs welcome!" />
   </a>
-  <a href="https://github.com/subrose/vault/issues">
-    <img src="https://img.shields.io/github/commit-activity/m/subrose/vault" alt="git commit activity" />
+  <a href="https://github.com/subrose/thorn/issues">
+    <img src="https://img.shields.io/github/commit-activity/m/subrose/thorn" alt="git commit activity" />
   </a>
   <a href="https://twitter.com/subroseio">
     <img src="https://img.shields.io/twitter/follow/subroseio?label=Follow" alt="Subrose Twitter" />
   </a>
 </h4>
 
-**[Subrose](https://subrose.io)** is an open source, data privacy vault that uses encryption, tokenisation & configurable access control to meet security, compliance, residency requirements. Bake compliance with GDPR, CCPA and other privacy compliance laws into your architecture and protect your customer's data.
+Thorn is an open source, data privacy vault that uses encryption, tokenisation & configurable access control to meet security, compliance, residency requirements. Bake compliance with GDPR, CCPA and other privacy compliance laws into your architecture and protect your customer's data.
 
 - **Restful Service** RESTful APIs that work with any language or framework
 - **Highly Performant** Designed from the ground up for high performance and ultra low latency usecases
@@ -41,9 +41,17 @@ And more.
 ## 🚀 Get started
 
 > **Warning**
-> Subrose is currently in pre-alpha and not ready for usage, however contributions and discussions are more than welcome at this stage.
+> Thorn is currently in pre-alpha and not ready for usage, however contributions and discussions are more than welcome at this stage.
 
-To quickly get started, visit our [get started guide](https://subrose.io/docs/getting-started/introduction).
+To spin up the development enviroment:
+
+```
+docker-compose up
+```
+
+This will spin up the thorn api and postgres for data storage. Full development guide coming soon.
+
+<!-- To quickly get started, visit our [get started guide](https://subrose.io/docs/getting-started/introduction). -->
 
 ## 🌹 Subrose?
 
@@ -52,17 +60,18 @@ We're on a mission to make data privacy and compliance easy for all developers.
 
 If you care about protecting your customer's data, complying with regulation and having a [secure by default](https://www.ncsc.gov.uk/information/secure-default) then Subrose is right for you.
 
-We are currently working hard to make Subrose more extensive and adding features by the day. Need any integrations or want a new feature? Feel free to [create an issue](https://github.com/subrose/vault/issues) or contribute directly to the project.
+We are currently working hard to make Subrose more extensive and adding features by the day. Need any integrations or want a new feature? Feel free to [create an issue](https://github.com/subrose/thorn/issues) or contribute directly to the project.
 
 ## ❤️ Community & Support
 
-- [GitHub Discussions](https://github.com/subrose/vault/discussions) (For getting help, providing feedback or discussing privacy engineering.)
-- [GitHub Issues](https://github.com/subrose/vault/issues) (For any bugs and errors you encounter using Subrose)
+- [GitHub Discussions](https://github.com/subrose/thorn/discussions) (For getting help, providing feedback or discussing privacy engineering.)
+- [GitHub Issues](https://github.com/subrose/thorn/issues) (For any bugs and errors you encounter using Subrose)
 - [Twitter](https://twitter.com/subroseio) (For realtime updates)
+- [Linkedin](https://linkedin.com/company/subrose) (For company information)
 
 ## 🏘 Licensing
 
-This repo is entirely MIT licensed, no strings attached.
+This repo is available under the MIT expat license. See the [LICENSE](./LICENSE) file for more info.
 
 ## 🛡 Security
 
@@ -71,9 +80,3 @@ Looking to report a security vulnerability? Please don't post about it in GitHub
 ## 🌱 Contributing
 
 Contributions in all forms are welcome!
-
-## Getting started locally
-
-`docker-compose up`
-
-Full guide coming soon.
