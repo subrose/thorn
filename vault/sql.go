@@ -19,16 +19,6 @@ type SqlStore struct {
 	db *sqlx.DB
 }
 
-type DbCollection struct {
-	Name       string `db:"name"`
-	Collection json.RawMessage
-}
-
-type CollectionMetadata struct {
-	Name        string
-	FieldSchema json.RawMessage `db:"field_schema"`
-}
-
 func NewSqlStore(dsn string) (*SqlStore, error) {
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
@@ -83,12 +73,10 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string,
 		return "", err
 	}
 
-	collectionMetadata := CollectionMetadata{
-		Name:        c.Name,
-		FieldSchema: fieldSchema,
-	}
-
-	_, err = tx.NamedExecContext(ctx, "INSERT INTO collection_metadata (name, field_schema) VALUES (:name, :field_schema)", &collectionMetadata)
+	_, err = tx.NamedExecContext(ctx, "INSERT INTO collection_metadata (name, field_schema) VALUES (:name, :field_schema)", map[string]interface{}{
+		"name":         c.Name,
+		"field_schema": fieldSchema,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -110,12 +98,12 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string,
 		return "", err
 	}
 
-	return collectionMetadata.Name, nil
+	return c.Name, nil
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
-	var collectionMetadata CollectionMetadata
-	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", name)
+	var fieldSchema json.RawMessage
+	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"collection", name}
@@ -124,22 +112,18 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 	}
 
 	var fields map[string]Field
-	err = json.Unmarshal(collectionMetadata.FieldSchema, &fields)
+	err = json.Unmarshal(fieldSchema, &fields)
 	if err != nil {
 		return nil, err
 	}
-	return &Collection{Name: collectionMetadata.Name, Fields: fields}, nil
+	return &Collection{Name: name, Fields: fields}, nil
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
-	var collectionMetadatas []CollectionMetadata
+	var collectionNames []string
 
-	err := st.db.SelectContext(ctx, &collectionMetadatas, "SELECT * FROM collection_metadata")
+	err := st.db.SelectContext(ctx, &collectionNames, "SELECT name FROM collection_metadata")
 
-	collectionNames := make([]string, len(collectionMetadatas))
-	for i, collectionMetadata := range collectionMetadatas {
-		collectionNames[i] = collectionMetadata.Name
-	}
 	return collectionNames, err
 }
 
@@ -181,8 +165,8 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 }
 
 func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
-	var collectionMetadata CollectionMetadata
-	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", collectionName)
+	var fieldSchema json.RawMessage
+	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"collection", collectionName}
@@ -191,7 +175,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 	}
 
 	var fields map[string]Field
-	err = json.Unmarshal(collectionMetadata.FieldSchema, &fields)
+	err = json.Unmarshal(fieldSchema, &fields)
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +226,8 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
-	var collectionMetadata CollectionMetadata
-	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", collectionName)
+	var fieldSchema json.RawMessage
+	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"collection", collectionName}
@@ -252,7 +236,7 @@ func (st SqlStore) GetRecords(ctx context.Context, collectionName string, record
 	}
 
 	var fields map[string]Field
-	err = json.Unmarshal(collectionMetadata.FieldSchema, &fields)
+	err = json.Unmarshal(fieldSchema, &fields)
 	if err != nil {
 		return nil, err
 	}
@@ -302,28 +286,11 @@ func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, 
 }
 
 func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error {
-	var collectionMetadata CollectionMetadata
-	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", collectionName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &NotFoundError{"collection", collectionName}
-		}
-		return err
-	}
-
-	var fields map[string]Field
-	err = json.Unmarshal(collectionMetadata.FieldSchema, &fields)
-	if err != nil {
-		return err
-	}
-
 	var fieldNames []string
 	var fieldValues []interface{}
 	for fieldName, fieldValue := range record {
-		if _, ok := fields[fieldName]; ok {
-			fieldNames = append(fieldNames, fieldName)
-			fieldValues = append(fieldValues, fieldValue)
-		}
+		fieldNames = append(fieldNames, fieldName)
+		fieldValues = append(fieldValues, fieldValue)
 	}
 
 	setClause := make([]string, len(fieldNames))
@@ -332,7 +299,7 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 	}
 
 	query := fmt.Sprintf("UPDATE collection_%s SET %s WHERE id = $%d", collectionName, strings.Join(setClause, ", "), len(fieldNames)+1)
-	_, err = st.db.ExecContext(ctx, query, append(fieldValues, recordID)...)
+	_, err := st.db.ExecContext(ctx, query, append(fieldValues, recordID)...)
 	return err
 }
 
