@@ -62,7 +62,7 @@ func TestCollections(t *testing.T) {
 	t.Run("can delete a collection", func(t *testing.T) {
 		// Create a dummy collection
 		collectionToDelete := CollectionModel{
-			Name: "delete-me",
+			Name: "delete_me",
 			Fields: map[string]CollectionFieldModel{
 				"name": {Type: "name", IsIndexed: true},
 			},
@@ -74,7 +74,7 @@ func TestCollections(t *testing.T) {
 		response := performRequest(t, app, request)
 		checkResponse(t, response, http.StatusCreated, nil)
 		// Delete it
-		request = newRequest(t, http.MethodDelete, "/collections/delete-me", map[string]string{
+		request = newRequest(t, http.MethodDelete, "/collections/delete_me", map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
 		}, nil)
 

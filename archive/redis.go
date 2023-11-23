@@ -454,7 +454,7 @@ func (rs RedisStore) GetPolicy(ctx context.Context, policyId string) (*Policy, e
 	return rawPolicy.toPolicy(), nil
 }
 
-func (rs RedisStore) GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error) {
+func (rs RedisStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
 	policies := []*Policy{}
 	pipeline := rs.Client.Pipeline()
 

@@ -544,7 +544,7 @@ func TestTokens(t *testing.T) {
 		}
 	})
 	t.Run("getting token value fails without access to underlying record", func(t *testing.T) {
-		rId := customerRecords[0]
+		rId := employeeRecords[0]
 		tokenId, err := vault.CreateToken(ctx, rootPrincipal, "employees", rId, "name", "plain")
 		assert.NoError(t, err)
 		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")

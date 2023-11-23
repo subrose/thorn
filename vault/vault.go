@@ -105,7 +105,7 @@ type VaultDB interface {
 	CreatePrincipal(ctx context.Context, principal Principal) error
 	DeletePrincipal(ctx context.Context, username string) error
 	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
-	GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
 	CreatePolicy(ctx context.Context, p Policy) (string, error)
 	DeletePolicy(ctx context.Context, policyId string) error
 	CreateToken(ctx context.Context, tokenId string, value string) error
@@ -562,7 +562,7 @@ func (vault Vault) GetPrincipalPolicies(
 		return nil, &ForbiddenError{request}
 	}
 
-	policies, err := vault.Db.GetPoliciesById(ctx, principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, principal.Policies)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +573,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.Db.GetPoliciesById(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
 	if err != nil {
 		return false, err
 	}
@@ -605,6 +605,7 @@ func (vault Vault) CreateToken(ctx context.Context, principal Principal, collect
 	// I don't think this is needed since it's already handled in the GetRecords error return.
 	return "", &NotFoundError{"record", recordId}
 }
+
 func (vault Vault) DeleteToken(ctx context.Context, tokenId string) error {
 	return vault.Db.DeleteToken(ctx, tokenId)
 }

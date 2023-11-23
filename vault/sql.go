@@ -20,20 +20,9 @@ type SqlStore struct {
 	db *sqlx.DB
 }
 
-type DbRecord struct {
-	Id             string
-	CollectionName string
-	Record         json.RawMessage
-}
-
 type DbCollection struct {
 	Name       string `db:"name"`
 	Collection json.RawMessage
-}
-
-type DbToken struct {
-	ID    string `db:"id"`
-	Value string
 }
 
 type CollectionMetadata struct {
@@ -274,63 +263,6 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 	return recordIds, nil
 }
 
-// func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
-// 	var collectionMetadata CollectionMetadata
-// 	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", collectionName)
-// 	if err != nil {
-// 		if errors.Is(err, sql.ErrNoRows) {
-// 			return nil, &NotFoundError{"collection", collectionName}
-// 		}
-// 		return nil, err
-// 	}
-
-// 	var fields map[string]Field
-// 	err = json.Unmarshal(collectionMetadata.FieldSchema, &fields)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	recordIds := make([]string, len(records))
-// 	for i, record := range records {
-// 		recordId := GenerateId()
-// 		recordIds[i] = recordId
-// 		// Create a slice to hold the field names and values
-// 		var fieldNames []string
-// 		var fieldValues []interface{}
-// 		for fieldName, fieldValue := range record {
-// 			if _, ok := fields[fieldName]; ok {
-// 				fieldNames = append(fieldNames, fieldName)
-// 				fieldValues = append(fieldValues, fieldValue)
-// 			}
-// 		}
-
-// 		// Generate placeholders for each field value
-// 		placeholders := make([]string, len(fieldValues))
-// 		for i := range placeholders {
-// 			placeholders[i] = "$" + strconv.Itoa(i+2) // Start from $2 as $1 is reserved for recordId
-// 		}
-
-// 		// Construct the query
-// 		query := fmt.Sprintf(
-// 			"INSERT INTO collection_%s (id, %s) VALUES ($1, %s)",
-// 			collectionName,
-// 			strings.Join(fieldNames, ", "),
-// 			strings.Join(placeholders, ", "),
-// 		)
-
-// 		// Append the recordId and fieldValues to form the final values for the query
-// 		values := make([]interface{}, len(fieldValues)+1)
-// 		values[0] = recordId
-// 		copy(values[1:], fieldValues)
-
-// 		_, err = st.db.ExecContext(ctx, query, values...)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 	}
-// 	return recordIds, nil
-// }
-
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
 	var collectionMetadata CollectionMetadata
 	err := st.db.GetContext(ctx, &collectionMetadata, "SELECT * FROM collection_metadata WHERE name = $1", collectionName)
@@ -347,22 +279,45 @@ func (st SqlStore) GetRecords(ctx context.Context, collectionName string, record
 		return nil, err
 	}
 
-	records := make(map[string]*Record)
-	for _, recordId := range recordIDs {
-		record := make(Record)
-		for fieldName := range fields {
-			var fieldValue string
-			err := st.db.GetContext(ctx, &fieldValue, "SELECT "+fieldName+" FROM collection_"+collectionName+" WHERE id = $1", recordId)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return nil, &NotFoundError{"record", recordId}
-				}
-				return nil, err
-			}
-			record[fieldName] = fieldValue
-		}
-		records[recordId] = &record
+	// Prepare the query
+	query, args, err := sqlx.In("SELECT * FROM collection_"+collectionName+" WHERE id IN (?)", recordIDs)
+	if err != nil {
+		return nil, err
 	}
+	query = st.db.Rebind(query)
+
+	// Execute the query
+	rows, err := st.db.QueryxContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// Process the results
+	records := make(map[string]*Record)
+	for rows.Next() {
+		recordMap := make(map[string]interface{})
+		err = rows.MapScan(recordMap)
+		if err != nil {
+			return nil, err
+		}
+		recordID := recordMap["id"].(string)
+		record := make(Record)
+		for k, v := range recordMap {
+			if str, ok := v.(string); ok {
+				record[k] = str
+			} else {
+				// We're assuming all record fields are strings as they are encrypted in the db, this might change
+				return nil, fmt.Errorf("unexpected type for field %s", k)
+			}
+		}
+		records[recordID] = &record
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return records, nil
 }
 
@@ -514,8 +469,11 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
-	var p Policy
-	err := st.db.GetContext(ctx, &p, "SELECT * FROM policies WHERE id = $1", policyId)
+	var id, effect string
+	var actions []string
+	var resources []string
+
+	err := st.db.QueryRowxContext(ctx, "SELECT id, effect, actions, resources FROM policies WHERE id = $1", policyId).Scan(&id, &effect, pq.Array(&actions), pq.Array(&resources))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"policy", policyId}
@@ -523,10 +481,22 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 		return nil, err
 	}
 
-	return &p, err
+	actionList := make([]PolicyAction, len(actions))
+	for i, action := range actions {
+		actionList[i] = PolicyAction(action)
+	}
+
+	p := Policy{
+		PolicyId:  id,
+		Effect:    PolicyEffect(effect),
+		Actions:   actionList,
+		Resources: resources,
+	}
+
+	return &p, nil
 }
 
-func (st SqlStore) GetPoliciesById(ctx context.Context, policyIds []string) ([]*Policy, error) {
+func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error) {
 	if len(policyIds) == 0 {
 		return []*Policy{}, nil
 	}
@@ -658,8 +628,7 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	gt := DbToken{ID: tokenId, Value: value}
-	_, err := st.db.NamedExecContext(ctx, "INSERT INTO tokens (id, value) VALUES (:id, :value)", &gt)
+	_, err := st.db.ExecContext(ctx, "INSERT INTO tokens (id, value) VALUES ($1, $2)", tokenId, value)
 	return err
 }
 
@@ -669,9 +638,9 @@ func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
 }
 
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	var gt DbToken
-	err := st.db.GetContext(ctx, &gt, "SELECT * FROM tokens WHERE id = $1", tokenId)
-	return gt.Value, err
+	var value string
+	err := st.db.GetContext(ctx, &value, "SELECT value FROM tokens WHERE id = $1", tokenId)
+	return value, err
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
