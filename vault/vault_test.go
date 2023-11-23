@@ -181,7 +181,7 @@ func TestVault(t *testing.T) {
 
 	t.Run("can update records", func(t *testing.T) {
 		vault, _, _ := initVault(t)
-		col := Collection{Name: "test_collection", Fields: map[string]Field{
+		col := Collection{Name: "testing", Fields: map[string]Field{
 			"test_field": {
 				Name:      "test_field",
 				Type:      "string",

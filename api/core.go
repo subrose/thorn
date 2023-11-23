@@ -132,18 +132,23 @@ func (core *Core) Init() error {
 	if core.conf.DEV_MODE {
 		_ = core.vault.Db.Flush(ctx)
 	}
-	_, _ = core.vault.Db.CreatePolicy(ctx, _vault.Policy{
+	_, err := core.vault.Db.CreatePolicy(ctx, _vault.Policy{
 		PolicyId:  "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
 		Resources: []string{"*"},
 	})
+	if err != nil {
+		panic(err)
+	}
 	adminPrincipal := _vault.Principal{
 		Username:    core.conf.VAULT_ADMIN_USERNAME,
 		Password:    core.conf.VAULT_ADMIN_PASSWORD,
 		Description: "admin",
 		Policies:    []string{"root"}}
-	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
-
+	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
+	if err != nil {
+		panic(err)
+	}
 	return err
 }

@@ -10,14 +10,14 @@ import (
 )
 
 type Field struct {
-	Name      string `redis:"name"`
-	Type      string `redis:"type"`
-	IsIndexed bool   `redis:"is_indexed"`
+	Name      string
+	Type      string
+	IsIndexed bool
 }
 
 type Collection struct {
-	Name   string           `redis:"name"`
-	Fields map[string]Field `redis:"fields"`
+	Name   string
+	Fields map[string]Field
 }
 
 type Record map[string]string // field name -> value
@@ -55,18 +55,18 @@ const (
 )
 
 type Policy struct {
-	PolicyId  string         `redis:"policy_id" json:"policy_id" validate:"required"`
-	Effect    PolicyEffect   `redis:"effect" json:"effect" validate:"required"`
-	Actions   []PolicyAction `redis:"actions" json:"actions" validate:"required"`
-	Resources []string       `redis:"resources" json:"resources" validate:"required"`
+	PolicyId  string         `json:"policy_id" validate:"required"`
+	Effect    PolicyEffect   `json:"effect" validate:"required"`
+	Actions   []PolicyAction `json:"actions" validate:"required"`
+	Resources []string       `json:"resources" validate:"required"`
 }
 
 type Principal struct {
-	Username    string   `redis:"username"`
-	Password    string   `redis:"password"`
-	Description string   `redis:"description"`
-	CreatedAt   string   `redis:"created_at"`
-	Policies    []string `redis:"policies"`
+	Username    string
+	Password    string
+	Description string
+	CreatedAt   string
+	Policies    []string
 }
 
 type Request struct {
