@@ -38,10 +38,10 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 func (st *SqlStore) CreateSchemas() error {
 	tables := map[string]string{
 		"principals":          "CREATE TABLE IF NOT EXISTS principals (username TEXT PRIMARY KEY, password TEXT, description TEXT)",
-		"policies":            "CREATE TABLE IF NOT EXISTS policies (id TEXT, effect TEXT, actions TEXT[], resources TEXT[])",
-		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (username TEXT, policy_id TEXT)",
-		"tokens":              "CREATE TABLE IF NOT EXISTS tokens (id TEXT, value TEXT)",
-		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (name TEXT, field_schema JSON)",
+		"policies":            "CREATE TABLE IF NOT EXISTS policies (id TEXT PRIMARY KEY, effect TEXT, actions TEXT[], resources TEXT[])",
+		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (username TEXT, policy_id TEXT, UNIQUE(username, policy_id))",
+		"tokens":              "CREATE TABLE IF NOT EXISTS tokens (id TEXT PRIMARY KEY, value TEXT)",
+		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (name TEXT PRIMARY KEY, field_schema JSON)",
 	}
 
 	for _, query := range tables {

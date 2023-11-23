@@ -78,6 +78,19 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
 
+    def update_collection(
+        self,
+        collection: str,
+        schema: dict[str, Any],
+        expected_statuses: Optional[list[int]] = None,
+    ) -> None:
+        response = requests.put(
+            f"{self.vault_url}/collections/{collection}",
+            json=schema,
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+
     def create_records(
         self,
         collection: str,

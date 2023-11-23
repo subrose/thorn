@@ -20,12 +20,11 @@ type ErrorResponse struct {
 }
 
 func ValidateResourceName(fl validator.FieldLevel) bool {
-	// Validation for vault internal resource names
-	reg := "^[a-zA-Z0-9._-]{1,249}$"
+	reg := "^[a-zA-Z0-9._]{1,249}$"
 	match, _ := regexp.MatchString(reg, fl.Field().String())
 
-	// Check for prohibited values: single period and double underscore
-	if fl.Field().String() == "." || fl.Field().String() == "__" {
+	// Check for prohibited values: single period, double underscore, and hyphen
+	if fl.Field().String() == "." || fl.Field().String() == "__" || fl.Field().String() == "-" {
 		return false
 	}
 
