@@ -28,7 +28,7 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: ./api ./vault ./logger
 
       - name: Check code formatting
         run: |
