@@ -22,7 +22,7 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can create a collection", func(t *testing.T) {
 		request := newRequest(t, http.MethodPost, "/collections", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, customerCollection)
 
 		response := performRequest(t, app, request)
@@ -32,7 +32,7 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can get a collection", func(t *testing.T) {
 		request := newRequest(t, http.MethodGet, "/collections/customers", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)
@@ -50,7 +50,7 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can get all collections", func(t *testing.T) {
 		request := newRequest(t, http.MethodGet, "/collections", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)
@@ -68,14 +68,14 @@ func TestCollections(t *testing.T) {
 			},
 		}
 		request := newRequest(t, http.MethodPost, "/collections", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, collectionToDelete)
 
 		response := performRequest(t, app, request)
 		checkResponse(t, response, http.StatusCreated, nil)
 		// Delete it
 		request = newRequest(t, http.MethodDelete, "/collections/delete_me", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -92,7 +92,7 @@ func TestCollections(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, records)
 
 		response := performRequest(t, app, request)
@@ -103,7 +103,7 @@ func TestCollections(t *testing.T) {
 		}
 		// Get the record
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -122,7 +122,7 @@ func TestCollections(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, records)
 
 		response := performRequest(t, app, request)
@@ -140,7 +140,7 @@ func TestCollections(t *testing.T) {
 		}
 
 		request = newRequest(t, http.MethodPut, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, updateRecord)
 
 		response = performRequest(t, app, request)
@@ -148,7 +148,7 @@ func TestCollections(t *testing.T) {
 
 		// Get the updated record
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain,dob.plain,phone_number.plain", returnedRecordIds[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -173,7 +173,7 @@ func TestCollections(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, records)
 
 		response := performRequest(t, app, request)
@@ -185,7 +185,7 @@ func TestCollections(t *testing.T) {
 
 		// Delete the record
 		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -193,7 +193,7 @@ func TestCollections(t *testing.T) {
 
 		// Try to get the deleted record
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -210,7 +210,7 @@ func TestCollections(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, badRecords)
 
 		response := performRequest(t, app, request)

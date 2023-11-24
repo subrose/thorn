@@ -19,7 +19,7 @@ func TestPrincipals(t *testing.T) {
 	t.Run("can create a principal", func(t *testing.T) {
 
 		request := newRequest(t, http.MethodPost, "/principals", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, newPrincipal)
 
 		response := performRequest(t, app, request)
@@ -41,7 +41,7 @@ func TestPrincipals(t *testing.T) {
 
 	t.Run("can get a principal", func(t *testing.T) {
 		request := newRequest(t, http.MethodGet, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)
@@ -65,7 +65,7 @@ func TestPrincipals(t *testing.T) {
 
 	t.Run("can delete a principal", func(t *testing.T) {
 		request := newRequest(t, http.MethodDelete, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)
@@ -74,7 +74,7 @@ func TestPrincipals(t *testing.T) {
 
 		// Check that the principal has been deleted
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/principals/%s", newPrincipal.Username), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)

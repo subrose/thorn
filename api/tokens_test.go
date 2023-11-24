@@ -38,7 +38,7 @@ func TestTokens(t *testing.T) {
 
 	t.Run("can create a token", func(t *testing.T) {
 		request := newRequest(t, http.MethodPost, fmt.Sprintf("/tokens?collectionName=test&recordId=%s&fieldName=name&returnFormat=plain", records[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		// var tokenId string
@@ -48,7 +48,7 @@ func TestTokens(t *testing.T) {
 	})
 	t.Run("can get a token", func(t *testing.T) {
 		request := newRequest(t, http.MethodGet, fmt.Sprintf("/tokens/%s", tokenId), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)

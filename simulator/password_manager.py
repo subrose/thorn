@@ -1,11 +1,6 @@
-from client import Actor, Policy
-from wait import wait_for_api
-import os
+from client import Actor, Policy, init_client
 
-# VAULT_URL from your client.py
-VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
-wait_for_api(VAULT_URL)
-
+vault_url = init_client()
 # Step 0: Initialize your actors
 
 ADMIN_USERNAME = "admin"
@@ -18,7 +13,7 @@ BOB_USERNAME = "bob"
 BOB_PASSWORD = "bob-password"
 
 
-admin = Actor(VAULT_URL, username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
+admin = Actor(vault_url, username=ADMIN_USERNAME, password=ADMIN_PASSWORD)
 
 # Step 2: Create collection
 admin.create_collection(
@@ -75,7 +70,7 @@ admin.create_principal(
 )
 
 
-alice = Actor(VAULT_URL, ALICE_USERNAME, ALICE_PASSWORD)
+alice = Actor(vault_url, ALICE_USERNAME, ALICE_PASSWORD)
 
 admin.create_principal(
     username=BOB_USERNAME,
@@ -85,7 +80,7 @@ admin.create_principal(
     expected_statuses=[201, 409],
 )
 
-bob = Actor(VAULT_URL, BOB_USERNAME, BOB_PASSWORD)
+bob = Actor(vault_url, BOB_USERNAME, BOB_PASSWORD)
 
 # 2) Alice adds a password
 alice_password = "alicerocks"

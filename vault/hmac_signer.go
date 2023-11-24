@@ -13,7 +13,7 @@ type HMACSigner struct {
 
 func NewHMACSigner(key []byte) (*HMACSigner, error) {
 	if len(key) == 0 {
-		return nil, errors.New("key cannot be empty")
+		return nil, errors.New("HMAC Signing key cannot be empty")
 	}
 	return &HMACSigner{key: key}, nil
 }

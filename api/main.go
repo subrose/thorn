@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"strings"
@@ -162,14 +161,7 @@ func SetupApi(core *Core) *fiber.App {
 }
 
 func main() {
-	configPath := flag.String("configFile", "", "Path to config file")
-	flag.Parse()
-
-	if *configPath == "" {
-		panic("Config path not specified")
-	}
-
-	coreConfig, err := ReadConfigs(*configPath)
+	coreConfig, err := ReadConfigs()
 	if err != nil {
 		panic(err)
 	}

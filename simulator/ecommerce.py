@@ -11,17 +11,14 @@
 
 # Customer service team needs to access to all customer details to process refunds
 
-import os
 
-from client import Actor, Policy
+from client import Actor, Policy, init_client
 from faker import Faker
 from faker_e164.providers import E164Provider
-from wait import wait_for_api
 
-VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
-wait_for_api(VAULT_URL)
+vault_url = init_client()
 
-admin = Actor(VAULT_URL, username="admin", password="admin")
+admin = Actor(vault_url, username="admin", password="admin")
 # Create collection
 admin.create_collection(
     schema={
@@ -76,10 +73,10 @@ admin.create_policy(
 )
 
 # Create actors
-backend = Actor(VAULT_URL, username="backend", password="backend")
-marketing = Actor(VAULT_URL, username="marketing", password="marketing")
+backend = Actor(vault_url, username="backend", password="backend")
+marketing = Actor(vault_url, username="marketing", password="marketing")
 customer_service = Actor(
-    VAULT_URL, username="customer-service", password="customer-service"
+    vault_url, username="customer-service", password="customer-service"
 )
 
 admin.create_principal(

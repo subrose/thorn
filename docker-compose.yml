@@ -2,12 +2,18 @@ version: "3.8"
 services:
   api:
     environment:
-      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
-      - VAULT_API_HOST=0.0.0.0
-      - VAULT_API_PORT=3001
-      - VAULT_ADMIN_USERNAME=admin
-      - VAULT_ADMIN_PASSWORD=admin
-      - VAULT_DEV_MODE=true
+      - THORN_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      - THORN_API_HOST=0.0.0.0
+      - THORN_API_PORT=3001
+      - THORN_ADMIN_USERNAME=admin
+      - THORN_ADMIN_PASSWORD=admin
+      - THORN_ENCRYPTION_KEY=#.9U#JW#XbB12345
+      - THORN_ENCRYPTION_SECRET=abc&1*~#^2^#s0^=)^^7%b34
+      - THORN_SIGNING_KEY=secret
+      - THORN_DEV_MODE=true
+      - THORN_LOG_LEVEL=debug
+      - THORN_LOG_SINK=stdout
+      - THORN_LOG_FORMAT=text
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,15 +25,6 @@ services:
       - postgres
     volumes:
       - "./:/app"
-  # keydb:
-  #   image: eqalpha/keydb:arm64_v6.3.3
-  #   container_name: keydb
-  #   command: keydb-server --server-threads 4 --protected-mode no --appendonly yes
-  #   ports:
-  #     - 6379:6379
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./keydb/redis.conf:/etc/keydb/redis.conf
   postgres:
     image: postgres:16.1-alpine
     ports:

@@ -12,7 +12,7 @@ import (
 
 func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	ctx := context.Background()
-	db, err := NewSqlStore(os.Getenv("VAULT_DATABASE_URL"))
+	db, err := NewSqlStore(os.Getenv("THORN_DATABASE_URL"))
 	if err != nil {
 		panic(err)
 	}

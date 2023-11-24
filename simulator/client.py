@@ -2,8 +2,10 @@
 
 from typing import Any, Optional, List
 import requests
-
+import os
 from pydantic import BaseModel
+
+from wait import wait_for_api
 
 
 class Policy(BaseModel):
@@ -11,6 +13,16 @@ class Policy(BaseModel):
     effect: str
     actions: List[str]
     resources: List[str]
+
+
+def init_client(override_vault_url: Optional[str] = None) -> str:
+    vault_url = (
+        os.environ.get("THORN_URL", "http://localhost:3001")
+        if override_vault_url is None
+        else override_vault_url
+    )
+    wait_for_api(vault_url)
+    return vault_url
 
 
 def check_expected_status(

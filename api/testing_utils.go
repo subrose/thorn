@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"flag"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,16 +16,10 @@ import (
 )
 
 // Common testing utils?
-var testConfigPath = flag.String("testConfigFile", "../conf/test.conf.toml", "Path to config file")
 var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
 
 func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
-	// Setup
-	if *testConfigPath == "" {
-		panic("Config path not specified")
-	}
-
-	coreConfig, err := ReadConfigs(*testConfigPath)
+	coreConfig, err := ReadConfigs()
 
 	if err != nil {
 		t.Fatal("Failed to read config", err)
@@ -78,7 +71,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		t.Fatal("Failed to create root policy", err)
 	}
 
-	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.VAULT_ADMIN_USERNAME, coreConfig.VAULT_ADMIN_PASSWORD, "admin principal", []string{"root"})
+	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.ADMIN_USERNAME, coreConfig.ADMIN_PASSWORD, "admin principal", []string{"root"})
 	if err != nil {
 		t.Fatal("Failed to create admin principal", err)
 	}

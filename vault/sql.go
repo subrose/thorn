@@ -534,8 +534,10 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 	query = tx.Rebind(query)
 	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", &ConflictError{p.PolicyId}
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == "23505" { // unique_violation
+				return "", &ConflictError{p.PolicyId}
+			}
 		}
 		return "", err
 	}

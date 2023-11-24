@@ -23,7 +23,7 @@ func TestPolicies(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/policies", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, testPolicy)
 
 		response := performRequest(t, app, request)
@@ -38,7 +38,7 @@ func TestPolicies(t *testing.T) {
 
 	t.Run("can get policy", func(t *testing.T) {
 		request := newRequest(t, http.MethodGet, fmt.Sprintf("/policies/%s", testPolicyId), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response := performRequest(t, app, request)
@@ -61,7 +61,7 @@ func TestPolicies(t *testing.T) {
 		}
 
 		request := newRequest(t, http.MethodPost, "/policies", map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, dummyPolicy)
 
 		response := performRequest(t, app, request)
@@ -70,7 +70,7 @@ func TestPolicies(t *testing.T) {
 
 		// Delete it
 		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/policies/%s", dummyPolicy.PolicyId), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
@@ -78,7 +78,7 @@ func TestPolicies(t *testing.T) {
 
 		// Check it's gone
 		request = newRequest(t, http.MethodGet, fmt.Sprintf("/policies/%s", dummyPolicy.PolicyId), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.VAULT_ADMIN_USERNAME, core.conf.VAULT_ADMIN_PASSWORD),
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)

@@ -1,14 +1,5 @@
 version: "3.8"
 services:
-  # keydb:
-  #   image: eqalpha/keydb:x86_64_v6.3.3
-  #   container_name: keydb
-  #   command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
-  #   ports:
-  #     - 6379:6379
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./keydb/redis.conf:/etc/keydb/redis.conf
   postgres:
     image: postgres:16.1-alpine
     ports:
@@ -20,17 +11,23 @@ services:
   api:
     profiles: ["simulations"]
     environment:
-      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
-      - VAULT_API_HOST=0.0.0.0
-      - VAULT_API_PORT=3001
-      - VAULT_ADMIN_USERNAME=admin
-      - VAULT_ADMIN_PASSWORD=admin
-      - VAULT_DEV_MODE=true
+      - THORN_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      - THORN_API_HOST=0.0.0.0
+      - THORN_API_PORT=3001
+      - THORN_ADMIN_USERNAME=admin
+      - THORN_ADMIN_PASSWORD=admin
+      - THORN_ENCRYPTION_KEY=#.9U#JW#XbB12345
+      - THORN_ENCRYPTION_SECRET=abc&1*~#^2^#s0^=)^^7%b34
+      - THORN_SIGNING_KEY=secret
+      - THORN_DEV_MODE=true
+      - THORN_LOG_LEVEL=info
+      - THORN_LOG_SINK=none
+      - THORN_LOG_FORMAT=text
     build:
       context: .
       dockerfile: Dockerfile
       target: build
-    entrypoint: ["/go/bin/api", "--configFile", "./conf/test.conf.toml"]
+    entrypoint: ["/go/bin/api"]
     ports:
       - 3001:3001
     depends_on:
@@ -44,7 +41,7 @@ services:
       dockerfile: Dockerfile
       target: simulator
     environment:
-      - VAULT_URL=http://api:3001
+      - THORN_URL=http://api:3001
     working_dir: /code
     depends_on:
       - api
@@ -59,7 +56,12 @@ services:
       dockerfile: Dockerfile
       target: build
     environment:
-      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      - THORN_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+      - THORN_ADMIN_USERNAME=admin
+      - THORN_ADMIN_PASSWORD=admin
+      - THORN_ENCRYPTION_KEY=#.9U#JW#XbB12345
+      - THORN_ENCRYPTION_SECRET=abc&1*~#^2^#s0^=)^^7%b34
+      - THORN_SIGNING_KEY=secret
     working_dir: /code
     depends_on:
       - postgres

@@ -1,17 +1,15 @@
 # Simulating a usecase of PCI compliance with a payment gateway
 
-import os
 import random
 
-from client import Actor, Policy
+from client import Actor, Policy, init_client
 from faker import Faker
 from faker_e164.providers import E164Provider
-from wait import wait_for_api
 
-VAULT_URL = os.environ.get("VAULT_URL", "http://localhost:3001")
-wait_for_api(VAULT_URL)
 
-admin = Actor(VAULT_URL, username="admin", password="admin")
+vault_url = init_client()
+
+admin = Actor(vault_url, username="admin", password="admin")
 # Create collection
 admin.create_collection(
     schema={
@@ -65,9 +63,9 @@ admin.create_policy(
 )
 
 # Create actors
-backend = Actor(VAULT_URL, username="backend_cc", password="backend_cc")
-cs = Actor(VAULT_URL, username="cs_cc", password="cs_cc")
-proxy = Actor(VAULT_URL, username="proxy_cc", password="proxy_cc")
+backend = Actor(vault_url, username="backend_cc", password="backend_cc")
+cs = Actor(vault_url, username="cs_cc", password="cs_cc")
+proxy = Actor(vault_url, username="proxy_cc", password="proxy_cc")
 
 admin.create_principal(
     username=backend.username,

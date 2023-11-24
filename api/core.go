@@ -2,30 +2,28 @@ package main
 
 import (
 	"context"
-	"strings"
 
 	"github.com/knadh/koanf"
-	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/env"
-	"github.com/knadh/koanf/providers/file"
 	_logger "github.com/subrose/logger"
 	_vault "github.com/subrose/vault"
 )
 
 // CoreConfig is used to parameterize a core
 type CoreConfig struct {
-	DATABASE_URL            string
-	VAULT_ENCRYPTION_KEY    string
-	VAULT_ENCRYPTION_SECRET string
-	VAULT_SIGNING_KEY       string
-	VAULT_ADMIN_USERNAME    string
-	VAULT_ADMIN_PASSWORD    string
-	API_HOST                string
-	API_PORT                int
-	LOG_LEVEL               string
-	LOG_HANDLER             string
-	LOG_SINK                string
-	DEV_MODE                bool
+	DATABASE_URL      string
+	ENCRYPTION_KEY    string
+	ENCRYPTION_SECRET string
+	SIGNING_KEY       string
+	ADMIN_USERNAME    string
+	ADMIN_PASSWORD    string
+	API_HOST          string
+	API_PORT          int
+	LOG_LEVEL         string
+	LOG_HANDLER       string
+	LOG_SINK          string
+	DEV_MODE          bool
 }
 
 // Core is used as the central manager of Vault activity. It is the primary point of
@@ -37,41 +35,60 @@ type Core struct {
 	conf   *CoreConfig
 }
 
-func ReadConfigs(configPath string) (*CoreConfig, error) {
-	// Todo: Make this configurable
+func ReadConfigs() (*CoreConfig, error) {
 	conf := &CoreConfig{}
-	var Config = koanf.New("_")
-	err := Config.Load(file.Provider(configPath), toml.Parser())
-	if err != nil {
-		return nil, err
-	}
+	var k = koanf.New("_")
 
-	var envPrefix = Config.String("system_env_prefix")
-	var provider = env.Provider(
-		envPrefix,
-		"_",
-		func(s string) string {
-			return strings.ToLower(strings.TrimPrefix(s, envPrefix))
-		},
+	// Define config keys
+	const (
+		prefix              = "THORN_"
+		apiHostKey          = prefix + "API_HOST"
+		apiPortKey          = prefix + "API_PORT"
+		logLevelKey         = prefix + "LOG_LEVEL"
+		logSinkKey          = prefix + "LOG_SINK"
+		logHandlerKey       = prefix + "LOG_HANDLER"
+		devModeKey          = prefix + "DEV_MODE"
+		databaseURLKey      = prefix + "DATABASE_URL"
+		encryptionKeyKey    = prefix + "ENCRYPTION_KEY"
+		encryptionSecretKey = prefix + "ENCRYPTION_SECRET"
+		signingKeyKey       = prefix + "SIGNING_KEY"
+		adminUsernameKey    = prefix + "ADMIN_USERNAME"
+		adminPasswordKey    = prefix + "ADMIN_PASSWORD"
 	)
-	err = Config.Load(provider, nil)
+
+	// Set default values
+	err := k.Load(confmap.Provider(map[string]interface{}{
+		apiHostKey:    "0.0.0.0",
+		apiPortKey:    3000,
+		logLevelKey:   "info",
+		logSinkKey:    "stdout",
+		logHandlerKey: "json",
+		devModeKey:    false,
+	}, "_"), nil)
+
 	if err != nil {
 		return nil, err
 	}
 
-	// Inject
-	conf.DATABASE_URL = Config.String("database_url")
-	conf.VAULT_ENCRYPTION_KEY = Config.String("encryption_key")
-	conf.VAULT_ENCRYPTION_SECRET = Config.String("encryption_secret")
-	conf.VAULT_ADMIN_USERNAME = Config.String("admin_access_key")
-	conf.VAULT_ADMIN_PASSWORD = Config.String("admin_access_secret")
-	conf.API_HOST = Config.String("api_host")
-	conf.API_PORT = Config.Int("api_port")
-	conf.VAULT_SIGNING_KEY = Config.String("signing_key")
-	conf.LOG_LEVEL = Config.String("log_level")
-	conf.LOG_HANDLER = Config.String("log_handler")
-	conf.LOG_SINK = Config.String("log_sink")
-	conf.DEV_MODE = Config.Bool("system_dev_mode")
+	// Load from environment variables
+	var provider = env.Provider(prefix, "_", nil) // only THORN_ prefixed env variables will be loaded
+	err = k.Load(provider, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	conf.DATABASE_URL = k.String(databaseURLKey)
+	conf.ENCRYPTION_KEY = k.String(encryptionKeyKey)
+	conf.ENCRYPTION_SECRET = k.String(encryptionSecretKey)
+	conf.SIGNING_KEY = k.String(signingKeyKey)
+	conf.ADMIN_USERNAME = k.String(adminUsernameKey)
+	conf.ADMIN_PASSWORD = k.String(adminPasswordKey)
+	conf.API_HOST = k.String(apiHostKey)
+	conf.API_PORT = k.Int(apiPortKey)
+	conf.LOG_LEVEL = k.String(logLevelKey)
+	conf.LOG_HANDLER = k.String(logHandlerKey)
+	conf.LOG_SINK = k.String(logSinkKey)
+	conf.DEV_MODE = k.Bool(devModeKey)
 
 	return conf, nil
 }
@@ -96,20 +113,13 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	}
 
 	c.logger = apiLogger
-	// Vault
-	// TODO: switch on db type
-	// db, err = _vault.NewRedisStore(
-	// 	fmt.Sprintf("%v:%v", conf.DB_HOST, conf.DB_PORT),
-	// 	conf.DB_PASSWORD,
-	// 	conf.DB_DB,
-	// )
 	db, err := _vault.NewSqlStore(conf.DATABASE_URL)
 	if err != nil {
 		panic(err)
 	}
 
-	priv := _vault.NewAESPrivatiser([]byte(conf.VAULT_ENCRYPTION_KEY), conf.VAULT_ENCRYPTION_SECRET)
-	signer, err := _vault.NewHMACSigner([]byte(conf.VAULT_SIGNING_KEY))
+	priv := _vault.NewAESPrivatiser([]byte(conf.ENCRYPTION_KEY), conf.ENCRYPTION_SECRET)
+	signer, err := _vault.NewHMACSigner([]byte(conf.SIGNING_KEY))
 	if err != nil {
 		panic(err)
 	}
@@ -130,7 +140,11 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 func (core *Core) Init() error {
 	ctx := context.Background()
 	if core.conf.DEV_MODE {
-		_ = core.vault.Db.Flush(ctx)
+		err := core.vault.Db.Flush(ctx)
+		if err != nil {
+			core.logger.Error("Error flushing db")
+			panic(err)
+		}
 	}
 	_, err := core.vault.Db.CreatePolicy(ctx, _vault.Policy{
 		PolicyId:  "root",
@@ -142,8 +156,8 @@ func (core *Core) Init() error {
 		panic(err)
 	}
 	adminPrincipal := _vault.Principal{
-		Username:    core.conf.VAULT_ADMIN_USERNAME,
-		Password:    core.conf.VAULT_ADMIN_PASSWORD,
+		Username:    core.conf.ADMIN_USERNAME,
+		Password:    core.conf.ADMIN_PASSWORD,
 		Description: "admin",
 		Policies:    []string{"root"}}
 	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
