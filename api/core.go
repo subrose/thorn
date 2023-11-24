@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/confmap"
@@ -138,6 +139,8 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 }
 
 func (core *Core) Init() error {
+	// TODO: This should be better controlled, probably a one time setup
+	// TODO: update the admin password with environment variables
 	ctx := context.Background()
 	if core.conf.DEV_MODE {
 		err := core.vault.Db.Flush(ctx)
@@ -153,7 +156,13 @@ func (core *Core) Init() error {
 		Resources: []string{"*"},
 	})
 	if err != nil {
-		panic(err)
+		// If error is of type conflict, ignore it
+		var co *_vault.ConflictError
+		if errors.As(err, &co) {
+			core.logger.Debug("Root policy already exists, continuing")
+		} else {
+			panic(err)
+		}
 	}
 	adminPrincipal := _vault.Principal{
 		Username:    core.conf.ADMIN_USERNAME,
@@ -161,8 +170,11 @@ func (core *Core) Init() error {
 		Description: "admin",
 		Policies:    []string{"root"}}
 	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
-	if err != nil {
+	var co *_vault.ConflictError
+	if errors.As(err, &co) {
+		core.logger.Debug("Admin principal already exists, continuing")
+	} else {
 		panic(err)
 	}
-	return err
+	return nil
 }
