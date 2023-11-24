@@ -1,21 +1,26 @@
 version: "3.8"
 services:
-  keydb:
-    image: eqalpha/keydb:x86_64_v6.3.3
-    container_name: keydb
-    command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
+  # keydb:
+  #   image: eqalpha/keydb:x86_64_v6.3.3
+  #   container_name: keydb
+  #   command: keydb-server --server-threads 1 --protected-mode no --appendonly yes
+  #   ports:
+  #     - 6379:6379
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./keydb/redis.conf:/etc/keydb/redis.conf
+  postgres:
+    image: postgres:16.1-alpine
     ports:
-      - 6379:6379
-    restart: unless-stopped
-    volumes:
-      - ./keydb/redis.conf:/etc/keydb/redis.conf
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
   api:
     profiles: ["simulations"]
     environment:
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
       - VAULT_API_HOST=0.0.0.0
       - VAULT_API_PORT=3001
       - VAULT_ADMIN_USERNAME=admin
@@ -29,7 +34,7 @@ services:
     ports:
       - 3001:3001
     depends_on:
-      - keydb
+      - postgres
     volumes:
       - "./:/app"
   simulations:
@@ -43,7 +48,7 @@ services:
     working_dir: /code
     depends_on:
       - api
-      - keydb
+      - postgres
     command: sh -c "cd simulator && ./simulate.sh"
     volumes:
       - "./:/code"
@@ -54,14 +59,10 @@ services:
       dockerfile: Dockerfile
       target: build
     environment:
-      - KEYDB_CONN_STRING=keydb:6379
-      - VAULT_DB_HOST=keydb
-      - VAULT_DB_PORT=6379
-      - VAULT_DB_USER=default
-      - VAULT_DB_PASSWORD=
+      - VAULT_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
     working_dir: /code
     depends_on:
-      - keydb
+      - postgres
     command: sh -c "go test ./vault && go test ./api"
     volumes:
       - "./:/code"

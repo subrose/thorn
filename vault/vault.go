@@ -10,48 +10,17 @@ import (
 )
 
 type Field struct {
-	Name      string `redis:"name"`
-	Type      string `redis:"type"`
-	IsIndexed bool   `redis:"is_indexed"`
+	Name      string
+	Type      string
+	IsIndexed bool
 }
 
 type Collection struct {
-	Name   string           `redis:"name" gorm:"primaryKey"`
-	Fields map[string]Field `redis:"fields"`
+	Name   string
+	Fields map[string]Field
 }
 
 type Record map[string]string // field name -> value
-
-type Principal struct {
-	Username    string   `redis:"username"`
-	Password    string   `redis:"password"`
-	Description string   `redis:"description"`
-	CreatedAt   string   `redis:"created_at"`
-	Policies    []string `redis:"policies"`
-}
-
-type VaultDB interface {
-	GetCollection(ctx context.Context, name string) (*Collection, error)
-	GetCollections(ctx context.Context) ([]string, error)
-	CreateCollection(ctx context.Context, c Collection) (string, error)
-	DeleteCollection(ctx context.Context, name string) error
-	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
-	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
-	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
-	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
-	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
-	GetPrincipal(ctx context.Context, username string) (*Principal, error)
-	CreatePrincipal(ctx context.Context, principal Principal) error
-	DeletePrincipal(ctx context.Context, username string) error
-	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
-	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
-	CreatePolicy(ctx context.Context, p Policy) (string, error)
-	DeletePolicy(ctx context.Context, policyId string) error
-	CreateToken(ctx context.Context, tokenId string, value string) error
-	DeleteToken(ctx context.Context, tokenId string) error
-	GetTokenValue(ctx context.Context, tokenId string) (string, error)
-	Flush(ctx context.Context) error
-}
 
 type Privatiser interface {
 	Encrypt(string) (string, error)
@@ -86,10 +55,18 @@ const (
 )
 
 type Policy struct {
-	PolicyId  string         `redis:"policy_id" json:"policy_id" validate:"required"`
-	Effect    PolicyEffect   `redis:"effect" json:"effect" validate:"required"`
-	Actions   []PolicyAction `redis:"actions" json:"actions" validate:"required"`
-	Resources []string       `redis:"resources" json:"resources" validate:"required"`
+	PolicyId  string         `json:"policy_id" validate:"required"`
+	Effect    PolicyEffect   `json:"effect" validate:"required"`
+	Actions   []PolicyAction `json:"actions" validate:"required"`
+	Resources []string       `json:"resources" validate:"required"`
+}
+
+type Principal struct {
+	Username    string
+	Password    string
+	Description string
+	CreatedAt   string
+	Policies    []string
 }
 
 type Request struct {
@@ -113,6 +90,29 @@ const (
 	POLICIES_PPATH    = "/policies"
 	FIELDS_PPATH      = "/fields"
 )
+
+type VaultDB interface {
+	GetCollection(ctx context.Context, name string) (*Collection, error)
+	GetCollections(ctx context.Context) ([]string, error)
+	CreateCollection(ctx context.Context, c Collection) (string, error)
+	DeleteCollection(ctx context.Context, name string) error
+	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
+	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
+	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
+	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
+	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
+	GetPrincipal(ctx context.Context, username string) (*Principal, error)
+	CreatePrincipal(ctx context.Context, principal Principal) error
+	DeletePrincipal(ctx context.Context, username string) error
+	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
+	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
+	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	DeletePolicy(ctx context.Context, policyId string) error
+	CreateToken(ctx context.Context, tokenId string, value string) error
+	DeleteToken(ctx context.Context, tokenId string) error
+	GetTokenValue(ctx context.Context, tokenId string) (string, error)
+	Flush(ctx context.Context) error
+}
 
 func (vault Vault) GetCollection(
 	ctx context.Context,
@@ -549,7 +549,7 @@ func (vault Vault) DeletePolicy(
 	return nil
 }
 
-func (vault Vault) GetPolicies(
+func (vault Vault) GetPrincipalPolicies(
 	ctx context.Context,
 	principal Principal,
 ) ([]*Policy, error) {
@@ -605,6 +605,7 @@ func (vault Vault) CreateToken(ctx context.Context, principal Principal, collect
 	// I don't think this is needed since it's already handled in the GetRecords error return.
 	return "", &NotFoundError{"record", recordId}
 }
+
 func (vault Vault) DeleteToken(ctx context.Context, tokenId string) error {
 	return vault.Db.DeleteToken(ctx, tokenId)
 }

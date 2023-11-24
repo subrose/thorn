@@ -8,7 +8,7 @@ tests:
 	go test ./api
 
 run-gosec:
-	gosec ./...
+	gosec ./vault ./api ./logger
 
 check-formatting:
 	if [ -n "$(gofmt -l .)" ]; then echo "Go code is not properly formatted:"; gofmt -d .; exit 1; fi

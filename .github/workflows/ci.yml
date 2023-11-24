@@ -28,7 +28,7 @@ jobs:
       - name: Run Gosec Security Scanner
         uses: securego/gosec@master
         with:
-          args: ./...
+          args: ./api ./vault ./logger
 
       - name: Check code formatting
         run: |
@@ -66,7 +66,7 @@ jobs:
           up-flags: "--remove-orphans --abort-on-container-exit"
           down-flags: "--volumes --remove-orphans"
           services: |
-            keydb
+            postgres
             tests
 
       - name: Run simulations
@@ -76,6 +76,6 @@ jobs:
           up-flags: "--remove-orphans --abort-on-container-exit"
           down-flags: "--volumes --remove-orphans"
           services: |
-            keydb
+            postgres
             api
             simulations

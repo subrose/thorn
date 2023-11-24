@@ -14,12 +14,7 @@ import (
 
 // CoreConfig is used to parameterize a core
 type CoreConfig struct {
-	DB_HOST                 string
-	DB_PORT                 int
-	DB_USER                 string
-	DB_PASSWORD             string
-	DB_DB                   int
-	DB_NAME                 string
+	DATABASE_URL            string
 	VAULT_ENCRYPTION_KEY    string
 	VAULT_ENCRYPTION_SECRET string
 	VAULT_SIGNING_KEY       string
@@ -65,12 +60,7 @@ func ReadConfigs(configPath string) (*CoreConfig, error) {
 	}
 
 	// Inject
-	conf.DB_HOST = Config.String("db_host")
-	conf.DB_PORT = Config.Int("db_port")
-	conf.DB_USER = Config.String("db_user")
-	conf.DB_PASSWORD = Config.String("db_password")
-	conf.DB_DB = Config.Int("db_db")
-	conf.DB_NAME = Config.String("db_name")
+	conf.DATABASE_URL = Config.String("database_url")
 	conf.VAULT_ENCRYPTION_KEY = Config.String("encryption_key")
 	conf.VAULT_ENCRYPTION_SECRET = Config.String("encryption_secret")
 	conf.VAULT_ADMIN_USERNAME = Config.String("admin_access_key")
@@ -113,8 +103,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	// 	conf.DB_PASSWORD,
 	// 	conf.DB_DB,
 	// )
-	db, err := _vault.NewSqlStore(_vault.FormatDsn(conf.DB_HOST, conf.DB_USER, conf.DB_PASSWORD, conf.DB_NAME, conf.DB_PORT))
-
+	db, err := _vault.NewSqlStore(conf.DATABASE_URL)
 	if err != nil {
 		panic(err)
 	}
@@ -143,18 +132,23 @@ func (core *Core) Init() error {
 	if core.conf.DEV_MODE {
 		_ = core.vault.Db.Flush(ctx)
 	}
-	_, _ = core.vault.Db.CreatePolicy(ctx, _vault.Policy{
+	_, err := core.vault.Db.CreatePolicy(ctx, _vault.Policy{
 		PolicyId:  "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
 		Resources: []string{"*"},
 	})
+	if err != nil {
+		panic(err)
+	}
 	adminPrincipal := _vault.Principal{
 		Username:    core.conf.VAULT_ADMIN_USERNAME,
 		Password:    core.conf.VAULT_ADMIN_PASSWORD,
 		Description: "admin",
 		Policies:    []string{"root"}}
-	err := core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
-
+	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
+	if err != nil {
+		panic(err)
+	}
 	return err
 }
