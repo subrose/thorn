@@ -170,11 +170,14 @@ func (core *Core) Init() error {
 		Description: "admin",
 		Policies:    []string{"root"}}
 	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
+
 	var co *_vault.ConflictError
-	if errors.As(err, &co) {
-		core.logger.Debug("Admin principal already exists, continuing")
-	} else {
-		panic(err)
+	if err != nil {
+		if errors.As(err, &co) {
+			core.logger.Debug("Admin principal already exists, continuing")
+		} else {
+			panic(err)
+		}
 	}
 	return nil
 }
