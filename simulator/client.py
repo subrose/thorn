@@ -161,3 +161,34 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         return
+
+    def tokenise(
+        self,
+        collection: str,
+        record_id: str,
+        field: str,
+        field_format: str,
+        expected_statuses: Optional[list[int]] = None,
+    ) -> str:
+        response = requests.post(
+            f"{self.vault_url}/tokens",
+            auth=(self.username, self.password),
+            json={
+                "collection": collection,
+                "recordId": record_id,
+                "field": field,
+                "format": field_format,
+            },
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
+    def detokenise(
+        self, token_id: str, expected_statuses: Optional[list[int]] = None
+    ) -> dict:
+        response = requests.get(
+            f"{self.vault_url}/tokens/{token_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()

@@ -136,3 +136,26 @@ for record_id, record in records_map.items():
         return_formats="name.plain,cc_number.plain,cc_cvv.plain,cc_expiry.plain",
         expected_statuses=[200],
     )
+
+
+# Tokenization for passing a credit card to another system
+credit_card_to_share_id = random.choice(list(records_map.keys()))
+credit_card_to_share = records_map[credit_card_to_share_id]
+# Create the token
+token = proxy.tokenise(
+    collection="credit_cards",
+    record_id=credit_card_to_share_id,
+    field="cc_number",
+    field_format="plain",
+    expected_statuses=[201],
+)
+
+# Proxy detokenizes the token
+detokenised = proxy.detokenise(
+    token_id=token,
+    expected_statuses=[200],
+)
+
+assert detokenised["cc_number"] == credit_card_to_share["cc_number"]
+
+print("PCI usecase passed!")

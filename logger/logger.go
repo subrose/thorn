@@ -110,7 +110,7 @@ func (l Logger) Error(msg string) {
 func Strings(key string, values []string) slog.Attr {
 	attrs := make([]slog.Attr, len(values))
 	for i, value := range values {
-		attrs[i] = slog.String(fmt.Sprintf("%s[%d]", key, i), value)
+		attrs[i] = slog.String(fmt.Sprintf("%d", i), value)
 	}
 
 	anyAttrs := make([]any, len(attrs))

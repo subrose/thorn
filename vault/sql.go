@@ -78,6 +78,11 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string,
 		"field_schema": fieldSchema,
 	})
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == "23505" { // unique_violation
+				return "", &ConflictError{c.Name}
+			}
+		}
 		return "", err
 	}
 

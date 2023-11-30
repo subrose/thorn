@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/go-playground/assert/v2"
@@ -11,7 +9,7 @@ import (
 )
 
 func TestTokens(t *testing.T) {
-	app, core := InitTestingVault(t)
+	_, core := InitTestingVault(t)
 
 	customerCollection := vault.Collection{
 		Name: "test",
@@ -35,29 +33,26 @@ func TestTokens(t *testing.T) {
 		t.FailNow()
 	}
 	var tokenId string
-
 	t.Run("can create a token", func(t *testing.T) {
-		request := newRequest(t, http.MethodPost, fmt.Sprintf("/tokens?collectionName=test&recordId=%s&fieldName=name&returnFormat=plain", records[0]), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, nil)
-
-		// var tokenId string
-		response := performRequest(t, app, request)
-		checkResponse(t, response, http.StatusOK, &tokenId)
-
+		tokenRequest := &TokenRequest{
+			Collection: "test",
+			RecordId:   records[0],
+			Field:      "name",
+			Format:     "plain",
+		}
+		tokenId, err = core.vault.CreateToken(context.Background(), adminPrincipal, tokenRequest.Collection, tokenRequest.RecordId, tokenRequest.Field, tokenRequest.Format)
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		assert.NotEqual(t, tokenId, "")
 	})
 	t.Run("can get a token", func(t *testing.T) {
-		request := newRequest(t, http.MethodGet, fmt.Sprintf("/tokens/%s", tokenId), map[string]string{
-			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, nil)
-
-		response := performRequest(t, app, request)
-
-		var value struct {
-			Name string `json:"name" validate:"required"`
+		token, err := core.vault.GetTokenValue(context.Background(), adminPrincipal, tokenId)
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
 		}
-		checkResponse(t, response, http.StatusOK, &value)
-		assert.Equal(t, value.Name, "Jiminson McFoo")
-
+		assert.Equal(t, token["name"], "Jiminson McFoo")
 	})
 }

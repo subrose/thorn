@@ -11,16 +11,18 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	_logger "github.com/subrose/logger"
 	_vault "github.com/subrose/vault"
 )
 
-// Common testing utils?
 var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
 
 func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
-	coreConfig, err := ReadConfigs()
+	// Read environment variables if a test.env file exists, error is ignored on purpose
+	_ = godotenv.Load("test.env")
 
+	coreConfig, err := ReadConfigs()
 	if err != nil {
 		t.Fatal("Failed to read config", err)
 	}
@@ -30,12 +32,6 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	}
 	app := SetupApi(core)
 
-	// TODO: Switch on db type
-	// db, _ = _vault.NewRedisStore(
-	// 	fmt.Sprintf("%s:%d", coreConfig.DB_HOST, coreConfig.DB_PORT),
-	// 	coreConfig.DB_PASSWORD,
-	// 	coreConfig.DB_DB,
-	// )
 	db, err := _vault.NewSqlStore(coreConfig.DATABASE_URL)
 
 	if err != nil {
