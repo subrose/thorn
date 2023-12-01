@@ -53,10 +53,9 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	inputCollection := new(CollectionModel)
-	if err := c.BodyParser(inputCollection); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(err)
+	if err := core.ParseJsonBody(c.Body(), inputCollection); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body %v", err), nil})
 	}
-
 	if err := core.Validate(inputCollection); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
@@ -95,13 +94,17 @@ func (core *Core) DeleteCollection(c *fiber.Ctx) error {
 func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
-	records := new([]_vault.Record)
-	if err := c.BodyParser(records); err != nil {
-		core.logger.Error(fmt.Sprintf("An error occurred parsing records: %s", records))
+	if collectionName == "" {
 		return &fiber.Error{
 			Code:    http.StatusBadRequest,
-			Message: "malformed record body",
+			Message: "collection name is required",
 		}
+	}
+	c.Accepts("application/json")
+	records := new([]_vault.Record)
+
+	if err := core.ParseJsonBody(c.Body(), &records); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body %v", err), nil})
 	}
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
@@ -117,11 +120,8 @@ func (core *Core) UpdateRecord(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	recordId := c.Params("id")
 	record := new(_vault.Record)
-	if err := c.BodyParser(record); err != nil {
-		return &fiber.Error{
-			Code:    http.StatusBadRequest,
-			Message: "malformed record body",
-		}
+	if err := core.ParseJsonBody(c.Body(), &record); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body %v", err), nil})
 	}
 
 	err := core.vault.UpdateRecord(c.Context(), principal, collectionName, recordId, *record)

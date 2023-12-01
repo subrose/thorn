@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -21,13 +22,12 @@ type PrincipalResponse struct {
 
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	var newPrincipal NewPrincipal
-	if err := c.BodyParser(&newPrincipal); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{"Invalid request body", nil})
+	if err := core.ParseJsonBody(c.Body(), &newPrincipal); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body %v", err), nil})
 	}
 
-	errors := core.Validate(newPrincipal)
-	if errors != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(errors)
+	if validationErrs := core.Validate(newPrincipal); validationErrs != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
 	}
 
 	sessionPrincipal := GetSessionPrincipal(c)

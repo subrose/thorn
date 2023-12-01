@@ -1,9 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
 
@@ -199,11 +200,21 @@ func (core *Core) Validate(payload interface{}) []*ValidationError {
 		}
 		for _, err := range err.(validator.ValidationErrors) {
 			var element ValidationError
-			element.FailedField = strings.ToLower(err.Field())
+			element.FailedField = err.Field()
 			element.Tag = err.Tag()
 			element.Value = err.Param()
 			errors = append(errors, &element)
 		}
 	}
 	return errors
+}
+
+func (core *Core) ParseJsonBody(data []byte, payload interface{}) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&payload)
+	if err != nil {
+		return err
+	}
+	return nil
 }
