@@ -198,6 +198,13 @@ func TestCollections(t *testing.T) {
 
 		response = performRequest(t, app, request)
 		checkResponse(t, response, http.StatusNotFound, nil)
+
+		// Delete the record again (should return 404)
+		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
+			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
+		}, nil)
+		response = performRequest(t, app, request)
+		checkResponse(t, response, http.StatusNotFound, nil)
 	})
 
 	t.Run("cant create a bad record", func(t *testing.T) {

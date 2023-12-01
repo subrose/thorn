@@ -147,12 +147,17 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM collection_metadata WHERE name = $1", name)
+	result, err := tx.ExecContext(ctx, "DELETE FROM collection_metadata WHERE name = $1", name)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &NotFoundError{"collection", name}
-		}
 		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return &NotFoundError{"collection", name}
 	}
 
 	tableName := "collection_" + name
@@ -309,14 +314,19 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
-	_, err := st.db.ExecContext(ctx, "DELETE FROM collection_"+collectionName+" WHERE id = $1", recordID)
-
+	res, err := st.db.ExecContext(ctx, "DELETE FROM collection_"+collectionName+" WHERE id = $1", recordID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &NotFoundError{"record", recordID}
-		}
 		return err
 	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return &NotFoundError{"record", recordID}
+	}
+
 	return nil
 }
 
@@ -418,11 +428,17 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
 		return err
 	}
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM principals WHERE username = $1", username)
+	result, err := tx.ExecContext(ctx, "DELETE FROM principals WHERE username = $1", username)
 	if err != nil {
 		return err
 	}
-
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return &NotFoundError{"principal", username}
+	}
 	err = tx.Commit()
 	if err != nil {
 		return err
