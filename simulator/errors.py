@@ -3,6 +3,7 @@ import requests
 admin_session = requests.Session()
 admin_session.auth = ("admin", "admin")
 
+
 res = admin_session.post(
     "http://localhost:3001/policies",
     json={
@@ -13,6 +14,7 @@ res = admin_session.post(
         # "hello": "world",
         # "additionalProperties": False,
     },
+    headers={"Content-Type": "__"},
 )
 
 

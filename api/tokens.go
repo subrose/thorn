@@ -18,7 +18,7 @@ func (core *Core) CreateToken(c *fiber.Ctx) error {
 	tokenRequest := new(TokenRequest)
 
 	if err := core.ParseJsonBody(c.Body(), &tokenRequest); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
 	}
 
 	if validationErrs := core.Validate(tokenRequest); validationErrs != nil {

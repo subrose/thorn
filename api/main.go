@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	_vault "github.com/subrose/vault"
 )
@@ -112,11 +113,21 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 	}
 }
 
+func JSONOnlyMiddleware(c *fiber.Ctx) error {
+	// Allow blank content headers - assuming we default to json
+	if c.Get("Content-Type") != "application/json" && c.Get("Content-Type") != "" {
+		// If not application/json, send a 415 Unsupported Media Type response
+		return c.Status(fiber.StatusUnsupportedMediaType).JSON(ErrorResponse{"Unsupported Media Type. Only application/json allowed. Got " + c.Get("Content-Type"), nil})
+	}
+	return c.Next()
+}
+
 func SetupApi(core *Core) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 		ErrorHandler:          core.customErrorHandler,
 	})
+	app.Use(helmet.New())
 	app.Use(ApiLogger(core))
 	app.Use(recover.New())
 
@@ -144,7 +155,7 @@ func SetupApi(core *Core) *fiber.App {
 	policiesGroup := app.Group("/policies")
 	policiesGroup.Use(authGuard(core))
 	policiesGroup.Get(":policyId", core.GetPolicyById)
-	policiesGroup.Post("", core.CreatePolicy)
+	policiesGroup.Post("", JSONOnlyMiddleware, core.CreatePolicy)
 	policiesGroup.Get("", core.GetPolicies)
 	policiesGroup.Delete(":policyId", core.DeletePolicy)
 
