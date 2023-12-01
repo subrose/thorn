@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"strings"
+
+	"github.com/go-playground/validator/v10"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/confmap"
@@ -31,9 +34,10 @@ type CoreConfig struct {
 // interface for API handlers and is responsible for managing the logical and physical
 // backends, router, security barrier, and audit trails.
 type Core struct {
-	vault  _vault.Vault
-	logger _logger.Logger
-	conf   *CoreConfig
+	vault     _vault.Vault
+	logger    _logger.Logger
+	conf      *CoreConfig
+	validator *validator.Validate
 }
 
 func ReadConfigs() (*CoreConfig, error) {
@@ -134,6 +138,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	}
 
 	c.vault = vault
+	c.validator = newValidator()
 
 	return c, err
 }
@@ -179,5 +184,26 @@ func (core *Core) Init() error {
 			panic(err)
 		}
 	}
+
 	return nil
+}
+
+func (core *Core) Validate(payload interface{}) []*ValidationError {
+	var errors []*ValidationError
+
+	err := core.validator.Struct(payload)
+	if err != nil {
+		// Check if the error is a validator.ValidationErrors type
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			return errors
+		}
+		for _, err := range err.(validator.ValidationErrors) {
+			var element ValidationError
+			element.FailedField = strings.ToLower(err.Field())
+			element.Tag = err.Tag()
+			element.Value = err.Param()
+			errors = append(errors, &element)
+		}
+	}
+	return errors
 }

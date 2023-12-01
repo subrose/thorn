@@ -57,7 +57,7 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	if err := Validate(inputCollection); err != nil {
+	if err := core.Validate(inputCollection); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 

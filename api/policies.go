@@ -33,7 +33,7 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{"Invalid request body", nil})
 	}
 
-	validation_errors := Validate(policy)
+	validation_errors := core.Validate(policy)
 	if validation_errors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(validation_errors)
 

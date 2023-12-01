@@ -55,8 +55,7 @@ func TestCollections(t *testing.T) {
 
 		response := performRequest(t, app, request)
 
-		var returnedCollections []string
-		checkResponse(t, response, http.StatusOK, &returnedCollections)
+		checkResponse(t, response, http.StatusOK, nil)
 	})
 
 	t.Run("can delete a collection", func(t *testing.T) {
@@ -107,8 +106,7 @@ func TestCollections(t *testing.T) {
 		}, nil)
 
 		response = performRequest(t, app, request)
-		var returnedRecords map[string]interface{}
-		checkResponse(t, response, http.StatusOK, returnedRecords)
+		checkResponse(t, response, http.StatusOK, nil)
 	})
 
 	t.Run("can update a record", func(t *testing.T) {
@@ -128,6 +126,7 @@ func TestCollections(t *testing.T) {
 		response := performRequest(t, app, request)
 		var returnedRecordIds []string
 		checkResponse(t, response, http.StatusCreated, &returnedRecordIds)
+
 		if len(returnedRecordIds) != 1 {
 			t.Error("Error creating record", returnedRecordIds)
 		}

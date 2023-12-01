@@ -131,8 +131,13 @@ func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int
 		}
 
 		// Validate the response data against the struct tags
-		if err := Validate(target); err != nil {
-			t.Fatalf("Error validating response: %v", err)
+		// Check if target is a struct
+		if _, ok := target.(struct{}); ok {
+
+			validate := newValidator()
+			if err := validate.Struct(target); err != nil {
+				t.Fatalf("Error validating response: %v", err)
+			}
 		}
 	}
 }

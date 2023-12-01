@@ -1,9 +1,9 @@
 package main
 
 import (
-	"strings"
-
+	"reflect"
 	"regexp"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -37,25 +37,48 @@ type ValidationError struct {
 	Value       string `json:"value"`
 }
 
-// Validate validates the input struct
-func Validate(payload interface{}) []*ValidationError {
-	var errors []*ValidationError
-	var validate = validator.New()
-	_ = validate.RegisterValidation("vaultResourceNames", ValidateResourceName)
-
-	err := validate.Struct(payload)
+func newValidator() *validator.Validate {
+	v := validator.New(validator.WithRequiredStructEnabled())
+	err := v.RegisterValidation("vaultResourceNames", ValidateResourceName)
 	if err != nil {
-		// Check if the error is a validator.ValidationErrors type
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			return errors
-		}
-		for _, err := range err.(validator.ValidationErrors) {
-			var element ValidationError
-			element.FailedField = strings.ToLower(err.StructField())
-			element.Tag = err.Tag()
-			element.Value = err.Param()
-			errors = append(errors, &element)
-		}
+		panic(err)
 	}
-	return errors
+	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
+	return v
 }
+
+// // Validate validates the input struct
+// func Validate(payload interface{}) []*ValidationError {
+// 	var errors []*ValidationError
+// 	validate := validator.New(validator.WithRequiredStructEnabled())
+// 	_ = validate.RegisterValidation("vaultResourceNames", ValidateResourceName)
+// 	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+// 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+// 		if name == "-" {
+// 			return ""
+// 		}
+// 		return name
+// 	})
+
+// 	err := validate.Struct(payload)
+// 	if err != nil {
+// 		// Check if the error is a validator.ValidationErrors type
+// 		if _, ok := err.(*validator.InvalidValidationError); ok {
+// 			return errors
+// 		}
+// 		for _, err := range err.(validator.ValidationErrors) {
+// 			var element ValidationError
+// 			element.FailedField = strings.ToLower(err.Field())
+// 			element.Tag = err.Tag()
+// 			element.Value = err.Param()
+// 			errors = append(errors, &element)
+// 		}
+// 	}
+// 	return errors
+// }

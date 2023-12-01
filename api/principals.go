@@ -25,7 +25,7 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse{"Invalid request body", nil})
 	}
 
-	errors := Validate(newPrincipal)
+	errors := core.Validate(newPrincipal)
 	if errors != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(errors)
 	}

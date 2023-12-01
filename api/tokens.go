@@ -17,10 +17,10 @@ func (core *Core) CreateToken(c *fiber.Ctx) error {
 	tokenRequest := new(TokenRequest)
 
 	if err := c.BodyParser(tokenRequest); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(err)
+		return err
 	}
 
-	if err := Validate(tokenRequest); err != nil {
+	if err := core.Validate(tokenRequest); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
