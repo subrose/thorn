@@ -214,7 +214,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 			return nil, errors.New("record does not match schema")
 		}
 
-		recordId := GenerateId()
+		recordId := GenerateId("rec_")
 		recordIds[i] = recordId
 
 		values := make([]interface{}, len(fields)+1)

@@ -593,7 +593,7 @@ func (vault Vault) CreateToken(ctx context.Context, principal Principal, collect
 		return "", err
 	}
 
-	tokenId := GenerateId()
+	tokenId := GenerateId("tok_")
 	for recordId := range records {
 		err := vault.Db.CreateToken(ctx, tokenId, fmt.Sprintf("%s/%s/%s/%s", collectionName, recordId, fieldName, returnFormat))
 		if err != nil {
