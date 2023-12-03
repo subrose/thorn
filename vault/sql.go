@@ -214,7 +214,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 			return nil, &ValueError{fmt.Sprintf("expected %d fields, got %d", len(fields), len(record))}
 		}
 
-		recordId := GenerateId()
+		recordId := GenerateId("rec")
 		recordIds[i] = recordId
 
 		values := make([]interface{}, len(fields)+1)
