@@ -26,9 +26,9 @@ func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string
 }
 
 func (pm DummyPolicyManager) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	pm.policies[p.PolicyId] = p
+	pm.policies[p.Id] = p
 
-	return p.PolicyId, nil
+	return p.Id, nil
 }
 
 func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) error {
@@ -39,16 +39,24 @@ func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) 
 func getDummyPolicy(principal string) []Policy {
 	return []Policy{
 		{
+			"",
 			fmt.Sprintf("%s-allow", principal),
+			"",
 			EffectAllow,
 			[]PolicyAction{PolicyActionRead},
 			[]string{"allowed-resource/*", "restricted-resource"},
+			"",
+			"",
 		},
 		{
+			"",
 			fmt.Sprintf("%s-deny", principal),
+			"",
 			EffectDeny,
 			[]PolicyAction{PolicyActionRead},
 			[]string{"restricted-resource"},
+			"",
+			"",
 		},
 	}
 }

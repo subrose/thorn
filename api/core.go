@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/go-playground/validator/v10"
-
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/env"
@@ -35,10 +33,9 @@ type CoreConfig struct {
 // interface for API handlers and is responsible for managing the logical and physical
 // backends, router, security barrier, and audit trails.
 type Core struct {
-	vault     _vault.Vault
-	logger    _logger.Logger
-	conf      *CoreConfig
-	validator *validator.Validate
+	vault  _vault.Vault
+	logger _logger.Logger
+	conf   *CoreConfig
 }
 
 func ReadConfigs() (*CoreConfig, error) {
@@ -132,14 +129,14 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 
 	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
-		Db:     db,
-		Priv:   priv,
-		Logger: vaultLogger,
-		Signer: signer,
+		Db:        db,
+		Priv:      priv,
+		Logger:    vaultLogger,
+		Signer:    signer,
+		Validator: _vault.NewValidator(),
 	}
 
 	c.vault = vault
-	c.validator = newValidator()
 
 	return c, err
 }
@@ -155,8 +152,8 @@ func (core *Core) Init() error {
 			panic(err)
 		}
 	}
-	_, err := core.vault.Db.CreatePolicy(ctx, _vault.Policy{
-		PolicyId:  "root",
+	err := core.vault.Db.CreatePolicy(ctx, &_vault.Policy{
+		Name:      "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
 		Resources: []string{"*"},
@@ -187,26 +184,6 @@ func (core *Core) Init() error {
 	}
 
 	return nil
-}
-
-func (core *Core) Validate(payload interface{}) []*ValidationError {
-	var errors []*ValidationError
-
-	err := core.validator.Struct(payload)
-	if err != nil {
-		// Check if the error is a validator.ValidationErrors type
-		if _, ok := err.(*validator.InvalidValidationError); ok {
-			return errors
-		}
-		for _, err := range err.(validator.ValidationErrors) {
-			var element ValidationError
-			element.FailedField = err.Field()
-			element.Tag = err.Tag()
-			element.Value = err.Param()
-			errors = append(errors, &element)
-		}
-	}
-	return errors
 }
 
 func (core *Core) ParseJsonBody(data []byte, payload interface{}) error {

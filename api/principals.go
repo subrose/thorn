@@ -25,9 +25,10 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
-	if validationErrs := core.Validate(newPrincipal); validationErrs != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
-	}
+	// TODO: Move to vault
+	// if validationErrs := core.Validate(newPrincipal); validationErrs != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
+	// }
 
 	sessionPrincipal := GetSessionPrincipal(c)
 	err := core.vault.CreatePrincipal(c.Context(), sessionPrincipal,

@@ -93,6 +93,7 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var ne *_vault.NotFoundError
 	var ae *AuthError
 	var co *_vault.ConflictError
+	var va *_vault.ValidationErrors
 	switch {
 	case errors.As(err, &ve):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{ve.Error(), nil})
@@ -106,6 +107,8 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusNotImplemented).JSON(ErrorResponse{err.Error(), nil})
 	case errors.As(err, &co):
 		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{co.Error(), nil})
+	case errors.As(err, &va):
+		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{va.Error(), nil})
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
 		core.logger.Error(fmt.Sprintf("Unhandled error: %s", err.Error()))

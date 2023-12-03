@@ -56,8 +56,8 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	if err != nil {
 		t.Fatal("Failed to flush db", err)
 	}
-	_, err = db.CreatePolicy(bootstrapContext, _vault.Policy{
-		PolicyId:  "root",
+	err = db.CreatePolicy(bootstrapContext, &_vault.Policy{
+		Name:      "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
 		Resources: []string{"*"},
@@ -134,7 +134,7 @@ func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int
 		// Check if target is a struct
 		if _, ok := target.(struct{}); ok {
 
-			validate := newValidator()
+			validate := _vault.NewValidator()
 			if err := validate.Struct(target); err != nil {
 				t.Fatalf("Error validating response: %v", err)
 			}

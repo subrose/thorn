@@ -19,20 +19,28 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := NewHMACSigner([]byte("testkey"))
-	_, _ = db.CreatePolicy(ctx, Policy{
+	db.CreatePolicy(ctx, &Policy{
+		"",
 		"root",
+		"",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead, PolicyActionWrite},
 		[]string{"*"},
+		"",
+		"",
 	})
-	_, _ = db.CreatePolicy(ctx, Policy{
+	db.CreatePolicy(ctx, &Policy{
+		"",
 		"read-all-customers",
+		"",
 		EffectAllow,
 		[]PolicyAction{PolicyActionRead},
 		[]string{"/collections/customers*"},
+		"",
+		"",
 	})
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
-	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
+	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer, Validator: NewValidator()}
 	return vault, db, priv
 }
 
@@ -48,30 +56,26 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "customers", Fields: map[string]Field{
 			"first_name": {
-				Name:      "first_name",
 				Type:      "string",
 				IsIndexed: false,
 			},
 			"last_name": {
-				Name:      "last_name",
 				Type:      "string",
 				IsIndexed: false,
 			},
 			"email": {
-				Name:      "email",
 				Type:      "string",
 				IsIndexed: true,
 			},
 			"phone_number": {
-				Name:      "phone_number",
 				Type:      "string",
 				IsIndexed: true,
 			},
 		}}
 
 		// Can create collection
-		colID, err := vault.CreateCollection(ctx, testPrincipal, col)
-		if err != nil || colID == "" {
+		err := vault.CreateCollection(ctx, testPrincipal, &col)
+		if err != nil || col.Id == "" {
 			t.Fatal(err)
 		}
 
@@ -144,12 +148,11 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "customers", Fields: map[string]Field{
 			"first_name": {
-				Name:      "first_name",
 				Type:      "string",
 				IsIndexed: false,
 			},
 		}}
-		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		vault.CreateCollection(ctx, testPrincipal, &col)
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "dummy"},
@@ -183,14 +186,13 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "testing", Fields: map[string]Field{
 			"test_field": {
-				Name:      "test_field",
 				Type:      "string",
 				IsIndexed: false,
 			},
 		}}
 
 		// Create collection
-		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
@@ -224,12 +226,11 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "test_collection", Fields: map[string]Field{
 			"first_name": {
-				Name:      "first_name",
 				Type:      "string",
 				IsIndexed: false,
 			},
 		}}
-		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		vault.CreateCollection(ctx, testPrincipal, &col)
 		inputRecords := []Record{{"invalid_field": "John"}}
 		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
 		var ve *ValueError
@@ -242,14 +243,13 @@ func TestVault(t *testing.T) {
 		vault, _, _ := initVault(t)
 		col := Collection{Name: "test_collection", Fields: map[string]Field{
 			"test_field": {
-				Name:      "test_field",
 				Type:      "string",
 				IsIndexed: false,
 			},
 		}}
 
 		// Create collection
-		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
@@ -344,14 +344,13 @@ func TestVault(t *testing.T) {
 		// TODO: Smelly test, make this DRY
 		col := Collection{Name: "customers", Fields: map[string]Field{
 			"first_name": {
-				Name:      "first_name",
 				Type:      "string",
 				IsIndexed: false,
 			},
 		}}
 
 		// Can create collection
-		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
+		vault.CreateCollection(ctx, testPrincipal, &col)
 		record_ids, _ := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "John"},
 			{"first_name": "Jane"},
@@ -497,14 +496,14 @@ func TestTokens(t *testing.T) {
 	assert.NoError(t, err, "failed to create test principal")
 
 	// create collections
-	_, err = vault.CreateCollection(ctx, rootPrincipal, Collection{
+	err = vault.CreateCollection(ctx, rootPrincipal, &Collection{
 		Name:   "customers",
-		Fields: map[string]Field{"name": {"name", "string", false}, "foo": {"foo", "string", false}},
+		Fields: map[string]Field{"name": {"string", false}, "foo": {"string", false}},
 	})
 	assert.NoError(t, err, "failed to create customer collection")
-	_, err = vault.CreateCollection(ctx, rootPrincipal, Collection{
+	err = vault.CreateCollection(ctx, rootPrincipal, &Collection{
 		Name:   "employees",
-		Fields: map[string]Field{"name": {"name", "string", false}, "foo": {"foo", "string", false}},
+		Fields: map[string]Field{"name": {"string", false}, "foo": {"string", false}},
 	})
 	assert.NoError(t, err, "failed to create employees collection")
 
