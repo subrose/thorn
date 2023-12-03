@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	_vault "github.com/subrose/vault"
 )
 
 func TestPrincipals(t *testing.T) {
 	app, core := InitTestingVault(t)
 
-	newPrincipal := NewPrincipal{
+	newPrincipal := _vault.Principal{
 		Username:    "newprincipal",
 		Password:    "password",
 		Description: "A new principal",
@@ -50,7 +52,7 @@ func TestPrincipals(t *testing.T) {
 	})
 
 	t.Run("can't create principals without assigned roles", func(t *testing.T) {
-		request := newRequest(t, http.MethodPost, "/principals", nil, NewPrincipal{
+		request := newRequest(t, http.MethodPost, "/principals", nil, _vault.Principal{
 			Username:    "newprincipal",
 			Password:    "password",
 			Description: "A new principal",

@@ -288,7 +288,7 @@ func TestVault(t *testing.T) {
 			t.Error("Should throw a not found error!", err)
 		}
 		// Can create a principal
-		err = vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal, again", []string{"read-all-customers"})
+		err = vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: "a test principal, again", Policies: []string{"read-all-customers"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -298,7 +298,7 @@ func TestVault(t *testing.T) {
 	t.Run("can delete a principal", func(t *testing.T) {
 		vault, _, _ := initVault(t)
 		// Create a principal
-		err := vault.CreatePrincipal(ctx, testPrincipal, "test_user", "test_password", "test principal", []string{"root"})
+		err := vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: "test_user", Password: "test_password", Description: "test principal", Policies: []string{"root"}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -319,12 +319,12 @@ func TestVault(t *testing.T) {
 
 	t.Run("cant create the same principal twice", func(t *testing.T) {
 		vault, _, _ := initVault(t)
-		err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal", []string{"read-all-customers"})
+		err := vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: "a test principal", Policies: []string{"read-all-customers"}})
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		err2 := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, "a test principal", []string{"read-all-customers"})
+		err2 := vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: "a test principal", Policies: []string{"read-all-customers"}})
 		switch err2.(type) {
 		case *ConflictError:
 			// success
@@ -444,7 +444,7 @@ func TestVaultLogin(t *testing.T) {
 		Description: "test principal",
 	}
 
-	err := vault.CreatePrincipal(ctx, testPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	err := vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: testPrincipal.Description, Policies: testPrincipal.Policies})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,10 +489,10 @@ func TestTokens(t *testing.T) {
 		Policies:    []string{"read-all-customers"},
 		Description: "test principal",
 	}
-	err := vault.CreatePrincipal(ctx, rootPrincipal, rootPrincipal.Username, rootPrincipal.Password, rootPrincipal.Description, rootPrincipal.Policies)
+	err := vault.CreatePrincipal(ctx, rootPrincipal, &Principal{Username: rootPrincipal.Username, Password: rootPrincipal.Password, Description: rootPrincipal.Description, Policies: rootPrincipal.Policies})
 	assert.NoError(t, err, "failed to create root principal")
 
-	err = vault.CreatePrincipal(ctx, rootPrincipal, testPrincipal.Username, testPrincipal.Password, testPrincipal.Description, testPrincipal.Policies)
+	err = vault.CreatePrincipal(ctx, rootPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: testPrincipal.Description, Policies: testPrincipal.Policies})
 	assert.NoError(t, err, "failed to create test principal")
 
 	// create collections

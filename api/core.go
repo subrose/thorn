@@ -172,7 +172,7 @@ func (core *Core) Init() error {
 		Password:    core.conf.ADMIN_PASSWORD,
 		Description: "admin",
 		Policies:    []string{"root"}}
-	err = core.vault.CreatePrincipal(ctx, adminPrincipal, adminPrincipal.Username, adminPrincipal.Password, adminPrincipal.Description, adminPrincipal.Policies)
+	err = core.vault.CreatePrincipal(ctx, adminPrincipal, &_vault.Principal{Username: adminPrincipal.Username, Password: adminPrincipal.Password, Description: adminPrincipal.Description, Policies: adminPrincipal.Policies})
 
 	var co *_vault.ConflictError
 	if err != nil {

@@ -67,7 +67,7 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		t.Fatal("Failed to create root policy", err)
 	}
 
-	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.ADMIN_USERNAME, coreConfig.ADMIN_PASSWORD, "admin principal", []string{"root"})
+	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, &_vault.Principal{Username: coreConfig.ADMIN_USERNAME, Password: coreConfig.ADMIN_PASSWORD, Description: "admin principal", Policies: []string{"root"}})
 	if err != nil {
 		t.Fatal("Failed to create admin principal", err)
 	}

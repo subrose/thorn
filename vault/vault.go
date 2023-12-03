@@ -436,6 +436,10 @@ func (vault Vault) CreatePrincipal(
 	principal.Id = GenerateId("prin")
 	principal.CreatedAt = time.Now().Format(time.RFC3339)
 
+	if err := vault.Validate(principal); err != nil {
+		return err
+	}
+
 	err = vault.Db.CreatePrincipal(ctx, principal)
 	if err != nil {
 		return err
