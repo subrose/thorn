@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -23,7 +22,7 @@ type PrincipalResponse struct {
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	var newPrincipal NewPrincipal
 	if err := core.ParseJsonBody(c.Body(), &newPrincipal); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
 	if validationErrs := core.Validate(newPrincipal); validationErrs != nil {
