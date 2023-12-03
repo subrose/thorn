@@ -53,7 +53,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/customers/*/masked/*",
+            "/collections/customers/records/*/*.masked",
         ],
     ),
     expected_statuses=[201, 409],
@@ -66,7 +66,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/customers/*/plain/*",
+            "/collections/customers/records/*/*.plain",
         ],
     ),
     expected_statuses=[201, 409],

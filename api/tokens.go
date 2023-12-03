@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +17,7 @@ func (core *Core) CreateToken(c *fiber.Ctx) error {
 	tokenRequest := new(TokenRequest)
 
 	if err := core.ParseJsonBody(c.Body(), &tokenRequest); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
 	if validationErrs := core.Validate(tokenRequest); validationErrs != nil {

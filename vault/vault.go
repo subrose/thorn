@@ -82,13 +82,11 @@ type Vault struct {
 	Signer Signer
 }
 
-// TODO: These probably should be renamed to have _PATH
 const (
 	COLLECTIONS_PPATH = "/collections"
 	PRINCIPALS_PPATH  = "/principals"
 	RECORDS_PPATH     = "/records"
 	POLICIES_PPATH    = "/policies"
-	FIELDS_PPATH      = "/fields"
 )
 
 type VaultDB interface {
@@ -263,7 +261,7 @@ func (vault Vault) GetRecords(
 	// TODO: This is horribly inefficient, we should be able to do this in one go using ValidateActions(...)
 	for _, recordID := range recordIDs {
 		for field, format := range returnFormats {
-			_request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s%s/%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, format, FIELDS_PPATH, field)}
+			_request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, field, format)}
 			allowed, err := vault.ValidateAction(ctx, _request)
 			if err != nil {
 				return nil, err

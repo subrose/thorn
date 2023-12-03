@@ -211,7 +211,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 	for i, record := range records {
 		// Validate record fields
 		if len(record) != len(fields) {
-			return nil, errors.New("record does not match schema")
+			return nil, &ValueError{fmt.Sprintf("expected %d fields, got %d", len(fields), len(record))}
 		}
 
 		recordId := GenerateId("rec")
@@ -223,7 +223,7 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 			if value, ok := record[fieldName]; ok {
 				values[j+1] = value
 			} else {
-				return nil, fmt.Errorf("missing field: %s", fieldName)
+				return nil, &ValueError{fmt.Sprintf("missing field %s", fieldName)}
 			}
 		}
 

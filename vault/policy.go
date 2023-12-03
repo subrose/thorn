@@ -10,6 +10,9 @@ func matchRune(pattern, str []rune) bool {
 		case '*':
 			return matchRune(pattern[1:], str) ||
 				(len(str) > 0 && matchRune(pattern, str[1:]))
+		case '.':
+			return matchRune(pattern[2:], str) ||
+				(len(str) > 0 && matchRune(pattern, str[1:]))
 		}
 		str = str[1:]
 		pattern = pattern[1:]

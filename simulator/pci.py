@@ -43,7 +43,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/credit_cards/*/masked/*",
+            "/collections/credit_cards/records/*/*.masked",
         ],
     ),
     expected_statuses=[201, 409],
@@ -56,7 +56,7 @@ admin.create_policy(
         effect="allow",
         actions=["read"],
         resources=[
-            "/collections/credit_cards/*/plain/*",
+            "/collections/credit_cards/records/*/*.plain",
         ],
     ),
     expected_statuses=[201, 409],

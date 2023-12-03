@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -54,7 +53,7 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	inputCollection := new(CollectionModel)
 	if err := core.ParseJsonBody(c.Body(), inputCollection); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 	if err := core.Validate(inputCollection); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(err)
@@ -103,7 +102,7 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 	records := new([]_vault.Record)
 
 	if err := core.ParseJsonBody(c.Body(), &records); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
 	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
@@ -120,7 +119,7 @@ func (core *Core) UpdateRecord(c *fiber.Ctx) error {
 	recordId := c.Params("id")
 	record := new(_vault.Record)
 	if err := core.ParseJsonBody(c.Body(), &record); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{fmt.Sprintf("Invalid body: %v", err), nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
 	err := core.vault.UpdateRecord(c.Context(), principal, collectionName, recordId, *record)
