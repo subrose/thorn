@@ -80,9 +80,9 @@ type Principal struct {
 }
 
 type Request struct {
-	Principal Principal
-	Action    PolicyAction
-	Resource  string
+	Actor    Principal
+	Action   PolicyAction
+	Resource string
 }
 
 type Vault struct {
@@ -585,7 +585,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Actor.Policies)
 	if err != nil {
 		return false, err
 	}
