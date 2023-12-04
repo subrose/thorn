@@ -152,7 +152,9 @@ func (core *Core) Init() error {
 			panic(err)
 		}
 	}
+	rootPolicyId := _vault.GenerateId("pol")
 	err := core.vault.Db.CreatePolicy(ctx, &_vault.Policy{
+		Id:        rootPolicyId,
 		Name:      "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionWrite, _vault.PolicyActionRead},
@@ -171,8 +173,8 @@ func (core *Core) Init() error {
 		Username:    core.conf.ADMIN_USERNAME,
 		Password:    core.conf.ADMIN_PASSWORD,
 		Description: "admin",
-		Policies:    []string{"root"}}
-	err = core.vault.CreatePrincipal(ctx, adminPrincipal, &_vault.Principal{Username: adminPrincipal.Username, Password: adminPrincipal.Password, Description: adminPrincipal.Description, Policies: adminPrincipal.Policies})
+		Policies:    []string{rootPolicyId}}
+	err = core.vault.CreatePrincipal(ctx, adminPrincipal, &adminPrincipal) // The admin bootstraps himself
 
 	var co *_vault.ConflictError
 	if err != nil {
