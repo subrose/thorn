@@ -7,13 +7,6 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
-// type NewPrincipal struct {
-// 	Username    string   `json:"username" validate:"required,min=1,max=32"`
-// 	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
-// 	Description string   `json:"description"`
-// 	Policies    []string `json:"policies"`
-// }
-
 type PrincipalResponse struct {
 	Id          string   `json:"id"`
 	Username    string   `json:"username" validate:"required,min=3,max=32"`

@@ -24,6 +24,14 @@ type Collection struct {
 	Description string           `json:"description"`
 }
 
+type Subject struct {
+	Id        string `json:"id"`
+	Eid       string `json:"eid" validate:"required"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Metadata  string `json:"metadata"`
+}
+
 type Record map[string]string // field name -> value
 
 type Privatiser interface {
@@ -98,6 +106,7 @@ const (
 	PRINCIPALS_PPATH  = "/principals"
 	RECORDS_PPATH     = "/records"
 	POLICIES_PPATH    = "/policies"
+	SUBJECTS_PPATH    = "/subjects"
 )
 
 type VaultDB interface {
@@ -120,6 +129,9 @@ type VaultDB interface {
 	CreateToken(ctx context.Context, tokenId string, value string) error
 	DeleteToken(ctx context.Context, tokenId string) error
 	GetTokenValue(ctx context.Context, tokenId string) (string, error)
+	CreateSubject(ctx context.Context, subject *Subject) error
+	GetSubject(ctx context.Context, subjectId string) (*Subject, error)
+	DeleteSubject(ctx context.Context, subjectId string) error
 	Flush(ctx context.Context) error
 }
 
@@ -668,4 +680,57 @@ func (vault *Vault) Validate(payload interface{}) error {
 		return nil
 	}
 	return ValidationErrors{errors}
+}
+
+func (vault *Vault) CreateSubject(ctx context.Context, actor Principal, subject *Subject) error {
+	request := Request{actor, PolicyActionWrite, SUBJECTS_PPATH}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+	subject.Id = GenerateId("sub")
+	subject.CreatedAt = time.Now().Format(time.RFC3339)
+
+	if err := vault.Validate(subject); err != nil {
+		return err
+	}
+
+	err = vault.Db.CreateSubject(ctx, subject)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (vault *Vault) GetSubject(ctx context.Context, actor Principal, subjectId string) (*Subject, error) {
+	request := Request{actor, PolicyActionRead, fmt.Sprintf("%s/%s", SUBJECTS_PPATH, subjectId)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, &ForbiddenError{request}
+	}
+
+	return vault.Db.GetSubject(ctx, subjectId)
+}
+
+func (vault *Vault) DeleteSubject(ctx context.Context, actor Principal, subjectId string) error {
+	request := Request{actor, PolicyActionWrite, fmt.Sprintf("%s/%s", SUBJECTS_PPATH, subjectId)}
+	allowed, err := vault.ValidateAction(ctx, request)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &ForbiddenError{request}
+	}
+
+	err = vault.Db.DeleteSubject(ctx, subjectId)
+	if err != nil {
+		return err
+	}
+	return nil
 }

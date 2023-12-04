@@ -42,6 +42,7 @@ func (st *SqlStore) CreateSchemas() error {
 		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (principal_id TEXT, policy_id TEXT, UNIQUE(principal_id, policy_id))",
 		"tokens":              "CREATE TABLE IF NOT EXISTS tokens (id TEXT PRIMARY KEY, value TEXT)",
 		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (id TEXT PRIMARY KEY, name TEXT UNIQUE, field_schema JSON)",
+		"subjects":            "CREATE TABLE IF NOT EXISTS subjects (id TEXT PRIMARY KEY, sid TEXT UNIQUE, metadata JSON)",
 	}
 
 	for _, query := range tables {
@@ -93,6 +94,11 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	for fieldName := range c.Fields {
 		queryBuilder.WriteString(", " + fieldName + " TEXT")
 	}
+	queryBuilder.WriteString(", sid TEXT")
+	queryBuilder.WriteString(", CONSTRAINT fk_sid FOREIGN KEY (sid) REFERENCES subjects(id)")
+
+	// TODO: Add if cascade subject deletes...
+	queryBuilder.WriteString("ON DELETE CASCADE")
 	queryBuilder.WriteString(")")
 	_, err = tx.ExecContext(ctx, queryBuilder.String())
 	if err != nil {
@@ -634,6 +640,9 @@ func (st SqlStore) Flush(ctx context.Context) error {
 		return err
 	}
 	for _, table := range tables {
+		if table == "subjects" {
+			continue
+		}
 		_, err = st.db.ExecContext(ctx, "DROP TABLE IF EXISTS "+table)
 		if err != nil {
 			return err
@@ -644,4 +653,26 @@ func (st SqlStore) Flush(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (st SqlStore) CreateSubject(ctx context.Context, subject *Subject) error {
+	_, err := st.db.ExecContext(ctx, "INSERT INTO subjects (id, eid, metadata) VALUES ($1, $2, $3)", subject.Id, subject.Eid, subject.Metadata)
+	return err
+}
+
+func (st SqlStore) GetSubject(ctx context.Context, id string) (*Subject, error) {
+	var subject Subject
+	err := st.db.GetContext(ctx, &subject, "SELECT * FROM subjects WHERE id = $1", id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &NotFoundError{"subject", id}
+		}
+		return nil, err
+	}
+	return &subject, nil
+}
+
+func (st SqlStore) DeleteSubject(ctx context.Context, id string) error {
+	_, err := st.db.ExecContext(ctx, "DELETE FROM subjects WHERE id = $1", id)
+	return err
 }
