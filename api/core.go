@@ -152,6 +152,7 @@ func (core *Core) Init() error {
 			panic(err)
 		}
 	}
+	// TODO: Move this to a bootstrap function
 	rootPolicyId := _vault.GenerateId("pol")
 	err := core.vault.Db.CreatePolicy(ctx, &_vault.Policy{
 		Id:        rootPolicyId,
