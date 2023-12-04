@@ -5,12 +5,15 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	_logger "github.com/subrose/logger"
 )
 
 func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
+	_ = godotenv.Load("../test.env")
 	ctx := context.Background()
 	db, err := NewSqlStore(os.Getenv("THORN_DATABASE_URL"))
 	if err != nil {
@@ -19,25 +22,25 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 	db.Flush(ctx)
 	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := NewHMACSigner([]byte("testkey"))
-	db.CreatePolicy(ctx, &Policy{
-		"",
-		"root",
-		"",
-		EffectAllow,
-		[]PolicyAction{PolicyActionRead, PolicyActionWrite},
-		[]string{"*"},
-		"",
-		"",
+	_ = db.CreatePolicy(ctx, &Policy{
+		Id:          "root",
+		Name:        "root",
+		Description: "",
+		Effect:      EffectAllow,
+		Actions:     []PolicyAction{PolicyActionRead, PolicyActionWrite},
+		Resources:   []string{"*"},
+		CreatedAt:   time.Now().String(),
+		UpdatedAt:   time.Now().String(),
 	})
-	db.CreatePolicy(ctx, &Policy{
-		"",
-		"read-all-customers",
-		"",
-		EffectAllow,
-		[]PolicyAction{PolicyActionRead},
-		[]string{"/collections/customers*"},
-		"",
-		"",
+	_ = db.CreatePolicy(ctx, &Policy{
+		Id:          "read-all-customers",
+		Name:        "read-all-customers",
+		Description: "",
+		Effect:      EffectAllow,
+		Actions:     []PolicyAction{PolicyActionRead},
+		Resources:   []string{"/collections/customers*"},
+		CreatedAt:   time.Now().String(),
+		UpdatedAt:   time.Now().String(),
 	})
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
 	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer, Validator: NewValidator()}
@@ -152,7 +155,7 @@ func TestVault(t *testing.T) {
 				IsIndexed: false,
 			},
 		}}
-		vault.CreateCollection(ctx, testPrincipal, &col)
+		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "dummy"},
@@ -192,7 +195,7 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Create collection
-		vault.CreateCollection(ctx, testPrincipal, &col)
+		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
@@ -230,7 +233,7 @@ func TestVault(t *testing.T) {
 				IsIndexed: false,
 			},
 		}}
-		vault.CreateCollection(ctx, testPrincipal, &col)
+		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 		inputRecords := []Record{{"invalid_field": "John"}}
 		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
 		var ve *ValueError
@@ -249,7 +252,7 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Create collection
-		vault.CreateCollection(ctx, testPrincipal, &col)
+		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
 		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
@@ -350,7 +353,7 @@ func TestVault(t *testing.T) {
 		}}
 
 		// Can create collection
-		vault.CreateCollection(ctx, testPrincipal, &col)
+		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 		record_ids, _ := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
 			{"first_name": "John"},
 			{"first_name": "Jane"},
@@ -440,8 +443,8 @@ func TestVaultLogin(t *testing.T) {
 	testPrincipal := Principal{
 		Username:    "test_user",
 		Password:    "test_password",
-		Policies:    []string{"root"},
 		Description: "test principal",
+		Policies:    []string{"root"},
 	}
 
 	err := vault.CreatePrincipal(ctx, testPrincipal, &Principal{Username: testPrincipal.Username, Password: testPrincipal.Password, Description: testPrincipal.Description, Policies: testPrincipal.Policies})

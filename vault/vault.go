@@ -72,7 +72,7 @@ type Policy struct {
 type Principal struct {
 	Id          string   `json:"id"`
 	Username    string   `json:"username" validate:"required,min=3,max=32"`
-	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
+	Password    string   `json:"password" validate:"required,min=3"` // This is to limit the size of the password hash.
 	Description string   `json:"description"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
@@ -80,9 +80,9 @@ type Principal struct {
 }
 
 type Request struct {
-	Principal Principal
-	Action    PolicyAction
-	Resource  string
+	Actor    Principal
+	Action   PolicyAction
+	Resource string
 }
 
 type Vault struct {
@@ -514,7 +514,10 @@ func (vault Vault) CreatePolicy(
 	if !allowed {
 		return &ForbiddenError{request}
 	}
-	vault.Validate(p)
+	err = vault.Validate(p)
+	if err != nil {
+		return err
+	}
 	p.Id = GenerateId("pol")
 
 	return vault.Db.CreatePolicy(ctx, p)
@@ -582,7 +585,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Actor.Policies)
 	if err != nil {
 		return false, err
 	}
@@ -643,6 +646,9 @@ func (vault Vault) GetTokenValue(ctx context.Context, principal Principal, token
 }
 
 func (vault *Vault) Validate(payload interface{}) error {
+	if vault.Validator == nil {
+		panic("Validator not set")
+	}
 	var errors []*ValidationError
 
 	err := vault.Validator.Struct(payload)

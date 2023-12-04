@@ -11,7 +11,7 @@ import (
 func TestCollections(t *testing.T) {
 	app, core := InitTestingVault(t)
 
-	customerCollection := _vault.Collection{
+	customerCollection := &_vault.Collection{
 		Name: "customers",
 		Fields: map[string]_vault.Field{
 			"name":         {Type: "name", IsIndexed: true},

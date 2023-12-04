@@ -9,7 +9,7 @@ from wait import wait_for_api
 
 
 class Policy(BaseModel):
-    policy_id: str
+    name: Optional[str] = None
     effect: str
     actions: List[str]
     resources: List[str]
@@ -134,13 +134,14 @@ class Actor:
 
     def create_policy(
         self, policy: Policy, expected_statuses: Optional[list[int]] = None
-    ) -> None:
+    ) -> dict[str, str]:
         response = requests.post(
             f"{self.vault_url}/policies",
             auth=(self.username, self.password),
             json=policy.model_dump(),
         )
         check_expected_status(response, expected_statuses)
+        return response.json()
 
     def get_policy(
         self, policy_id: str, expected_statuses: Optional[list[int]] = None

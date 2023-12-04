@@ -40,9 +40,8 @@ admin.create_collection(
 
 # Step 3: Create policies using admin role
 
-admin.create_policy(
+alice_policy = admin.create_policy(
     policy=Policy(
-        policy_id="alice-access-own_passwords",
         effect="allow",
         actions=["read", "write"],
         resources=["/collections/alice_passwords/*"],
@@ -51,9 +50,8 @@ admin.create_policy(
 )
 
 
-admin.create_policy(
+bob_policy = admin.create_policy(
     policy=Policy(
-        policy_id="bob-access-own_passwords",
         effect="allow",
         actions=["read", "write"],
         resources=["/collections/bob_passwords/*"],
@@ -65,7 +63,7 @@ admin.create_principal(
     username=ALICE_USERNAME,
     password=ALICE_PASSWORD,
     description="alice",
-    policies=["alice-access-own_passwords"],
+    policies=[alice_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -76,7 +74,7 @@ admin.create_principal(
     username=BOB_USERNAME,
     password=BOB_PASSWORD,
     description="bob",
-    policies=["bob-access-own_passwords"],
+    policies=[bob_policy["id"]],
     expected_statuses=[201, 409],
 )
 

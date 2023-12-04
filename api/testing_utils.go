@@ -16,11 +16,12 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
-var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
+var rootPolicyId = _vault.GenerateId("pol")
+var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{rootPolicyId}}
 
 func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	// Read environment variables if a test.env file exists, error is ignored on purpose
-	_ = godotenv.Load("test.env")
+	_ = godotenv.Load("../test.env")
 
 	coreConfig, err := ReadConfigs()
 	if err != nil {
@@ -50,13 +51,15 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	if err != nil {
 		t.Fatal("Failed to create logger", err)
 	}
-	vault := _vault.Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
+	vault := _vault.Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer, Validator: _vault.NewValidator()}
 	bootstrapContext := context.Background()
 	err = vault.Db.Flush(bootstrapContext)
 	if err != nil {
 		t.Fatal("Failed to flush db", err)
 	}
+
 	err = db.CreatePolicy(bootstrapContext, &_vault.Policy{
+		Id:        rootPolicyId,
 		Name:      "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
@@ -67,7 +70,13 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		t.Fatal("Failed to create root policy", err)
 	}
 
-	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, &_vault.Principal{Username: coreConfig.ADMIN_USERNAME, Password: coreConfig.ADMIN_PASSWORD, Description: "admin principal", Policies: []string{"root"}})
+	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, &_vault.Principal{
+		Id:          _vault.GenerateId("prin"),
+		Username:    coreConfig.ADMIN_USERNAME,
+		Password:    coreConfig.ADMIN_PASSWORD,
+		Description: "admin principal",
+		Policies:    []string{rootPolicyId},
+	})
 	if err != nil {
 		t.Fatal("Failed to create admin principal", err)
 	}
