@@ -72,7 +72,7 @@ type Policy struct {
 type Principal struct {
 	Id          string   `json:"id"`
 	Username    string   `json:"username" validate:"required,min=3,max=32"`
-	Password    string   `json:"password" validate:"required"` // This is to limit the size of the password hash.
+	Password    string   `json:"password" validate:"required,min=3"` // This is to limit the size of the password hash.
 	Description string   `json:"description"`
 	CreatedAt   string   `json:"created_at"`
 	UpdatedAt   string   `json:"updated_at"`
