@@ -37,11 +37,11 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 
 func (st *SqlStore) CreateSchemas() error {
 	tables := map[string]string{
-		"principals":          "CREATE TABLE IF NOT EXISTS principals (username TEXT PRIMARY KEY, password TEXT, description TEXT)",
+		"principals":          "CREATE TABLE IF NOT EXISTS principals (id TEXT PRIMARY KEY, username TEXT UNIQUE, password TEXT, description TEXT)",
 		"policies":            "CREATE TABLE IF NOT EXISTS policies (id TEXT PRIMARY KEY, effect TEXT, actions TEXT[], resources TEXT[])",
-		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (username TEXT, policy_id TEXT, UNIQUE(username, policy_id))",
+		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (principal_id TEXT, policy_id TEXT, UNIQUE(principal_id, policy_id))",
 		"tokens":              "CREATE TABLE IF NOT EXISTS tokens (id TEXT PRIMARY KEY, value TEXT)",
-		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (name TEXT PRIMARY KEY, field_schema JSON)",
+		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (id TEXT PRIMARY KEY, name TEXT UNIQUE, field_schema JSON)",
 	}
 
 	for _, query := range tables {
@@ -54,10 +54,10 @@ func (st *SqlStore) CreateSchemas() error {
 	return nil
 }
 
-func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string, error) {
+func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	tx, err := st.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	defer func() {
@@ -70,20 +70,21 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string,
 
 	fieldSchema, err := json.Marshal(c.Fields)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	_, err = tx.NamedExecContext(ctx, "INSERT INTO collection_metadata (name, field_schema) VALUES (:name, :field_schema)", map[string]interface{}{
+	_, err = tx.NamedExecContext(ctx, "INSERT INTO collection_metadata (id, name, field_schema) VALUES (:id, :name, :field_schema)", map[string]interface{}{
+		"id":           c.Id,
 		"name":         c.Name,
 		"field_schema": fieldSchema,
 	})
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == "23505" { // unique_violation
-				return "", &ConflictError{c.Name}
+				return &ConflictError{c.Name}
 			}
 		}
-		return "", err
+		return err
 	}
 
 	tableName := "collection_" + c.Name
@@ -95,15 +96,15 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c Collection) (string,
 	queryBuilder.WriteString(")")
 	_, err = tx.ExecContext(ctx, queryBuilder.String())
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return c.Name, nil
+	return nil
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
@@ -331,8 +332,8 @@ func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, reco
 }
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
-	var principal Principal
-	err := st.db.GetContext(ctx, &principal, "SELECT * FROM principals WHERE username = $1", username)
+	var dbPrincipal Principal
+	err := st.db.GetContext(ctx, &dbPrincipal, "SELECT * FROM principals WHERE username = $1", username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"principal", username}
@@ -340,7 +341,7 @@ func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principa
 		return nil, err
 	}
 
-	rows, err := st.db.QueryxContext(ctx, "SELECT policy_id FROM principal_policies WHERE username = $1", username)
+	rows, err := st.db.QueryxContext(ctx, "SELECT policy_id FROM principal_policies WHERE principal_id = $1", dbPrincipal.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -359,12 +360,12 @@ func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principa
 		return nil, err
 	}
 
-	principal.Policies = policyIds
+	dbPrincipal.Policies = policyIds
 
-	return &principal, nil
+	return &dbPrincipal, nil
 }
 
-func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) error {
+func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) error {
 	tx, err := st.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -379,7 +380,7 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) err
 		}
 	}()
 
-	_, err = tx.NamedExecContext(ctx, "INSERT INTO principals (username, password, description) VALUES (:username, :password, :description)", &principal)
+	_, err = tx.NamedExecContext(ctx, "INSERT INTO principals (id, username, password, description) VALUES (:id, :username, :password, :description)", &principal)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == "23505" {
@@ -390,7 +391,7 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) err
 	}
 
 	for _, policyId := range principal.Policies {
-		_, err = tx.ExecContext(ctx, "INSERT INTO principal_policies (username, policy_id) VALUES ($1, $2)", principal.Username, policyId)
+		_, err = tx.ExecContext(ctx, "INSERT INTO principal_policies (principal_id, policy_id) VALUES ($1, $2)", principal.Id, policyId)
 		if err != nil {
 			return err
 		}
@@ -404,7 +405,7 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal Principal) err
 	return nil
 }
 
-func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
+func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 	// Start a transaction
 	tx, err := st.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -423,12 +424,12 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM principal_policies WHERE username = $1", username)
+	_, err = tx.ExecContext(ctx, "DELETE FROM principal_policies WHERE principal_id = $1", id)
 	if err != nil {
 		return err
 	}
 
-	result, err := tx.ExecContext(ctx, "DELETE FROM principals WHERE username = $1", username)
+	result, err := tx.ExecContext(ctx, "DELETE FROM principals WHERE username = $1", id)
 	if err != nil {
 		return err
 	}
@@ -437,7 +438,7 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, username string) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return &NotFoundError{"principal", username}
+		return &NotFoundError{"principal", id}
 	}
 	err = tx.Commit()
 	if err != nil {
@@ -466,7 +467,7 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 	}
 
 	p := Policy{
-		PolicyId:  id,
+		Name:      id,
 		Effect:    PolicyEffect(effect),
 		Actions:   actionList,
 		Resources: resources,
@@ -507,7 +508,7 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 		}
 
 		policies = append(policies, &Policy{
-			PolicyId:  id,
+			Name:      id,
 			Effect:    PolicyEffect(effect),
 			Actions:   actionList,
 			Resources: resources,
@@ -521,10 +522,10 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 	return policies, nil
 }
 
-func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
+func (st SqlStore) CreatePolicy(ctx context.Context, p *Policy) error {
 	tx, err := st.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	defer func() {
@@ -543,32 +544,32 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p Policy) (string, error) {
 	resources := make(pq.StringArray, len(p.Resources))
 	copy(resources, p.Resources)
 	query, args, err := sqlx.Named(query, map[string]interface{}{
-		"id":        p.PolicyId,
+		"id":        p.Id,
 		"effect":    string(p.Effect),
 		"actions":   actions,
 		"resources": resources,
 	})
 
 	if err != nil {
-		return "", err
+		return err
 	}
 	query = tx.Rebind(query)
 	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == "23505" { // unique_violation
-				return "", &ConflictError{p.PolicyId}
+				return &ConflictError{p.Id}
 			}
 		}
-		return "", err
+		return err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return p.PolicyId, nil
+	return nil
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {

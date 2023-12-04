@@ -16,11 +16,12 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
-var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{"root"}}
+var rootPolicyId = _vault.GenerateId("pol")
+var adminPrincipal = _vault.Principal{Username: "admin", Password: "admin", Policies: []string{rootPolicyId}}
 
 func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	// Read environment variables if a test.env file exists, error is ignored on purpose
-	_ = godotenv.Load("test.env")
+	_ = godotenv.Load("../test.env")
 
 	coreConfig, err := ReadConfigs()
 	if err != nil {
@@ -50,14 +51,16 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 	if err != nil {
 		t.Fatal("Failed to create logger", err)
 	}
-	vault := _vault.Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer}
+	vault := _vault.Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer, Validator: _vault.NewValidator()}
 	bootstrapContext := context.Background()
 	err = vault.Db.Flush(bootstrapContext)
 	if err != nil {
 		t.Fatal("Failed to flush db", err)
 	}
-	_, err = db.CreatePolicy(bootstrapContext, _vault.Policy{
-		PolicyId:  "root",
+
+	err = db.CreatePolicy(bootstrapContext, &_vault.Policy{
+		Id:        rootPolicyId,
+		Name:      "root",
 		Effect:    _vault.EffectAllow,
 		Actions:   []_vault.PolicyAction{_vault.PolicyActionRead, _vault.PolicyActionWrite},
 		Resources: []string{"*"},
@@ -67,7 +70,13 @@ func InitTestingVault(t *testing.T) (*fiber.App, *Core) {
 		t.Fatal("Failed to create root policy", err)
 	}
 
-	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, coreConfig.ADMIN_USERNAME, coreConfig.ADMIN_PASSWORD, "admin principal", []string{"root"})
+	err = vault.CreatePrincipal(bootstrapContext, adminPrincipal, &_vault.Principal{
+		Id:          _vault.GenerateId("prin"),
+		Username:    coreConfig.ADMIN_USERNAME,
+		Password:    coreConfig.ADMIN_PASSWORD,
+		Description: "admin principal",
+		Policies:    []string{rootPolicyId},
+	})
 	if err != nil {
 		t.Fatal("Failed to create admin principal", err)
 	}
@@ -134,7 +143,7 @@ func checkResponse(t *testing.T, response *http.Response, expectedStatusCode int
 		// Check if target is a struct
 		if _, ok := target.(struct{}); ok {
 
-			validate := newValidator()
+			validate := _vault.NewValidator()
 			if err := validate.Struct(target); err != nil {
 				t.Fatalf("Error validating response: %v", err)
 			}

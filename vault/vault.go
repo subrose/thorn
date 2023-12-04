@@ -6,18 +6,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Field struct {
-	Name      string
-	Type      string
-	IsIndexed bool
+	Type      string `json:"type" validate:"required"`
+	IsIndexed bool   `json:"indexed" validate:"required,boolean"`
 }
 
 type Collection struct {
-	Name   string
-	Fields map[string]Field
+	Id          string           `json:"id"`
+	Name        string           `json:"name" validate:"required,min=3,max=32"`
+	Fields      map[string]Field `json:"fields" validate:"required"`
+	CreatedAt   string           `json:"created_at"`
+	UpdatedAt   string           `json:"updated_at"`
+	Description string           `json:"description"`
 }
 
 type Record map[string]string // field name -> value
@@ -55,31 +59,38 @@ const (
 )
 
 type Policy struct {
-	PolicyId  string         `json:"policy_id" validate:"required"`
-	Effect    PolicyEffect   `json:"effect" validate:"required"`
-	Actions   []PolicyAction `json:"actions" validate:"required"`
-	Resources []string       `json:"resources" validate:"required"`
+	Id          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Effect      PolicyEffect   `json:"effect" validate:"required"`
+	Actions     []PolicyAction `json:"actions" validate:"required"`
+	Resources   []string       `json:"resources" validate:"required"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 type Principal struct {
-	Username    string
-	Password    string
-	Description string
-	CreatedAt   string
-	Policies    []string
+	Id          string   `json:"id"`
+	Username    string   `json:"username" validate:"required,min=3,max=32"`
+	Password    string   `json:"password" validate:"required,min=3"` // This is to limit the size of the password hash.
+	Description string   `json:"description"`
+	CreatedAt   string   `json:"created_at"`
+	UpdatedAt   string   `json:"updated_at"`
+	Policies    []string `json:"policies"`
 }
 
 type Request struct {
-	Principal Principal
-	Action    PolicyAction
-	Resource  string
+	Actor    Principal
+	Action   PolicyAction
+	Resource string
 }
 
 type Vault struct {
-	Db     VaultDB
-	Priv   Privatiser
-	Logger Logger
-	Signer Signer
+	Db        VaultDB
+	Priv      Privatiser
+	Logger    Logger
+	Signer    Signer
+	Validator *validator.Validate
 }
 
 const (
@@ -92,7 +103,7 @@ const (
 type VaultDB interface {
 	GetCollection(ctx context.Context, name string) (*Collection, error)
 	GetCollections(ctx context.Context) ([]string, error)
-	CreateCollection(ctx context.Context, c Collection) (string, error)
+	CreateCollection(ctx context.Context, col *Collection) error
 	DeleteCollection(ctx context.Context, name string) error
 	CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error)
 	GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error)
@@ -100,11 +111,11 @@ type VaultDB interface {
 	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
 	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
 	GetPrincipal(ctx context.Context, username string) (*Principal, error)
-	CreatePrincipal(ctx context.Context, principal Principal) error
+	CreatePrincipal(ctx context.Context, principal *Principal) error
 	DeletePrincipal(ctx context.Context, username string) error
 	GetPolicy(ctx context.Context, policyId string) (*Policy, error)
 	GetPolicies(ctx context.Context, policyIds []string) ([]*Policy, error)
-	CreatePolicy(ctx context.Context, p Policy) (string, error)
+	CreatePolicy(ctx context.Context, p *Policy) error
 	DeletePolicy(ctx context.Context, policyId string) error
 	CreateToken(ctx context.Context, tokenId string, value string) error
 	DeleteToken(ctx context.Context, tokenId string) error
@@ -157,25 +168,26 @@ func (vault Vault) GetCollections(
 func (vault Vault) CreateCollection(
 	ctx context.Context,
 	principal Principal,
-	col Collection,
-) (string, error) {
+	col *Collection,
+) error {
 	request := Request{principal, PolicyActionWrite, COLLECTIONS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if !allowed {
-		return "", &ForbiddenError{request}
+		return &ForbiddenError{request}
 	}
+	if err := vault.Validate(col); err != nil {
+		return err
+	}
+	col.Id = GenerateId("col")
 
-	if len(col.Name) < 3 {
-		return "", &ValueError{Msg: "collection name must be at least 3 characters"}
-	}
-	collectionId, err := vault.Db.CreateCollection(ctx, col)
+	err = vault.Db.CreateCollection(ctx, col)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return collectionId, nil
+	return nil
 }
 
 func (vault Vault) DeleteCollection(
@@ -407,13 +419,10 @@ func (vault Vault) GetPrincipal(
 
 func (vault Vault) CreatePrincipal(
 	ctx context.Context,
-	principal Principal,
-	username,
-	password,
-	description string,
-	policies []string,
+	actor Principal,
+	principal *Principal,
 ) error {
-	request := Request{principal, PolicyActionWrite, PRINCIPALS_PPATH}
+	request := Request{actor, PolicyActionWrite, PRINCIPALS_PPATH}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
 		return err
@@ -422,16 +431,16 @@ func (vault Vault) CreatePrincipal(
 		return &ForbiddenError{request}
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	dbPrincipal := Principal{
-		Username:    username,
-		Password:    string(hashedPassword),
-		CreatedAt:   time.Now().Format(time.RFC3339),
-		Description: description,
-		Policies:    policies,
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(principal.Password), bcrypt.DefaultCost)
+	principal.Password = string(hashedPassword)
+	principal.Id = GenerateId("prin")
+	principal.CreatedAt = time.Now().Format(time.RFC3339)
+
+	if err := vault.Validate(principal); err != nil {
+		return err
 	}
 
-	err = vault.Db.CreatePrincipal(ctx, dbPrincipal)
+	err = vault.Db.CreatePrincipal(ctx, principal)
 	if err != nil {
 		return err
 	}
@@ -489,22 +498,27 @@ func (vault Vault) Login(
 func (vault Vault) CreatePolicy(
 	ctx context.Context,
 	principal Principal,
-	p Policy,
-) (string, error) {
+	p *Policy,
+) error {
 	request := Request{principal, PolicyActionWrite, POLICIES_PPATH}
 	// Ensure resource starts with a slash
 	for _, resource := range p.Resources {
 		if !strings.HasPrefix(resource, "/") {
-			return "", &ValueError{Msg: fmt.Sprintf("resources must start with a slash - '%s' is not a valid resource", resource)}
+			return &ValueError{Msg: fmt.Sprintf("resources must start with a slash - '%s' is not a valid resource", resource)}
 		}
 	}
 	allowed, err := vault.ValidateAction(ctx, request)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if !allowed {
-		return "", &ForbiddenError{request}
+		return &ForbiddenError{request}
 	}
+	err = vault.Validate(p)
+	if err != nil {
+		return err
+	}
+	p.Id = GenerateId("pol")
 
 	return vault.Db.CreatePolicy(ctx, p)
 }
@@ -571,7 +585,7 @@ func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
 ) (bool, error) {
-	policies, err := vault.Db.GetPolicies(ctx, request.Principal.Policies)
+	policies, err := vault.Db.GetPolicies(ctx, request.Actor.Policies)
 	if err != nil {
 		return false, err
 	}
@@ -629,4 +643,29 @@ func (vault Vault) GetTokenValue(ctx context.Context, principal Principal, token
 		return record, nil
 	}
 	return nil, &NotFoundError{"record", recordId}
+}
+
+func (vault *Vault) Validate(payload interface{}) error {
+	if vault.Validator == nil {
+		panic("Validator not set")
+	}
+	var errors []*ValidationError
+
+	err := vault.Validator.Struct(payload)
+	if err != nil {
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			return &ValidationErrors{errors}
+		}
+		for _, err := range err.(validator.ValidationErrors) {
+			var element ValidationError
+			element.FailedField = err.Field()
+			element.Tag = err.Tag()
+			element.Value = err.Param()
+			errors = append(errors, &element)
+		}
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return ValidationErrors{errors}
 }

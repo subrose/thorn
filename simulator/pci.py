@@ -26,9 +26,8 @@ admin.create_collection(
 
 # Create policies
 # Backend can write customer details
-admin.create_policy(
+backend_policy = admin.create_policy(
     policy=Policy(
-        policy_id="backend-ccs",
         effect="allow",
         actions=["write"],
         resources=["/collections/credit_cards/*"],
@@ -37,9 +36,8 @@ admin.create_policy(
 )
 
 # CS can read masked records
-admin.create_policy(
+cs_policy = admin.create_policy(
     policy=Policy(
-        policy_id="cs-ccs",
         effect="allow",
         actions=["read"],
         resources=[
@@ -50,9 +48,8 @@ admin.create_policy(
 )
 
 # Proxy service can read plain for forwarding to payment gateway
-admin.create_policy(
+proxy_policy = admin.create_policy(
     policy=Policy(
-        policy_id="proxy-ccs",
         effect="allow",
         actions=["read"],
         resources=[
@@ -71,7 +68,7 @@ admin.create_principal(
     username=backend.username,
     password=backend.password,
     description="backend",
-    policies=["backend-ccs"],
+    policies=[backend_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -79,7 +76,7 @@ admin.create_principal(
     username=cs.username,
     password=cs.password,
     description="cs",
-    policies=["cs-ccs"],
+    policies=[cs_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -87,7 +84,7 @@ admin.create_principal(
     username=proxy.username,
     password=proxy.password,
     description="proxy",
-    policies=["proxy-ccs"],
+    policies=[proxy_policy["id"]],
     expected_statuses=[201, 409],
 )
 

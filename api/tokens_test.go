@@ -14,12 +14,12 @@ func TestTokens(t *testing.T) {
 	customerCollection := vault.Collection{
 		Name: "test",
 		Fields: map[string]vault.Field{
-			"name":         {Name: "name", Type: "name", IsIndexed: true},
-			"phone_number": {Name: "phone_number", Type: "phone_number", IsIndexed: true},
-			"dob":          {Name: "dob", Type: "date", IsIndexed: false},
+			"name":         {Type: "name", IsIndexed: true},
+			"phone_number": {Type: "phone_number", IsIndexed: true},
+			"dob":          {Type: "date", IsIndexed: false},
 		},
 	}
-	_, err := core.vault.CreateCollection(context.Background(), adminPrincipal, customerCollection)
+	err := core.vault.CreateCollection(context.Background(), adminPrincipal, &customerCollection)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

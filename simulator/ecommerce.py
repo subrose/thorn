@@ -36,9 +36,8 @@ admin.create_collection(
 
 # Create policies
 # Backend can write customer details
-admin.create_policy(
+backend_policy = admin.create_policy(
     policy=Policy(
-        policy_id="backend",
         effect="allow",
         actions=["write"],
         resources=["/collections/customers/*"],
@@ -47,9 +46,8 @@ admin.create_policy(
 )
 
 # Marketing can read masked records
-admin.create_policy(
+marketing_policy = admin.create_policy(
     policy=Policy(
-        policy_id="marketing",
         effect="allow",
         actions=["read"],
         resources=[
@@ -60,9 +58,8 @@ admin.create_policy(
 )
 
 # Customer service team can read all customer details in plain
-admin.create_policy(
+cs_policy = admin.create_policy(
     policy=Policy(
-        policy_id="customer-service",
         effect="allow",
         actions=["read"],
         resources=[
@@ -83,7 +80,7 @@ admin.create_principal(
     username=backend.username,
     password=backend.password,
     description="backend",
-    policies=["backend"],
+    policies=[backend_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -91,7 +88,7 @@ admin.create_principal(
     username=marketing.username,
     password=marketing.password,
     description="marketing",
-    policies=["marketing"],
+    policies=[marketing_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -99,7 +96,7 @@ admin.create_principal(
     username=customer_service.username,
     password=customer_service.password,
     description="customer-service",
-    policies=["customer-service"],
+    policies=[cs_policy["id"]],
     expected_statuses=[201, 409],
 )
 

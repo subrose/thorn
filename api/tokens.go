@@ -20,9 +20,10 @@ func (core *Core) CreateToken(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
-	if validationErrs := core.Validate(tokenRequest); validationErrs != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
-	}
+	// TODO: Move validation to vault
+	// if validationErrs := core.Validate(tokenRequest); validationErrs != nil {
+	// 	return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
+	// }
 
 	sessionPrincipal := GetSessionPrincipal(c)
 	tokenId, err := core.vault.CreateToken(c.Context(), sessionPrincipal, tokenRequest.Collection, tokenRequest.RecordId, tokenRequest.Field, tokenRequest.Format)

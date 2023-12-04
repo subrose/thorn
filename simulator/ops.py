@@ -32,9 +32,8 @@ records = admin.create_records(
 
 
 # Create a temporary policy for somebody
-admin.create_policy(
+temp_policy = admin.create_policy(
     policy=Policy(
-        policy_id="secret-access",
         effect="allow",
         actions=["read", "write"],
         resources=["/collections/secrets/*"],
@@ -52,7 +51,7 @@ admin.create_principal(
     username=SOMEBODY_USERNAME,
     password=SOMEBODY_PASSWORD,
     description="somebody",
-    policies=["secret-access"],
+    policies=[temp_policy["id"]],
     expected_statuses=[201, 409],
 )
 
@@ -68,13 +67,13 @@ record = somebody.get_record(
 
 # Policy is removed
 admin.delete_policy(
-    policy_id="secret-access",
+    policy_id=temp_policy["id"],
     expected_statuses=[204],
 )
 
 # Policy is removed twice for good measure
 admin.delete_policy(
-    policy_id="secret-access",
+    policy_id=temp_policy["id"],
     expected_statuses=[404],
 )
 

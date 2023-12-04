@@ -11,9 +11,9 @@ import (
 func TestCollections(t *testing.T) {
 	app, core := InitTestingVault(t)
 
-	customerCollection := CollectionModel{
+	customerCollection := &_vault.Collection{
 		Name: "customers",
-		Fields: map[string]CollectionFieldModel{
+		Fields: map[string]_vault.Field{
 			"name":         {Type: "name", IsIndexed: true},
 			"phone_number": {Type: "phone_number", IsIndexed: true},
 			"dob":          {Type: "date", IsIndexed: false},
@@ -36,7 +36,7 @@ func TestCollections(t *testing.T) {
 		}, nil)
 
 		response := performRequest(t, app, request)
-		var returnedCollection CollectionModel
+		var returnedCollection _vault.Collection
 		checkResponse(t, response, http.StatusOK, &returnedCollection)
 
 		if returnedCollection.Name != "customers" {
@@ -60,9 +60,9 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can delete a collection", func(t *testing.T) {
 		// Create a dummy collection
-		collectionToDelete := CollectionModel{
+		collectionToDelete := _vault.Collection{
 			Name: "delete_me",
-			Fields: map[string]CollectionFieldModel{
+			Fields: map[string]_vault.Field{
 				"name": {Type: "name", IsIndexed: true},
 			},
 		}

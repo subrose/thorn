@@ -26,9 +26,9 @@ func (pm DummyPolicyManager) GetPolicies(ctx context.Context, policyIds []string
 }
 
 func (pm DummyPolicyManager) CreatePolicy(ctx context.Context, p Policy) (string, error) {
-	pm.policies[p.PolicyId] = p
+	pm.policies[p.Id] = p
 
-	return p.PolicyId, nil
+	return p.Id, nil
 }
 
 func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) error {
@@ -39,16 +39,18 @@ func (pm DummyPolicyManager) DeletePolicy(ctx context.Context, policyId string) 
 func getDummyPolicy(principal string) []Policy {
 	return []Policy{
 		{
-			fmt.Sprintf("%s-allow", principal),
-			EffectAllow,
-			[]PolicyAction{PolicyActionRead},
-			[]string{"allowed-resource/*", "restricted-resource"},
+			Id:        "pol_allow",
+			Name:      fmt.Sprintf("%s-allow", principal),
+			Effect:    EffectAllow,
+			Actions:   []PolicyAction{PolicyActionRead},
+			Resources: []string{"allowed-resource/*", "restricted-resource"},
 		},
 		{
-			fmt.Sprintf("%s-deny", principal),
-			EffectDeny,
-			[]PolicyAction{PolicyActionRead},
-			[]string{"restricted-resource"},
+			Id:        "pol_deny",
+			Name:      fmt.Sprintf("%s-deny", principal),
+			Effect:    EffectDeny,
+			Actions:   []PolicyAction{PolicyActionRead},
+			Resources: []string{"restricted-resource"},
 		},
 	}
 }
@@ -69,8 +71,8 @@ func makePrincipal() Principal {
 	return Principal{
 		Username: "test",
 		Policies: []string{
-			"test-allow",
-			"test-deny",
+			"pol_allow",
+			"pol_deny",
 		},
 	}
 }
@@ -113,6 +115,7 @@ func TestPolicies(t *testing.T) {
 			PolicyActionRead,
 			"aallowed-resource",
 		}
+
 		allowed := EvaluateRequest(request, policies)
 		if allowed {
 			t.Fail()

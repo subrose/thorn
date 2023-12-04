@@ -38,11 +38,7 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
-	if validationErrs := core.Validate(policy); validationErrs != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(validationErrs)
-	}
-
-	_, err := core.vault.CreatePolicy(c.Context(), sessionPrincipal, policy)
+	err := core.vault.CreatePolicy(c.Context(), sessionPrincipal, &policy)
 	if err != nil {
 		core.logger.Error(fmt.Sprintf("Failed to create policy %v", err))
 		return err

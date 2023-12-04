@@ -8,35 +8,15 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
-type CollectionFieldModel struct {
-	Type      string `json:"type" validate:"required"`
-	IsIndexed bool   `json:"indexed" validate:"required, boolean"`
-}
-
-type CollectionModel struct {
-	Name   string                          `json:"name" validate:"required,vaultResourceNames"`
-	Fields map[string]CollectionFieldModel `json:"fields" validate:"required"`
-}
-
 func (core *Core) GetCollection(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	principal := GetSessionPrincipal(c)
-	dbCollection, err := core.vault.GetCollection(c.Context(), principal, collectionName)
+	collection, err := core.vault.GetCollection(c.Context(), principal, collectionName)
 
 	if err != nil {
 		return err
 	}
 
-	collection := CollectionModel{
-		Name:   dbCollection.Name,
-		Fields: make(map[string]CollectionFieldModel, len(dbCollection.Fields)),
-	}
-	for _, field := range dbCollection.Fields {
-		collection.Fields[field.Name] = CollectionFieldModel{
-			Type:      field.Type,
-			IsIndexed: field.IsIndexed,
-		}
-	}
 	return c.Status(http.StatusOK).JSON(collection)
 }
 
@@ -51,31 +31,16 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 
 func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
-	inputCollection := new(CollectionModel)
-	if err := core.ParseJsonBody(c.Body(), inputCollection); err != nil {
+	collection := new(_vault.Collection)
+	if err := core.ParseJsonBody(c.Body(), collection); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
-	if err := core.Validate(inputCollection); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(err)
-	}
 
-	newCollection := _vault.Collection{
-		Name:   inputCollection.Name,
-		Fields: make(map[string]_vault.Field, len(inputCollection.Fields)),
-	}
-	for fieldName, field := range inputCollection.Fields {
-		newCollection.Fields[fieldName] = _vault.Field{
-			Name:      fieldName,
-			Type:      field.Type,
-			IsIndexed: field.IsIndexed,
-		}
-	}
-
-	_, err := core.vault.CreateCollection(c.Context(), principal, newCollection)
+	err := core.vault.CreateCollection(c.Context(), principal, collection)
 	if err != nil {
 		return err
 	}
-	return c.Status(http.StatusCreated).SendString("Collection created")
+	return c.Status(http.StatusCreated).JSON(collection)
 }
 
 func (core *Core) DeleteCollection(c *fiber.Ctx) error {
