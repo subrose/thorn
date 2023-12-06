@@ -24,10 +24,16 @@ func TestTokens(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	records, err := core.vault.CreateRecords(context.Background(), adminPrincipal, "test", []vault.Record{
-		{"name": "Jiminson McFoo", "phone_number": "+447890123456", "dob": "1980-01-01"},
-		{"name": "Asdaf Fardas", "phone_number": "+447890123457", "dob": "1990-01-01"},
-	})
+	recordId, err := core.vault.CreateRecord(
+		context.Background(),
+		adminPrincipal, "test",
+		vault.Record{"name": "Jiminson McFoo", "phone_number": "+447890123456", "dob": "1980-01-01"},
+	)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -36,7 +42,7 @@ func TestTokens(t *testing.T) {
 	t.Run("can create a token", func(t *testing.T) {
 		tokenRequest := &TokenRequest{
 			Collection: "test",
-			RecordId:   records[0],
+			RecordId:   recordId,
 			Field:      "name",
 			Format:     "plain",
 		}

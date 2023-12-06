@@ -11,9 +11,14 @@ import (
 )
 
 var (
-	ErrIndexError   = errors.New("index")
-	ErrNotSupported = errors.New("notsupported")
+	ErrIndexError = errors.New("index")
 )
+
+type NotSupportedError struct{ Msg string }
+
+func (e *NotSupportedError) Error() string {
+	return e.Msg
+}
 
 type ForbiddenError struct{ request Request }
 

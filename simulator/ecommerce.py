@@ -115,10 +115,10 @@ for i in range(10):
         "credit_card": fake.credit_card_full(),
         "address": fake.address(),
     }
-    record_ids = backend.create_records(
-        collection="customers", records=[record], expected_statuses=[201, 409]
+    record_id = backend.create_record(
+        collection="customers", record=record, expected_statuses=[201, 409]
     )
-    records_map[record_ids[0]] = record
+    records_map[record_id] = record
 
 for record_id, record in records_map.items():
     # Backend can't read anything
@@ -144,9 +144,9 @@ for record_id, record in records_map.items():
         expected_statuses=[200],
     )
     # Check that masked record is masked correctly, first 5 digits are the same
-    assert masked_record[record_id]["phone"][:5] == record["phone"][:5]
+    assert masked_record["phone"][:5] == record["phone"][:5]
     # Check that masked record is masked correctly, rest of the digits are not the same
-    assert masked_record[record_id]["phone"][5:] != record["phone"][5:]
+    assert masked_record["phone"][5:] != record["phone"][5:]
 
     # Marketing can't read plain
     marketing.get_record(
@@ -165,9 +165,9 @@ for record_id, record in records_map.items():
     )
 
     # Check that plain record is the same as the original record
-    assert plain_record[record_id]["name"] == record["name"]
-    assert plain_record[record_id]["email"] == record["email"]
-    assert plain_record[record_id]["phone"] == record["phone"]
+    assert plain_record["name"] == record["name"]
+    assert plain_record["email"] == record["email"]
+    assert plain_record["phone"] == record["phone"]
 
 
 print("Ecommerce usecase ok!")

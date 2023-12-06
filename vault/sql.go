@@ -175,20 +175,20 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 	return nil
 }
 
-func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, records []Record) ([]string, error) {
+func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) (string, error) {
 	var fieldSchema json.RawMessage
 	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &NotFoundError{"collection", collectionName}
+			return "", &NotFoundError{"collection", collectionName}
 		}
-		return nil, err
+		return "", err
 	}
 
 	var fields map[string]Field
 	err = json.Unmarshal(fieldSchema, &fields)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	fieldNames := make([]string, 0, len(fields))
@@ -204,39 +204,45 @@ func (st SqlStore) CreateRecords(ctx context.Context, collectionName string, rec
 	query := fmt.Sprintf("INSERT INTO collection_%s (id, %s) VALUES ($1, %s)", collectionName, strings.Join(fieldNames, ", "), strings.Join(placeholders, ", "))
 	stmt, err := st.db.PrepareContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer stmt.Close()
 
-	recordIds := make([]string, len(records))
-	for i, record := range records {
-		// Validate record fields
-		if len(record) != len(fields) {
-			return nil, &ValueError{fmt.Sprintf("expected %d fields, got %d", len(fields), len(record))}
-		}
+	// Validate record fields
+	if len(record) != len(fields) {
+		return "", &ValueError{fmt.Sprintf("expected %d fields, got %d", len(fields), len(record))}
+	}
 
-		recordId := GenerateId("rec")
-		recordIds[i] = recordId
+	recordId := GenerateId("rec")
 
-		values := make([]interface{}, len(fields)+1)
-		values[0] = recordId
-		for j, fieldName := range fieldNames {
-			if value, ok := record[fieldName]; ok {
-				values[j+1] = value
-			} else {
-				return nil, &ValueError{fmt.Sprintf("missing field %s", fieldName)}
-			}
-		}
-
-		_, err = stmt.ExecContext(ctx, values...)
-		if err != nil {
-			return nil, err
+	values := make([]interface{}, len(fields)+1)
+	values[0] = recordId
+	for j, fieldName := range fieldNames {
+		if value, ok := record[fieldName]; ok {
+			values[j+1] = value
+		} else {
+			return "", &ValueError{fmt.Sprintf("missing field %s", fieldName)}
 		}
 	}
+
+	_, err = stmt.ExecContext(ctx, values...)
+	if err != nil {
+		return "", err
+	}
+	return recordId, nil
+}
+
+func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {
+	var recordIds []string
+	err := st.db.SelectContext(ctx, &recordIds, "SELECT id FROM collection_"+collectionName)
+	if err != nil {
+		return nil, err
+	}
+
 	return recordIds, nil
 }
 
-func (st SqlStore) GetRecords(ctx context.Context, collectionName string, recordIDs []string) (map[string]*Record, error) {
+func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordID string) (Record, error) {
 	var fieldSchema json.RawMessage
 	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
 	if err != nil {
@@ -252,43 +258,38 @@ func (st SqlStore) GetRecords(ctx context.Context, collectionName string, record
 		return nil, err
 	}
 
-	query, args, err := sqlx.In("SELECT * FROM collection_"+collectionName+" WHERE id IN (?)", recordIDs)
-	if err != nil {
-		return nil, err
-	}
-	query = st.db.Rebind(query)
-
-	rows, err := st.db.QueryxContext(ctx, query, args...)
+	query := "SELECT * FROM collection_" + collectionName + " WHERE id = $1"
+	rows, err := st.db.QueryxContext(ctx, query, recordID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	records := make(map[string]*Record)
-	for rows.Next() {
-		recordMap := make(map[string]interface{})
-		err = rows.MapScan(recordMap)
-		if err != nil {
-			return nil, err
+	if !rows.Next() {
+		return nil, &NotFoundError{"record", recordID}
+	}
+
+	recordMap := make(map[string]interface{})
+	err = rows.MapScan(recordMap)
+	if err != nil {
+		return nil, err
+	}
+
+	record := make(Record)
+	for k, v := range recordMap {
+		if str, ok := v.(string); ok {
+			record[k] = str
+		} else {
+			// We're assuming all record fields are strings as they are encrypted in the db, this might change
+			return nil, fmt.Errorf("unexpected type for field %s", k)
 		}
-		recordID := recordMap["id"].(string)
-		record := make(Record)
-		for k, v := range recordMap {
-			if str, ok := v.(string); ok {
-				record[k] = str
-			} else {
-				// We're assuming all record fields are strings as they are encrypted in the db, this might change
-				return nil, fmt.Errorf("unexpected type for field %s", k)
-			}
-		}
-		records[recordID] = &record
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return records, nil
+	return record, nil
 }
 
 func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error) {

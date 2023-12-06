@@ -94,6 +94,8 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 	var ae *AuthError
 	var co *_vault.ConflictError
 	var va *_vault.ValidationErrors
+	var ns *_vault.NotSupportedError
+
 	switch {
 	case errors.As(err, &ve):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{ve.Error(), nil})
@@ -103,7 +105,7 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusNotFound).JSON(ErrorResponse{ne.Error(), nil})
 	case errors.As(err, &ae):
 		return ctx.Status(http.StatusUnauthorized).JSON(ErrorResponse{ae.Error(), nil})
-	case errors.Is(err, _vault.ErrNotSupported):
+	case errors.As(err, &ns):
 		return ctx.Status(http.StatusNotImplemented).JSON(ErrorResponse{err.Error(), nil})
 	case errors.As(err, &co):
 		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{co.Error(), nil})
@@ -150,7 +152,8 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Delete("/:name", core.DeleteCollection)
 	collectionsGroup.Post("", core.CreateCollection)
-	collectionsGroup.Post("/:name/records", core.CreateRecords)
+	collectionsGroup.Post("/:name/records", core.CreateRecord)
+	collectionsGroup.Get("/:name/records", core.GetRecords)
 	collectionsGroup.Get("/:name/records/:id", core.GetRecord)
 	collectionsGroup.Put("/:name/records/:id", core.UpdateRecord)
 	collectionsGroup.Delete("/:name/records/:id", core.DeleteRecord)
