@@ -82,22 +82,19 @@ bob = Actor(vault_url, BOB_USERNAME, BOB_PASSWORD)
 
 # 2) Alice adds a password
 alice_password = "alicerocks"
-alice_password_res = alice.create_records(
+alice_password_id = alice.create_record(
     "alice_passwords",
-    [{"service": "email", "password": alice_password}],
+    {"service": "email", "password": alice_password},
     expected_statuses=[201],
 )
 
 # 4) Bob adds a password
 bob_password = "bobisthebest"
-bob_password_res = bob.create_records(
+bob_password_id = bob.create_record(
     "bob_passwords",
-    [{"service": "email", "password": bob_password}],
+    {"service": "email", "password": bob_password},
     expected_statuses=[201],
 )
-
-alice_password_id = alice_password_res[0]
-bob_password_id = bob_password_res[0]
 
 # 5) Alice views her passwords
 alice_retrieved_password = alice.get_record(
@@ -107,7 +104,7 @@ alice_retrieved_password = alice.get_record(
     expected_statuses=[200],
 )
 
-assert alice_retrieved_password[alice_password_id]["password"] == alice_password
+assert alice_retrieved_password["password"] == alice_password
 
 # 6) Bob views his passwords
 bob_retrieved_password = bob.get_record(
@@ -116,7 +113,7 @@ bob_retrieved_password = bob.get_record(
     return_formats="service.plain,password.plain",
     expected_statuses=[200],
 )
-assert bob_retrieved_password[bob_password_id]["password"] == bob_password
+assert bob_retrieved_password["password"] == bob_password
 
 # 7) Alice can't CRUD Bob's passwords
 alice.get_record(

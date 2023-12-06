@@ -24,9 +24,9 @@ admin.create_collection(
 )
 
 # Admin adds some records
-records = admin.create_records(
+record_id = admin.create_record(
     "secrets",
-    [{"name": "admin-password", "value": "admin-password-value"}],
+    {"name": "admin-password", "value": "admin-password-value"},
     expected_statuses=[201],
 )
 
@@ -60,7 +60,7 @@ somebody = Actor(vault_url, SOMEBODY_USERNAME, SOMEBODY_PASSWORD)
 # Somebody reads the records
 record = somebody.get_record(
     collection="secrets",
-    record_id=records[0],
+    record_id=record_id,
     return_formats="name.plain,value.plain",
     expected_statuses=[200],
 )
@@ -80,7 +80,7 @@ admin.delete_policy(
 # Somebody can't read the records anymore
 somebody.get_record(
     collection="secrets",
-    record_id=records[0],
+    record_id=record_id,
     return_formats="name.plain,value.plain",
     expected_statuses=[403],
 )

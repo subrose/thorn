@@ -104,10 +104,10 @@ for i in range(10):
         "cc_cvv": fake.credit_card_security_code(),
         "cc_expiry": fake.credit_card_expire(),
     }
-    record_ids = backend.create_records(
-        collection="credit_cards", records=[record], expected_statuses=[201, 409]
+    record_id = backend.create_record(
+        collection="credit_cards", record=record, expected_statuses=[201, 409]
     )
-    records_map[record_ids[0]] = record
+    records_map[record_id] = record
 
 for record_id, record in records_map.items():
     # Backend can't read anything

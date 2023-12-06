@@ -94,39 +94,20 @@ func TestVault(t *testing.T) {
 		}
 
 		// Can store records
-		inputRecords := []Record{
-			{
-				"first_name":   "John",
-				"last_name":    "Crawford",
-				"email":        "john@crawford.com",
-				"phone_number": "1234567890",
-			},
-
-			{
-				"first_name":   "Jane",
-				"last_name":    "Doe",
-				"email":        "jane@doeindustries.com",
-				"phone_number": "0987654321",
-			},
-			{
-				"first_name":   "Bob",
-				"last_name":    "Alice",
-				"email":        "bob@gmail.com",
-				"phone_number": "09873243323423",
-			},
+		inputRecord := Record{
+			"first_name":   "John",
+			"last_name":    "Crawford",
+			"email":        "john@crawford.com",
+			"phone_number": "1234567890",
 		}
 
-		ids, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
+		record_id, err := vault.CreateRecord(ctx, testPrincipal, col.Name, inputRecord)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if len(ids) != len(inputRecords) {
-			t.Fatalf("Expected %d records to be created, got %d", len(inputRecords), len(ids))
-		}
-
 		// Can get records
-		vaultRecords, err := vault.GetRecords(ctx, testPrincipal, col.Name, ids, map[string]string{
+		vaultRecord, err := vault.GetRecord(ctx, testPrincipal, col.Name, record_id, map[string]string{
 			"first_name": "plain", "last_name": "plain", "email": "plain", "phone_number": "plain",
 		})
 		if err != nil {
@@ -134,17 +115,14 @@ func TestVault(t *testing.T) {
 		}
 
 		// Check if input and output records match
-		for i, id := range ids {
-			inputRecord := inputRecords[i]
-			vaultRecord := vaultRecords[id]
 
-			for k, v := range inputRecord {
-				val := v
-				if val != vaultRecord[k] {
-					t.Fatalf("Expected %s to be %s, got %s", k, v, vaultRecord[k])
-				}
+		for k, v := range inputRecord {
+			val := v
+			if val != vaultRecord[k] {
+				t.Fatalf("Expected %s to be %s, got %s", k, v, vaultRecord[k])
 			}
 		}
+
 	})
 
 	t.Run("can delete collections and associated records", func(t *testing.T) {
@@ -157,9 +135,7 @@ func TestVault(t *testing.T) {
 		}}
 		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 		// Create a dummy record
-		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
-			{"first_name": "dummy"},
-		})
+		recordID, err := vault.CreateRecord(ctx, testPrincipal, col.Name, Record{"first_name": "dummy"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -175,7 +151,7 @@ func TestVault(t *testing.T) {
 			t.Error("Should throw a not found error when getting a deleted collection, got:", err)
 		}
 		// Try to get the deleted record
-		_, err = vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+		_, err = vault.GetRecord(ctx, testPrincipal, col.Name, recordID, map[string]string{
 			"first_name": "plain",
 		})
 		// Expect a NotFoundError
@@ -198,9 +174,7 @@ func TestVault(t *testing.T) {
 		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
-		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
-			{"test_field": "dummy"},
-		})
+		recordID, err := vault.CreateRecord(ctx, testPrincipal, col.Name, Record{"test_field": "dummy"})
 
 		if err != nil {
 			t.Fatal(err)
@@ -208,19 +182,19 @@ func TestVault(t *testing.T) {
 
 		// Update the record
 		updateRecord := Record{"test_field": "updated"}
-		err = vault.UpdateRecord(ctx, testPrincipal, col.Name, recordID[0], updateRecord)
+		err = vault.UpdateRecord(ctx, testPrincipal, col.Name, recordID, updateRecord)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Verify update of the record
-		updatedRecord, err := vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+		updatedRecord, err := vault.GetRecord(ctx, testPrincipal, col.Name, recordID, map[string]string{
 			"test_field": "plain",
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if updatedRecord[recordID[0]]["test_field"] != "updated" {
+		if updatedRecord["test_field"] != "updated" {
 			t.Fatal("Record not updated correctly.")
 		}
 	})
@@ -234,8 +208,8 @@ func TestVault(t *testing.T) {
 			},
 		}}
 		_ = vault.CreateCollection(ctx, testPrincipal, &col)
-		inputRecords := []Record{{"invalid_field": "John"}}
-		_, err := vault.CreateRecords(ctx, testPrincipal, col.Name, inputRecords)
+		_, err := vault.CreateRecord(ctx, testPrincipal, col.Name, Record{"invalid_field": "John"})
+
 		var ve *ValueError
 		if err == nil || !errors.As(err, &ve) {
 			t.Fatalf("Expected a value error, got %s", err)
@@ -255,22 +229,20 @@ func TestVault(t *testing.T) {
 		_ = vault.CreateCollection(ctx, testPrincipal, &col)
 
 		// Create a dummy record
-		recordID, err := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
-			{"test_field": "dummy"},
-		})
+		recordID, err := vault.CreateRecord(ctx, testPrincipal, col.Name, Record{"test_field": "dummy"})
 
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Delete the record
-		err = vault.DeleteRecord(ctx, testPrincipal, col.Name, recordID[0])
+		err = vault.DeleteRecord(ctx, testPrincipal, col.Name, recordID)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Try to get the deleted record
-		_, err = vault.GetRecords(ctx, testPrincipal, col.Name, recordID, map[string]string{
+		_, err = vault.GetRecord(ctx, testPrincipal, col.Name, recordID, map[string]string{
 			"test_field": "plain",
 		})
 
@@ -354,12 +326,8 @@ func TestVault(t *testing.T) {
 
 		// Can create collection
 		_ = vault.CreateCollection(ctx, testPrincipal, &col)
-		record_ids, _ := vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
-			{"first_name": "John"},
-			{"first_name": "Jane"},
-			{"first_name": "Bob"},
-		})
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "customers", record_ids, map[string]string{
+		record_id, _ := vault.CreateRecord(ctx, testPrincipal, col.Name, Record{"first_name": "John"})
+		_, err := vault.GetRecord(ctx, limitedPrincipal, "customers", record_id, map[string]string{
 			"first_name": "plain",
 		})
 		if err != nil {
@@ -375,7 +343,7 @@ func TestVault(t *testing.T) {
 			Description: "test principal",
 		}
 		vault, _, _ := initVault(t)
-		_, err := vault.GetRecords(ctx, limitedPrincipal, "credit-cards", []string{"1", "2"}, map[string]string{
+		_, err := vault.GetRecord(ctx, limitedPrincipal, "credit-cards", "1", map[string]string{
 			"first_name": "plain",
 		})
 		switch err.(type) {
@@ -397,7 +365,7 @@ func TestVault(t *testing.T) {
 
 	// 	// Can create collection
 	// 	_, _ = vault.CreateCollection(ctx, testPrincipal, col)
-	// 	_, _ = vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+	// 	_, _ = vault.CreateRecord(ctx, testPrincipal, col.Name, []Record{
 	// 		{"first_name": "John"},
 	// 		{"first_name": "Jane"},
 	// 		{"first_name": "Bob"},
@@ -424,7 +392,7 @@ func TestVault(t *testing.T) {
 
 	//		// Can create collection
 	//		_, _ = vault.CreateCollection(ctx, testPrincipal, col)
-	//		_, _ = vault.CreateRecords(ctx, testPrincipal, col.Name, []Record{
+	//		_, _ = vault.CreateRecord(ctx, testPrincipal, col.Name, []Record{
 	//			{"first_name": "John"},
 	//			{"first_name": "Jane"},
 	//			{"first_name": "Bob"},
@@ -511,20 +479,20 @@ func TestTokens(t *testing.T) {
 	assert.NoError(t, err, "failed to create employees collection")
 
 	// create records
-	customerRecords, err := vault.CreateRecords(ctx, rootPrincipal, "customers", []Record{{"name": "Joe Buyer", "foo": "bar"}})
+	customerRecord, err := vault.CreateRecord(ctx, rootPrincipal, "customers", Record{"name": "Joe Buyer", "foo": "bar"})
 	assert.NoError(t, err, "failed to create customer records")
-	employeeRecords, err := vault.CreateRecords(ctx, rootPrincipal, "employees", []Record{{"name": "Joe Boss", "foo": "baz"}})
+	employeeRecord, err := vault.CreateRecord(ctx, rootPrincipal, "employees", Record{"name": "Joe Boss", "foo": "baz"})
 	assert.NoError(t, err, "failed to create employee records")
 
 	t.Run("create token fails without access to underlying record", func(t *testing.T) {
-		rId := employeeRecords[0]
+		rId := employeeRecord
 		_, err := vault.CreateToken(ctx, testPrincipal, "employees", rId, "name", "plain")
 		var fe *ForbiddenError
 		assert.ErrorAs(t, err, &fe)
 	})
 
 	t.Run("create and retrieve token", func(t *testing.T) {
-		rId := customerRecords[0]
+		rId := customerRecord
 		tokenId, err := vault.CreateToken(ctx, testPrincipal, "customers", rId, "name", "plain")
 		assert.NoError(t, err)
 		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")
@@ -535,7 +503,7 @@ func TestTokens(t *testing.T) {
 		}
 	})
 	t.Run("create and retrieve token by another principal", func(t *testing.T) {
-		rId := customerRecords[0]
+		rId := customerRecord
 		tokenId, err := vault.CreateToken(ctx, rootPrincipal, "customers", rId, "name", "plain")
 		assert.NoError(t, err)
 		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")
@@ -546,7 +514,7 @@ func TestTokens(t *testing.T) {
 		}
 	})
 	t.Run("getting token value fails without access to underlying record", func(t *testing.T) {
-		rId := employeeRecords[0]
+		rId := employeeRecord
 		tokenId, err := vault.CreateToken(ctx, rootPrincipal, "employees", rId, "name", "plain")
 		assert.NoError(t, err)
 		assert.NotEqual(t, 0, len(tokenId), "tokenId was empty")

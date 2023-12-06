@@ -55,7 +55,7 @@ func (core *Core) DeleteCollection(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).SendString("Collection deleted")
 }
 
-func (core *Core) CreateRecords(c *fiber.Ctx) error {
+func (core *Core) CreateRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
 	if collectionName == "" {
@@ -64,18 +64,18 @@ func (core *Core) CreateRecords(c *fiber.Ctx) error {
 			Message: "collection name is required",
 		}
 	}
-	records := new([]_vault.Record)
 
-	if err := core.ParseJsonBody(c.Body(), &records); err != nil {
+	record := new(_vault.Record)
+	if err := core.ParseJsonBody(c.Body(), record); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
 	}
 
-	recordIds, err := core.vault.CreateRecords(c.Context(), principal, collectionName, *records)
+	recordId, err := core.vault.CreateRecord(c.Context(), principal, collectionName, *record)
 	if err != nil {
 		core.logger.Error("An error occurred creating a record")
 		return err
 	}
-	return c.Status(http.StatusCreated).JSON(recordIds)
+	return c.Status(http.StatusCreated).JSON(recordId)
 }
 
 func (core *Core) UpdateRecord(c *fiber.Ctx) error {
@@ -112,10 +112,33 @@ func parseFieldsQuery(fieldsQuery string) map[string]string {
 	fieldFormats := map[string]string{}
 	for _, field := range strings.Split(fieldsQuery, ",") {
 		splitFieldFormat := strings.Split(field, ".")
+		if len(splitFieldFormat) < 2 {
+			continue
+		}
 		fieldFormats[splitFieldFormat[0]] = splitFieldFormat[1]
 	}
 
 	return fieldFormats
+}
+
+func (core *Core) GetRecords(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+
+	if collectionName == "" {
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "collection name is required",
+		}
+	}
+
+	records, err := core.vault.GetRecords(c.Context(), principal, collectionName)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(http.StatusOK).JSON(records)
+
 }
 
 func (core *Core) GetRecord(c *fiber.Ctx) error {
@@ -133,6 +156,12 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	}
 
 	returnFormats := parseFieldsQuery(fieldsQuery)
+	if len(returnFormats) == 0 {
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "formats query is required",
+		}
+	}
 
 	if collectionName == "" {
 		return &fiber.Error{
@@ -148,8 +177,7 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		}
 	}
 
-	recordIds := []string{recordId}
-	records, err := core.vault.GetRecords(c.Context(), principal, collectionName, recordIds, returnFormats)
+	record, err := core.vault.GetRecord(c.Context(), principal, collectionName, recordId, returnFormats)
 	if err != nil {
 		return err
 	}
@@ -168,9 +196,9 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 		principal.Username,
 		principal.Description,
 		principal.Policies,
-		recordIds,
-		recordIds,
+		[]string{recordId},
+		[]string{recordId},
 		accessedFields,
 	)
-	return c.Status(http.StatusOK).JSON(records)
+	return c.Status(http.StatusOK).JSON(record)
 }

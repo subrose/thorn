@@ -103,15 +103,15 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
 
-    def create_records(
+    def create_record(
         self,
         collection: str,
-        records: List[dict[str, str]],
+        record: dict[str, str],
         expected_statuses: Optional[list[int]] = None,
-    ) -> list[str]:
+    ) -> str:
         response = requests.post(
             f"{self.vault_url}/collections/{collection}/records",
-            json=records,
+            json=record,
             auth=(self.username, self.password),
         )
         check_expected_status(response, expected_statuses)
@@ -123,7 +123,7 @@ class Actor:
         record_id: str,
         return_formats: str,
         expected_statuses: Optional[list[int]] = None,
-    ) -> dict[str, dict[str, str]]:
+    ) -> dict[str, str]:
         response = requests.get(
             f"{self.vault_url}/collections/{collection}/records/{record_id}",
             params={"formats": return_formats},

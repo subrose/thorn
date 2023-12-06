@@ -82,26 +82,22 @@ func TestCollections(t *testing.T) {
 	})
 
 	t.Run("can create and get a record", func(t *testing.T) {
-		records := []map[string]interface{}{
-			{
-				"name":         "123345",
-				"phone_number": "+447890123456",
-				"dob":          "1970-01-01",
-			},
+		record := map[string]interface{}{
+			"name":         "123345",
+			"phone_number": "+447890123456",
+			"dob":          "1970-01-01",
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, records)
+		}, record)
 
 		response := performRequest(t, app, request)
-		var returnedRecordIds []string
-		checkResponse(t, response, http.StatusCreated, &returnedRecordIds)
-		if len(returnedRecordIds) != 1 {
-			t.Error("Error creating record", returnedRecordIds)
-		}
+		var returnedRecordId string
+		checkResponse(t, response, http.StatusCreated, &returnedRecordId)
+
 		// Get the record
-		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
@@ -111,25 +107,19 @@ func TestCollections(t *testing.T) {
 
 	t.Run("can update a record", func(t *testing.T) {
 		// Create a record to update
-		records := []map[string]interface{}{
-			{
-				"name":         "123345",
-				"phone_number": "+447890123456",
-				"dob":          "1970-01-01",
-			},
+		record := map[string]interface{}{
+			"name":         "123345",
+			"phone_number": "+447890123456",
+			"dob":          "1970-01-01",
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, records)
+		}, record)
 
 		response := performRequest(t, app, request)
-		var returnedRecordIds []string
-		checkResponse(t, response, http.StatusCreated, &returnedRecordIds)
-
-		if len(returnedRecordIds) != 1 {
-			t.Error("Error creating record", returnedRecordIds)
-		}
+		var returnedRecordId string
+		checkResponse(t, response, http.StatusCreated, &returnedRecordId)
 
 		// Update the record
 		updateRecord := map[string]interface{}{
@@ -138,7 +128,7 @@ func TestCollections(t *testing.T) {
 			"dob":          "1980-01-01",
 		}
 
-		request = newRequest(t, http.MethodPut, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodPut, fmt.Sprintf("/collections/customers/records/%s", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, updateRecord)
 
@@ -146,44 +136,39 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusOK, nil)
 
 		// Get the updated record
-		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain,dob.plain,phone_number.plain", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain,dob.plain,phone_number.plain", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
 		response = performRequest(t, app, request)
-		var returnedRecords map[string]_vault.Record
-		checkResponse(t, response, http.StatusOK, &returnedRecords)
+		var returnedRecord _vault.Record
+		checkResponse(t, response, http.StatusOK, &returnedRecord)
 
-		if returnedRecords[returnedRecordIds[0]]["name"] != updateRecord["name"] ||
-			returnedRecords[returnedRecordIds[0]]["phone_number"] != updateRecord["phone_number"] ||
-			returnedRecords[returnedRecordIds[0]]["dob"] != updateRecord["dob"] {
-			t.Errorf("Error updating record, got %s", returnedRecords[returnedRecordIds[0]])
+		if returnedRecord["name"] != updateRecord["name"] ||
+			returnedRecord["phone_number"] != updateRecord["phone_number"] ||
+			returnedRecord["dob"] != updateRecord["dob"] {
+			t.Errorf("Error updating record, got %s", returnedRecord)
 		}
 	})
 
 	t.Run("can delete a record", func(t *testing.T) {
 		// Create a record to delete
-		records := []map[string]interface{}{
-			{
-				"name":         "123345",
-				"phone_number": "+447890123456",
-				"dob":          "1970-01-01",
-			},
+		record := map[string]interface{}{
+			"name":         "123345",
+			"phone_number": "+447890123456",
+			"dob":          "1970-01-01",
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, records)
+		}, record)
 
 		response := performRequest(t, app, request)
-		var returnedRecordIds []string
-		checkResponse(t, response, http.StatusCreated, &returnedRecordIds)
-		if len(returnedRecordIds) != 1 {
-			t.Error("Error creating record", returnedRecordIds)
-		}
+		var returnedRecordId string
+		checkResponse(t, response, http.StatusCreated, &returnedRecordId)
 
 		// Delete the record
-		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
@@ -191,7 +176,7 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusOK, nil)
 
 		// Try to get the deleted record
-		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodGet, fmt.Sprintf("/collections/customers/records/%s?formats=name.plain", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 
@@ -199,7 +184,7 @@ func TestCollections(t *testing.T) {
 		checkResponse(t, response, http.StatusNotFound, nil)
 
 		// Delete the record again (should return 404)
-		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordIds[0]), map[string]string{
+		request = newRequest(t, http.MethodDelete, fmt.Sprintf("/collections/customers/records/%s", returnedRecordId), map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
 		}, nil)
 		response = performRequest(t, app, request)
@@ -207,17 +192,15 @@ func TestCollections(t *testing.T) {
 	})
 
 	t.Run("cant create a bad record", func(t *testing.T) {
-		badRecords := []map[string]interface{}{
-			{
-				"xxx":          "123345",
-				"phone_number": "+447890123456",
-				"dob":          "1970-01-01",
-			},
+		badRecord := map[string]interface{}{
+			"xxx":          "123345",
+			"phone_number": "+447890123456",
+			"dob":          "1970-01-01",
 		}
 
 		request := newRequest(t, http.MethodPost, "/collections/customers/records", map[string]string{
 			"Authorization": createBasicAuthHeader(core.conf.ADMIN_USERNAME, core.conf.ADMIN_PASSWORD),
-		}, badRecords)
+		}, badRecord)
 
 		response := performRequest(t, app, request)
 		checkResponse(t, response, http.StatusBadRequest, nil)

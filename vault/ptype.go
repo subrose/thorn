@@ -226,7 +226,7 @@ func getFormat(p PType, format string) (string, error) {
 	case MASKED_FORMAT:
 		return p.GetMasked(), nil
 	default:
-		return "", ErrNotSupported
+		return "", &NotSupportedError{Msg: fmt.Sprintf("Format %s is not supported", format)}
 	}
 }
 
