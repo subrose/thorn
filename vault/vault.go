@@ -70,13 +70,13 @@ type Policy struct {
 }
 
 type Principal struct {
-	Id          string   `json:"id"`
-	Username    string   `json:"username" validate:"required,min=3,max=32"`
-	Password    string   `json:"password" validate:"required,min=3"` // This is to limit the size of the password hash.
-	Description string   `json:"description"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Policies    []string `json:"policies"`
+	Id          string   `json:"id" db:"id"`
+	Username    string   `json:"username" validate:"required,min=3,max=32" db:"username"`
+	Password    string   `json:"password" validate:"required,min=3" db:"password"` // This is to limit the size of the password hash.
+	Description string   `json:"description" db:"description"`
+	CreatedAt   string   `json:"created_at" db:"created_at"`
+	UpdatedAt   string   `json:"updated_at" db:"updated_at"`
+	Policies    []string `json:"policies" db:"-"`
 }
 
 type Request struct {

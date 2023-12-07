@@ -75,9 +75,9 @@ func NewLogger(module string, sink string, handlerType string, level string, dev
 
 	switch handlerType {
 	case "json":
-		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{AddSource: devMode, Level: logLevel})
+		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{Level: logLevel})
 	case "text":
-		handler = slog.NewTextHandler(output, &slog.HandlerOptions{AddSource: devMode, Level: logLevel})
+		handler = slog.NewTextHandler(output, &slog.HandlerOptions{Level: logLevel})
 	default:
 		return Logger{}, fmt.Errorf("unknown handler type: %s", handlerType)
 	}
