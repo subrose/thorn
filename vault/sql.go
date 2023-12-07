@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"database/sql"
 
+	"github.com/huandu/go-sqlbuilder"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
 )
 
 type SqlStore struct {
@@ -36,19 +35,55 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 }
 
 func (st *SqlStore) CreateSchemas() error {
-	tables := map[string]string{
-		"principals":          "CREATE TABLE IF NOT EXISTS principals (id TEXT PRIMARY KEY, username TEXT UNIQUE, password TEXT, description TEXT)",
-		"policies":            "CREATE TABLE IF NOT EXISTS policies (id TEXT PRIMARY KEY, effect TEXT, actions TEXT[], resources TEXT[])",
-		"principal_policies":  "CREATE TABLE IF NOT EXISTS principal_policies (principal_id TEXT, policy_id TEXT, UNIQUE(principal_id, policy_id))",
-		"tokens":              "CREATE TABLE IF NOT EXISTS tokens (id TEXT PRIMARY KEY, value TEXT)",
-		"collection_metadata": "CREATE TABLE IF NOT EXISTS collection_metadata (id TEXT PRIMARY KEY, name TEXT UNIQUE, field_schema JSON)",
+	ctb := sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable("principals").IfNotExists()
+	ctb.Define("id", "TEXT", "PRIMARY KEY")
+	ctb.Define("username", "TEXT", "UNIQUE")
+	ctb.Define("password", "TEXT")
+	ctb.Define("description", "TEXT")
+	_, err := st.db.Exec(ctb.String())
+	if err != nil {
+		return err
 	}
 
-	for _, query := range tables {
-		_, err := st.db.Exec(query)
-		if err != nil {
-			return err
-		}
+	ctb = sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable("policies").IfNotExists()
+	ctb.Define("id", "TEXT", "PRIMARY KEY")
+	ctb.Define("effect", "TEXT")
+	ctb.Define("actions", "TEXT[]")
+	ctb.Define("resources", "TEXT[]")
+	_, err = st.db.Exec(ctb.String())
+	if err != nil {
+		return err
+	}
+
+	ctb = sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable("principal_policies").IfNotExists()
+	ctb.Define("principal_id", "TEXT")
+	ctb.Define("policy_id", "TEXT")
+	ctb.Define("UNIQUE", "(principal_id, policy_id)")
+	_, err = st.db.Exec(ctb.String())
+	if err != nil {
+		return err
+	}
+
+	ctb = sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable("tokens").IfNotExists()
+	ctb.Define("id", "TEXT", "PRIMARY KEY")
+	ctb.Define("value", "TEXT")
+	_, err = st.db.Exec(ctb.String())
+	if err != nil {
+		return err
+	}
+
+	ctb = sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable("collection_metadata").IfNotExists()
+	ctb.Define("id", "TEXT", "PRIMARY KEY")
+	ctb.Define("name", "TEXT", "UNIQUE")
+	ctb.Define("field_schema", "JSON")
+	_, err = st.db.Exec(ctb.String())
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -73,11 +108,13 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		return err
 	}
 
-	_, err = tx.NamedExecContext(ctx, "INSERT INTO collection_metadata (id, name, field_schema) VALUES (:id, :name, :field_schema)", map[string]interface{}{
-		"id":           c.Id,
-		"name":         c.Name,
-		"field_schema": fieldSchema,
-	})
+	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertIgnoreInto("collection_metadata")
+	ib.Cols("id", "name", "field_schema")
+	ib.Values(c.Id, c.Name, fieldSchema)
+
+	sql, args := ib.Build()
+	_, err = tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == "23505" { // unique_violation
@@ -88,13 +125,13 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	}
 
 	tableName := "collection_" + c.Name
-	var queryBuilder strings.Builder
-	queryBuilder.WriteString("CREATE TABLE IF NOT EXISTS " + tableName + " (id TEXT PRIMARY KEY")
+	ctb := sqlbuilder.NewCreateTableBuilder()
+	ctb.CreateTable(tableName).IfNotExists()
+	ctb.Define("id", "TEXT", "PRIMARY KEY")
 	for fieldName := range c.Fields {
-		queryBuilder.WriteString(", " + fieldName + " TEXT")
+		ctb.Define(fieldName, "TEXT")
 	}
-	queryBuilder.WriteString(")")
-	_, err = tx.ExecContext(ctx, queryBuilder.String())
+	_, err = tx.ExecContext(ctx, ctb.String())
 	if err != nil {
 		return err
 	}
@@ -107,12 +144,15 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	return nil
 }
 
-func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
+func getCollectionFields(ctx context.Context, db *sqlx.DB, collectionName string) (map[string]Field, error) {
 	var fieldSchema json.RawMessage
-	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", name)
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("field_schema").From("collection_metadata").Where(sb.Equal("name", collectionName))
+	query, args := sb.Build()
+	err := db.GetContext(ctx, &fieldSchema, query, args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &NotFoundError{"collection", name}
+			return nil, &NotFoundError{"collection", collectionName}
 		}
 		return nil, err
 	}
@@ -122,14 +162,24 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 	if err != nil {
 		return nil, err
 	}
+
+	return fields, nil
+}
+
+func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
+	fields, err := getCollectionFields(ctx, st.db, name)
+	if err != nil {
+		return nil, err
+	}
 	return &Collection{Name: name, Fields: fields}, nil
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
 	var collectionNames []string
-
-	err := st.db.SelectContext(ctx, &collectionNames, "SELECT name FROM collection_metadata")
-
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("name").From("collection_metadata")
+	cmd, args := sb.Build()
+	err := st.db.SelectContext(ctx, &collectionNames, cmd, args...)
 	return collectionNames, err
 }
 
@@ -148,7 +198,10 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 		}
 	}()
 
-	result, err := tx.ExecContext(ctx, "DELETE FROM collection_metadata WHERE name = $1", name)
+	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("collection_metadata").Where(db.Equal("name", name))
+	cmd, args := db.Build()
+	result, err := tx.ExecContext(ctx, cmd, args...)
 	if err != nil {
 		return err
 	}
@@ -161,8 +214,8 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 		return &NotFoundError{"collection", name}
 	}
 
-	tableName := "collection_" + name
-	_, err = tx.ExecContext(ctx, "DROP TABLE IF EXISTS "+tableName)
+	sql, args := sqlbuilder.WithFlavor(sqlbuilder.Buildf(fmt.Sprintf("DROP TABLE IF EXISTS collection_%v", name)), sqlbuilder.PostgreSQL).Build()
+	_, err = tx.ExecContext(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
@@ -176,65 +229,51 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 }
 
 func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) (string, error) {
-	var fieldSchema json.RawMessage
-	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", &NotFoundError{"collection", collectionName}
-		}
-		return "", err
-	}
-
-	var fields map[string]Field
-	err = json.Unmarshal(fieldSchema, &fields)
+	fields, err := getCollectionFields(ctx, st.db, collectionName)
 	if err != nil {
 		return "", err
 	}
 
-	fieldNames := make([]string, 0, len(fields))
-	placeholders := make([]string, 0, len(fields))
-	idx := 2 // Start from 2 because $1 is reserved for recordId
-
+	// Validate that the record matches the schema
 	for fieldName := range fields {
-		fieldNames = append(fieldNames, fieldName)
-		placeholders = append(placeholders, fmt.Sprintf("$%d", idx))
-		idx++
+		if _, ok := record[fieldName]; !ok {
+			return "", &ValueError{Msg: fmt.Sprintf("Required field %s is missing from the record", fieldName)}
+		}
+		if _, ok := fields[fieldName]; !ok {
+			return "", &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
+		}
 	}
 
-	query := fmt.Sprintf("INSERT INTO collection_%s (id, %s) VALUES ($1, %s)", collectionName, strings.Join(fieldNames, ", "), strings.Join(placeholders, ", "))
-	stmt, err := st.db.PrepareContext(ctx, query)
-	if err != nil {
-		return "", err
-	}
-	defer stmt.Close()
-
-	// Validate record fields
-	if len(record) != len(fields) {
-		return "", &ValueError{fmt.Sprintf("expected %d fields, got %d", len(fields), len(record))}
-	}
+	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertInto(fmt.Sprintf("collection_%s", collectionName))
 
 	recordId := GenerateId("rec")
+	columns := []string{"id"}
+	values := []interface{}{recordId}
 
-	values := make([]interface{}, len(fields)+1)
-	values[0] = recordId
-	for j, fieldName := range fieldNames {
-		if value, ok := record[fieldName]; ok {
-			values[j+1] = value
-		} else {
-			return "", &ValueError{fmt.Sprintf("missing field %s", fieldName)}
-		}
+	for fieldName, fieldValue := range record {
+		columns = append(columns, fieldName)
+		values = append(values, fieldValue)
 	}
 
-	_, err = stmt.ExecContext(ctx, values...)
+	ib.Cols(columns...)
+	ib.Values(values...)
+	query, args := ib.Build()
+
+	_, err = st.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return "", err
 	}
+
 	return recordId, nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {
 	var recordIds []string
-	err := st.db.SelectContext(ctx, &recordIds, "SELECT id FROM collection_"+collectionName)
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("id").From(fmt.Sprintf("collection_%s", collectionName))
+	query, args := sb.Build()
+	err := st.db.SelectContext(ctx, &recordIds, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -243,23 +282,10 @@ func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]str
 }
 
 func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordID string) (Record, error) {
-	var fieldSchema json.RawMessage
-	err := st.db.GetContext(ctx, &fieldSchema, "SELECT field_schema FROM collection_metadata WHERE name = $1", collectionName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &NotFoundError{"collection", collectionName}
-		}
-		return nil, err
-	}
-
-	var fields map[string]Field
-	err = json.Unmarshal(fieldSchema, &fields)
-	if err != nil {
-		return nil, err
-	}
-
-	query := "SELECT * FROM collection_" + collectionName + " WHERE id = $1"
-	rows, err := st.db.QueryxContext(ctx, query, recordID)
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("*").From(fmt.Sprintf("collection_%s", collectionName)).Where(sb.Equal("id", recordID))
+	query, args := sb.Build()
+	rows, err := st.db.QueryxContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -298,25 +324,34 @@ func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, 
 }
 
 func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error {
-	var fieldNames []string
-	var fieldValues []interface{}
+	fields, err := getCollectionFields(ctx, st.db, collectionName)
+	if err != nil {
+		return err
+	}
+
+	ub := sqlbuilder.PostgreSQL.NewUpdateBuilder()
+	ub.Update(fmt.Sprintf("collection_%s", collectionName))
 	for fieldName, fieldValue := range record {
-		fieldNames = append(fieldNames, fieldName)
-		fieldValues = append(fieldValues, fieldValue)
+		if _, ok := fields[fieldName]; !ok {
+			return &ValueError{Msg: fmt.Sprintf("Field %s does not exist in collection %s", fieldName, collectionName)}
+		}
+		if _, ok := record[fieldName]; !ok {
+			return &ValueError{Msg: fmt.Sprintf("Record is missing field %s present in collection %s", fieldName, collectionName)}
+		}
+		ub.Set(ub.Assign(fieldName, fieldValue))
 	}
-
-	setClause := make([]string, len(fieldNames))
-	for i, fieldName := range fieldNames {
-		setClause[i] = fmt.Sprintf("%s = $%d", fieldName, i+1)
-	}
-
-	query := fmt.Sprintf("UPDATE collection_%s SET %s WHERE id = $%d", collectionName, strings.Join(setClause, ", "), len(fieldNames)+1)
-	_, err := st.db.ExecContext(ctx, query, append(fieldValues, recordID)...)
+	ub.Where(ub.Equal("id", recordID))
+	query, args := ub.Build()
+	_, err = st.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
-	res, err := st.db.ExecContext(ctx, "DELETE FROM collection_"+collectionName+" WHERE id = $1", recordID)
+	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom(fmt.Sprintf("collection_%s", collectionName))
+	db.Where(db.Equal("id", recordID))
+	query, args := db.Build()
+	res, err := st.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -333,8 +368,12 @@ func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, reco
 }
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("*").From("principals").Where(sb.Equal("username", username))
+	query, args := sb.Build()
+
 	var dbPrincipal Principal
-	err := st.db.GetContext(ctx, &dbPrincipal, "SELECT * FROM principals WHERE username = $1", username)
+	err := st.db.GetContext(ctx, &dbPrincipal, query, args...)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"principal", username}
@@ -342,7 +381,11 @@ func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principa
 		return nil, err
 	}
 
-	rows, err := st.db.QueryxContext(ctx, "SELECT policy_id FROM principal_policies WHERE principal_id = $1", dbPrincipal.Id)
+	sb = sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("policy_id").From("principal_policies").Where(sb.Equal("principal_id", dbPrincipal.Id))
+	query, args = sb.Build()
+
+	rows, err := st.db.QueryxContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +424,11 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) er
 		}
 	}()
 
-	_, err = tx.NamedExecContext(ctx, "INSERT INTO principals (id, username, password, description) VALUES (:id, :username, :password, :description)", &principal)
+	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertInto("principals").Cols("id", "username", "password", "description").Values(principal.Id, principal.Username, principal.Password, principal.Description)
+	query, args := ib.Build()
+
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
 			if pqErr.Code == "23505" {
@@ -391,11 +438,16 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) er
 		return err
 	}
 
+	ib = sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertInto("principal_policies").Cols("principal_id", "policy_id")
 	for _, policyId := range principal.Policies {
-		_, err = tx.ExecContext(ctx, "INSERT INTO principal_policies (principal_id, policy_id) VALUES ($1, $2)", principal.Id, policyId)
-		if err != nil {
-			return err
-		}
+		ib.Values(principal.Id, policyId)
+	}
+	query, args = ib.Build()
+
+	_, err = tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
 	}
 
 	err = tx.Commit()
@@ -407,7 +459,6 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) er
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
-	// Start a transaction
 	tx, err := st.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return err
@@ -425,12 +476,20 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 		}
 	}()
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM principal_policies WHERE principal_id = $1", id)
+	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("principal_policies").Where(db.Equal("principal_id", id))
+	query, args := db.Build()
+
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
 
-	result, err := tx.ExecContext(ctx, "DELETE FROM principals WHERE username = $1", id)
+	db = sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("principals").Where(db.Equal("username", id))
+	query, args = db.Build()
+
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -450,11 +509,15 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("id", "effect", "actions", "resources").From("policies").Where(sb.Equal("id", policyId))
+	query, args := sb.Build()
+
 	var id, effect string
 	var actions []string
 	var resources []string
 
-	err := st.db.QueryRowxContext(ctx, "SELECT id, effect, actions, resources FROM policies WHERE id = $1", policyId).Scan(&id, &effect, pq.Array(&actions), pq.Array(&resources))
+	err := st.db.QueryRowxContext(ctx, query, args...).Scan(&id, &effect, pq.Array(&actions), pq.Array(&resources))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"policy", policyId}
@@ -481,11 +544,11 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 	if len(policyIds) == 0 {
 		return []*Policy{}, nil
 	}
-	query, args, err := sqlx.In("SELECT id, effect, actions, resources FROM policies WHERE id IN (?)", policyIds)
-	if err != nil {
-		return nil, err
-	}
-	query = st.db.Rebind(query)
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("id", "effect", "actions", "resources").From("policies").Where(sb.In("id", sqlbuilder.List(policyIds)))
+	query, args := sb.Build()
+
+	// query = st.db.Rebind(query)
 	rows, err := st.db.QueryxContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -537,24 +600,10 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p *Policy) error {
 		}
 	}()
 
-	query := "INSERT INTO policies (id, effect, actions, resources) VALUES (:id, :effect, :actions, :resources)"
-	actions := make(pq.StringArray, len(p.Actions))
-	for i, action := range p.Actions {
-		actions[i] = string(action)
-	}
-	resources := make(pq.StringArray, len(p.Resources))
-	copy(resources, p.Resources)
-	query, args, err := sqlx.Named(query, map[string]interface{}{
-		"id":        p.Id,
-		"effect":    string(p.Effect),
-		"actions":   actions,
-		"resources": resources,
-	})
+	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertInto("policies").Cols("id", "effect", "actions", "resources").Values(p.Id, string(p.Effect), pq.Array(p.Actions), pq.Array(p.Resources))
+	query, args := ib.Build()
 
-	if err != nil {
-		return err
-	}
-	query = tx.Rebind(query)
 	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
@@ -586,7 +635,11 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 		}
 	}()
 
-	result, err := tx.ExecContext(ctx, "DELETE FROM policies WHERE id = $1", policyID)
+	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("policies").Where(db.Equal("id", policyID))
+	query, args := db.Build()
+
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -598,7 +651,11 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 		return &NotFoundError{"policy", policyID}
 	}
 
-	_, err = tx.ExecContext(ctx, "DELETE FROM principal_policies WHERE policy_id = $1", policyID)
+	db = sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("principal_policies").Where(db.Equal("policy_id", policyID))
+	query, args = db.Build()
+
+	_, err = tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -612,30 +669,43 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	_, err := st.db.ExecContext(ctx, "INSERT INTO tokens (id, value) VALUES ($1, $2)", tokenId, value)
+	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
+	ib.InsertInto("tokens").Cols("id", "value").Values(tokenId, value)
+	query, args := ib.Build()
+	_, err := st.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
-	_, err := st.db.ExecContext(ctx, "DELETE FROM tokens WHERE id = $1", tokenId)
+	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
+	db.DeleteFrom("tokens").Where(db.Equal("id", tokenId))
+	query, args := db.Build()
+	_, err := st.db.ExecContext(ctx, query, args...)
 	return err
 }
 
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
 	var value string
-	err := st.db.GetContext(ctx, &value, "SELECT value FROM tokens WHERE id = $1", tokenId)
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("value").From("tokens").Where(sb.Equal("id", tokenId))
+	query, args := sb.Build()
+	err := st.db.GetContext(ctx, &value, query, args...)
 	return value, err
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
 	// Drop all tables
 	tables := []string{}
-	err := st.db.SelectContext(ctx, &tables, "SELECT tablename FROM pg_tables WHERE schemaname='public'")
+	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
+	sb.Select("tablename").From("pg_tables").Where(sb.Equal("schemaname", "public"))
+	query, args := sb.Build()
+	err := st.db.SelectContext(ctx, &tables, query, args...)
 	if err != nil {
 		return err
 	}
 	for _, table := range tables {
-		_, err = st.db.ExecContext(ctx, "DROP TABLE IF EXISTS "+table)
+		query = fmt.Sprintf("DROP TABLE IF EXISTS %s;", table)
+		_, err = st.db.ExecContext(ctx, query)
 		if err != nil {
 			return err
 		}
