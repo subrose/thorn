@@ -343,13 +343,13 @@ func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordI
 
 	record := make(Record)
 	rows, err := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Select("*").Rows()
-	defer rows.Close()
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &NotFoundError{"record", recordID}
 		}
 		return nil, err
 	}
+	defer rows.Close()
 
 	cols, err := rows.Columns()
 	if err != nil || len(cols) == 0 {
