@@ -392,23 +392,33 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 		return err
 	}
 
-	upd := goqu.Update(fmt.Sprintf("collection_%s", collectionName))
-	for fieldName, fieldValue := range record {
+	// Validate that the record matches the schema and all required fields are present
+	newRecord := make(map[string]interface{})
+	newRecord["id"] = recordID
+	for fieldName := range fields {
+		if fieldValue, ok := record[fieldName]; !ok {
+			return &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
+		} else {
+			newRecord[fieldName] = fieldValue
+		}
+	}
+	// Check if any field is missing in the record, this can be expanded to check if the field type is required
+	for fieldName := range record {
 		if _, ok := fields[fieldName]; !ok {
-			return &ValueError{Msg: fmt.Sprintf("Field %s does not exist in collection %s", fieldName, collectionName)}
+			return &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
 		}
-		if _, ok := record[fieldName]; !ok {
-			return &ValueError{Msg: fmt.Sprintf("Record is missing field %s present in collection %s", fieldName, collectionName)}
-		}
-		upd = upd.Set(goqu.Record{fieldName: fieldValue})
 	}
-	upd = upd.Where(goqu.C("id").Eq(recordID))
-	sql, _, err := upd.ToSQL()
-	if err != nil {
-		return err
+
+	// Use gorm's Update method with the map
+	result := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Updates(newRecord)
+	if result.Error != nil {
+		return result.Error
 	}
-	_, err = st.db.ExecContext(ctx, sql)
-	return err
+	if result.RowsAffected == 0 {
+		return &NotFoundError{"record", recordID}
+	}
+
+	return nil
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
