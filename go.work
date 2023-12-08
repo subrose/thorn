@@ -3,6 +3,5 @@ go 1.21.0
 use (
 	./api
 	./logger
-	./sql
 	./vault
 )
