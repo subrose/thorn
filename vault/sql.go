@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"regexp"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type SqlStore struct {
@@ -31,7 +34,14 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	db := dialect.DB(pgDb)
 
 	time.Local = time.UTC
-	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+	gormLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			LogLevel: logger.Silent, // Log level silent by default to avoid logging sensitive information
+		},
+	)
+
+	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true, Logger: gormLogger})
 	// gdb = gdb.Debug()
 	if err != nil {
 		return nil, err
@@ -65,7 +75,7 @@ func (dbPolicy) TableName() string {
 
 type dbPrincipal struct {
 	Id          string `gorm:"primaryKey"`
-	Username    string
+	Username    string `gorm:"unique"`
 	Password    string
 	Description string
 	CreatedAt   time.Time
@@ -239,6 +249,9 @@ func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
 }
 
 func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
+	if !validateInput(name) {
+		return &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", name)}
+	}
 	tx := st.gdb.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -328,22 +341,37 @@ func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordI
 		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
-	fields, err := getCollectionFields(ctx, st.gdb, collectionName)
+	record := make(Record)
+	rows, err := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Select("*").Rows()
+	defer rows.Close()
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &NotFoundError{"record", recordID}
+		}
 		return nil, err
 	}
 
-	record := make(Record)
-	for fieldName := range fields {
-		var value string
-		err := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Select(fieldName).Scan(&value).Error
+	cols, err := rows.Columns()
+	if err != nil || len(cols) == 0 {
+		return nil, &NotFoundError{"record", recordID}
+	}
+
+	vals := make([]interface{}, len(cols))
+	for i := range cols {
+		vals[i] = new(sql.RawBytes)
+	}
+	for rows.Next() {
+		err = rows.Scan(vals...)
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, &NotFoundError{"record", recordID}
-			}
 			return nil, err
 		}
-		record[fieldName] = value
+		for i, col := range cols {
+			record[col] = string(*vals[i].(*sql.RawBytes))
+		}
+	}
+
+	if len(record) == 0 {
+		return nil, &NotFoundError{"record", recordID}
 	}
 
 	return record, nil
@@ -446,6 +474,8 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) er
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &NotFoundError{"principal", principal.Username}
+		} else if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return &ConflictError{principal.Username}
 		}
 		tx.Rollback()
 		return err
@@ -656,6 +686,10 @@ func (st SqlStore) Flush(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	st.CreateSchemas()
+	err = st.CreateSchemas()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
