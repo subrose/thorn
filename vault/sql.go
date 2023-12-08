@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"regexp"
 	"time"
 
@@ -34,14 +32,8 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	db := dialect.DB(pgDb)
 
 	time.Local = time.UTC
-	gormLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags),
-		logger.Config{
-			LogLevel: logger.Silent, // Log level silent by default to avoid logging sensitive information
-		},
-	)
 
-	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true, Logger: gormLogger})
+	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true, Logger: logger.Default.LogMode(logger.Silent)})
 	// gdb = gdb.Debug()
 	if err != nil {
 		return nil, err
