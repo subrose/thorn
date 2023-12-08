@@ -3,19 +3,23 @@ package vault
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
-	"github.com/huandu/go-sqlbuilder"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type SqlStore struct {
-	db *goqu.Database
+	db  *goqu.Database
+	gdb *gorm.DB
 }
 
 func NewSqlStore(dsn string) (*SqlStore, error) {
@@ -26,7 +30,14 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	dialect := goqu.Dialect("postgres")
 	db := dialect.DB(pgDb)
 
-	store := &SqlStore{db}
+	time.Local = time.UTC
+	gdb, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
+	// gdb = gdb.Debug()
+	if err != nil {
+		return nil, err
+	}
+
+	store := &SqlStore{db, gdb}
 
 	err = store.CreateSchemas()
 	if err != nil {
@@ -36,63 +47,96 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	return store, nil
 }
 
+// Define your models
+type dbPolicy struct {
+	Id          string `gorm:"primaryKey"`
+	Name        string
+	Description string
+	Effect      string
+	Actions     pq.StringArray `gorm:"type:text[]"`
+	Resources   pq.StringArray `gorm:"type:text[]"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (dbPolicy) TableName() string {
+	return "policies"
+}
+
+type dbPrincipal struct {
+	Id          string `gorm:"primaryKey"`
+	Username    string
+	Password    string
+	Description string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Policies    []dbPolicy `gorm:"many2many:principal_policies;foreignKey:Id;references:Id;joinForeignKey:PrincipalId;joinReferences:PolicyId"`
+}
+
+func (dbPrincipal) TableName() string {
+	return "principals"
+}
+
+type dbToken struct {
+	Id        string `gorm:"primaryKey"`
+	Value     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (dbToken) TableName() string {
+	return "tokens"
+}
+
+type dbPrincipalPolicy struct {
+	PrincipalId string `gorm:"primaryKey;autoIncrement:false;column:principal_id"`
+	PolicyId    string `gorm:"primaryKey;autoIncrement:false;column:policy_id"`
+}
+
+func (dbPrincipalPolicy) TableName() string {
+	return "principal_policies"
+}
+
+type FieldSchemaMap map[string]Field
+
+func (f *FieldSchemaMap) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("failed to unmarshal JSONB value")
+	}
+
+	result := FieldSchemaMap{}
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return err
+	}
+
+	*f = result
+	return nil
+}
+
+func (f FieldSchemaMap) Value() (driver.Value, error) {
+	if len(f) == 0 {
+		return nil, nil
+	}
+
+	return json.Marshal(f)
+}
+
+type dbCollectionMetadata struct {
+	Id          string         `gorm:"primaryKey"`
+	Name        string         `gorm:"unique"`
+	FieldSchema FieldSchemaMap `gorm:"type:json"` // Ensures JSON storage
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (dbCollectionMetadata) TableName() string {
+	return "collections_metadata"
+}
+
 func (st *SqlStore) CreateSchemas() error {
-	// Create principals table
-	_, err := st.db.Exec(`CREATE TABLE IF NOT EXISTS principals (
-		id TEXT PRIMARY KEY,
-		username TEXT UNIQUE,
-		password TEXT,
-		description TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`)
-	if err != nil {
-		return err
-	}
-
-	// Create policies table
-	_, err = st.db.Exec(`CREATE TABLE IF NOT EXISTS policies (
-		id TEXT PRIMARY KEY,
-		effect TEXT,
-		actions TEXT[],
-		resources TEXT[]
-	)`)
-	if err != nil {
-		return err
-	}
-
-	// Create principal_policies table
-	_, err = st.db.Exec(`CREATE TABLE IF NOT EXISTS principal_policies (
-		principal_id TEXT,
-		policy_id TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		UNIQUE (principal_id, policy_id)
-		
-	)`)
-	if err != nil {
-		return err
-	}
-
-	// Create tokens table
-	_, err = st.db.Exec(`CREATE TABLE IF NOT EXISTS tokens (
-		id TEXT PRIMARY KEY,
-		value TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`)
-	if err != nil {
-		return err
-	}
-
-	// Create collection_metadata table
-	_, err = st.db.Exec(`CREATE TABLE IF NOT EXISTS collection_metadata (
-		id TEXT PRIMARY KEY,
-		name TEXT UNIQUE,
-		field_schema JSON,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`)
+	// Use GORM's automigrate to create tables
+	err := st.gdb.AutoMigrate(&dbPrincipal{}, &dbPolicy{}, &dbPrincipalPolicy{}, &dbToken{}, &dbCollectionMetadata{})
 	if err != nil {
 		return err
 	}
@@ -100,81 +144,81 @@ func (st *SqlStore) CreateSchemas() error {
 	return nil
 }
 
+func validateInput(input string) bool {
+	match, _ := regexp.MatchString(`^[a-zA-Z0-9._-]+$`, input)
+	return match
+}
+
 func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
+	// Start a new transaction
+	tx := st.gdb.Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
 
-	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+	// Create a CollectionMetadata
+	collectionMetadata := dbCollectionMetadata{
+		Id:          c.Id,
+		Name:        c.Name,
+		FieldSchema: c.Fields,
+	}
+
+	// Insert the new collection metadata into the database
+	result := tx.Create(&collectionMetadata)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+			return &ConflictError{c.Name}
+		} else {
+			return result.Error
 		}
-	}()
-
-	fieldSchema, err := json.Marshal(c.Fields)
-	if err != nil {
-		return err
 	}
 
-	insertSql, args, _ := st.db.Insert("collection_metadata").Rows(
-		goqu.Record{"id": c.Id, "name": c.Name, "field_schema": string(fieldSchema)},
-	).ToSQL()
-
-	_, err = tx.ExecContext(ctx, insertSql, args...)
-	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == "23505" { // unique_violation
-				return &ConflictError{c.Name}
-			}
-		}
-		return err
+	// Use validateInput function to sanitize inputs
+	if !validateInput(c.Name) {
+		return &ValueError{Msg: fmt.Sprintf("collection name '%s' is not alphanumeric", c.Name)}
 	}
-
-	// TODO: Build this with goqu expressions: https://github.com/doug-martin/goqu/blob/master/docs/expressions.md#C
 	tableName := "collection_" + c.Name
+
+	// Create a new table for the collection
 	query := `CREATE TABLE IF NOT EXISTS ` + tableName + ` (id TEXT PRIMARY KEY`
 	for fieldName := range c.Fields {
+		if !validateInput(fieldName) {
+			return &ValueError{Msg: fmt.Sprintf("field name '%s' is not alphanumeric", fieldName)}
+		}
 		query += `, ` + fieldName + ` TEXT`
 	}
 	query += `)`
 
-	_, err = tx.Exec(query)
-	if err != nil {
-		return err
+	// Execute the query
+	result = tx.Exec(query)
+	if result.Error != nil {
+		return result.Error
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return err
+	// Commit the transaction
+	tx.Commit()
+	if tx.Error != nil {
+		return tx.Error
 	}
 
 	return nil
 }
 
-func getCollectionFields(ctx context.Context, db *goqu.Database, collectionName string) (map[string]Field, error) {
-	var fieldSchema string
-	_, err := db.From("collection_metadata").Where(goqu.C("name").Eq(collectionName)).Select("field_schema").ScanVal(&fieldSchema)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+func getCollectionFields(ctx context.Context, db *gorm.DB, collectionName string) (map[string]Field, error) {
+	var collectionMetadata dbCollectionMetadata
+	result := db.Where("name = ?", collectionName).First(&collectionMetadata)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"collection", collectionName}
 		}
-		return nil, err
+		return nil, result.Error
 	}
 
-	fields := make(map[string]Field)
-	err = json.Unmarshal([]byte(fieldSchema), &fields)
-	if err != nil {
-		return nil, err
-	}
-
-	return fields, nil
+	return collectionMetadata.FieldSchema, nil
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
-	fields, err := getCollectionFields(ctx, st.db, name)
+	fields, err := getCollectionFields(ctx, st.gdb, name)
 	if err != nil {
 		return nil, err
 	}
@@ -182,132 +226,124 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
-	var collectionNames []string
-	err := st.db.From("collection_metadata").Select("name").ScanVals(&collectionNames)
-	return collectionNames, err
+	var collectionMetadatas []dbCollectionMetadata
+	result := st.gdb.Find(&collectionMetadatas)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	collectionNames := make([]string, len(collectionMetadatas))
+	for i, collectionMetadata := range collectionMetadatas {
+		collectionNames[i] = collectionMetadata.Name
+	}
+	return collectionNames, nil
 }
 
 func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
+	tx := st.gdb.Begin()
+	if tx.Error != nil {
+		return tx.Error
 	}
 
 	defer func() {
-		if err != nil {
-			rbErr := tx.Rollback()
-			if rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
 	}()
 
-	// Delete from collection_metadata
-	res, err := tx.Exec(`DELETE FROM collection_metadata WHERE name = ?`, name)
-	if err != nil {
-		return err
+	result := tx.Where("name = ?", name).Delete(&dbCollectionMetadata{})
+	if result.Error != nil {
+		return result.Error
 	}
-
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return &NotFoundError{"collection", name}
 	}
 
 	// Drop collection table
-	_, err = tx.Exec(`DROP TABLE IF EXISTS collection_` + name)
-	if err != nil {
-		return err
+	result = tx.Exec(`DROP TABLE IF EXISTS collection_` + name)
+	if result.Error != nil {
+		return result.Error
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return err
+	tx.Commit()
+	if tx.Error != nil {
+		return tx.Error
 	}
 
 	return nil
 }
 
 func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) (string, error) {
-	fields, err := getCollectionFields(ctx, st.db, collectionName)
+	if !validateInput(collectionName) {
+		return "", &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+	}
+
+	fields, err := getCollectionFields(ctx, st.gdb, collectionName)
 	if err != nil {
 		return "", err
 	}
 
-	// Validate that the record matches the schema
+	// Validate that the record matches the schema and all required fields are present
+	recordId := GenerateId("rec")
+	newRecord := make(map[string]interface{})
+	newRecord["id"] = recordId
 	for fieldName := range fields {
-		if _, ok := record[fieldName]; !ok {
-			return "", &ValueError{Msg: fmt.Sprintf("Required field %s is missing from the record", fieldName)}
+		if fieldValue, ok := record[fieldName]; !ok {
+			return "", &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
+		} else {
+			newRecord[fieldName] = fieldValue
 		}
+	}
+	// Check if any field is missing in the record, this can be expanded to check if the field type is required
+	for fieldName := range record {
 		if _, ok := fields[fieldName]; !ok {
 			return "", &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
 		}
 	}
 
-	// Insert into collection table
-	recordId := GenerateId("rec")
-	record["id"] = recordId
-
-	insert := st.db.Insert(fmt.Sprintf("collection_%s", collectionName)).Rows(record).Executor()
-	fmt.Println(insert.ToSQL())
-	if _, err := insert.Exec(); err != nil {
-		return "", err
+	// Use gorm's Create method with the map
+	result := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
+	if result.Error != nil {
+		return "", result.Error
 	}
 
 	return recordId, nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {
+	if !validateInput(collectionName) {
+		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+	}
+
 	var recordIds []string
-	err := st.db.From(fmt.Sprintf("collection_%s", collectionName)).Select("id").ScanVals(&recordIds)
-	if err != nil {
-		return nil, err
+	result := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Pluck("id", &recordIds)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
 	return recordIds, nil
 }
 
 func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordID string) (Record, error) {
-	rows, err := st.db.From(fmt.Sprintf("collection_%s", collectionName)).Where(goqu.C("id").Eq(recordID)).Executor().Query()
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, &NotFoundError{"record", recordID}
+	if !validateInput(collectionName) {
+		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
-	recordMap := make(map[string]interface{})
-	cols, _ := rows.Columns()
-	values := make([]interface{}, len(cols))
-	for i := range values {
-		values[i] = new(sql.RawBytes)
-	}
-	err = rows.Scan(values...)
+	fields, err := getCollectionFields(ctx, st.gdb, collectionName)
 	if err != nil {
 		return nil, err
-	}
-	for i, colName := range cols {
-		if rb, ok := values[i].(*sql.RawBytes); ok {
-			recordMap[colName] = string(*rb)
-		}
 	}
 
 	record := make(Record)
-	for k, v := range recordMap {
-		if str, ok := v.(string); ok {
-			record[k] = str
-		} else {
-			// We're assuming all record fields are strings as they are encrypted in the db, this might change
-			return nil, fmt.Errorf("unexpected type for field %s", k)
+	for fieldName := range fields {
+		var value string
+		err := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Select(fieldName).Scan(&value).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, &NotFoundError{"record", recordID}
+			}
+			return nil, err
 		}
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
+		record[fieldName] = value
 	}
 
 	return record, nil
@@ -319,13 +355,16 @@ func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, 
 }
 
 func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error {
-	fields, err := getCollectionFields(ctx, st.db, collectionName)
+	if !validateInput(collectionName) {
+		return &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+	}
+
+	fields, err := getCollectionFields(ctx, st.gdb, collectionName)
 	if err != nil {
 		return err
 	}
 
-	ub := sqlbuilder.PostgreSQL.NewUpdateBuilder()
-	ub.Update(fmt.Sprintf("collection_%s", collectionName))
+	upd := goqu.Update(fmt.Sprintf("collection_%s", collectionName))
 	for fieldName, fieldValue := range record {
 		if _, ok := fields[fieldName]; !ok {
 			return &ValueError{Msg: fmt.Sprintf("Field %s does not exist in collection %s", fieldName, collectionName)}
@@ -333,29 +372,27 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 		if _, ok := record[fieldName]; !ok {
 			return &ValueError{Msg: fmt.Sprintf("Record is missing field %s present in collection %s", fieldName, collectionName)}
 		}
-		ub.Set(ub.Assign(fieldName, fieldValue))
+		upd = upd.Set(goqu.Record{fieldName: fieldValue})
 	}
-	ub.Where(ub.Equal("id", recordID))
-	query, args := ub.Build()
-	_, err = st.db.ExecContext(ctx, query, args...)
+	upd = upd.Where(goqu.C("id").Eq(recordID))
+	sql, _, err := upd.ToSQL()
+	if err != nil {
+		return err
+	}
+	_, err = st.db.ExecContext(ctx, sql)
 	return err
 }
 
 func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, recordID string) error {
-	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
-	db.DeleteFrom(fmt.Sprintf("collection_%s", collectionName))
-	db.Where(db.Equal("id", recordID))
-	query, args := db.Build()
-	res, err := st.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
+	if !validateInput(collectionName) {
+		return &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
-	rowsAffected, err := res.RowsAffected()
-	if err != nil {
-		return err
+	result := st.gdb.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Delete(&Record{})
+	if result.Error != nil {
+		return result.Error
 	}
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return &NotFoundError{"record", recordID}
 	}
 
@@ -363,65 +400,71 @@ func (st SqlStore) DeleteRecord(ctx context.Context, collectionName string, reco
 }
 
 func (st SqlStore) GetPrincipal(ctx context.Context, username string) (*Principal, error) {
-
-	var dbPrincipal Principal
-	found, err := st.db.From("principals").Where(goqu.C("username").Eq(username)).ScanStructContext(ctx, &dbPrincipal)
+	var dbPrincipal dbPrincipal
+	err := st.gdb.Preload("Policies").Where("username = ?", username).First(&dbPrincipal).Error
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || !found {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"principal", username}
 		}
 		return nil, err
 	}
 
-	// TODO: Get policies
-	var policyIds []string
-	err = st.db.From("principal_policies").Where(goqu.C("principal_id").Eq(dbPrincipal.Id)).Select("policy_id").ScanValsContext(ctx, &policyIds)
-	if err != nil {
-		return nil, err
+	var policyIds []string = make([]string, len(dbPrincipal.Policies))
+
+	for _, policy := range dbPrincipal.Policies {
+		policyIds = append(policyIds, policy.Id)
 	}
 
-	dbPrincipal.Policies = policyIds
+	principal := Principal{
+		Id:          dbPrincipal.Id,
+		Username:    dbPrincipal.Username,
+		Password:    dbPrincipal.Password,
+		Description: dbPrincipal.Description,
+		Policies:    policyIds,
+	}
 
-	return &dbPrincipal, nil
+	return &principal, nil
 }
 
 func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
-	}
+	tx := st.gdb.Begin()
 
 	defer func() {
-		if err != nil {
-			rbErr := tx.Rollback()
-			if rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
 	}()
 
-	query, _, _ := goqu.Insert("principals").Rows(goqu.Record{"id": principal.Id, "username": principal.Username, "password": principal.Password, "description": principal.Description}).ToSQL()
+	dbPrincipal := dbPrincipal{
+		Id:          principal.Id,
+		Username:    principal.Username,
+		Password:    principal.Password,
+		Description: principal.Description,
+	}
 
-	_, err = tx.ExecContext(ctx, query)
+	err := tx.Create(&dbPrincipal).Error
 	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == "23505" {
-				return &ConflictError{principal.Username}
-			}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &NotFoundError{"principal", principal.Username}
 		}
+		tx.Rollback()
 		return err
 	}
 
 	for _, policyId := range principal.Policies {
-		query, _, _ = goqu.Insert("principal_policies").Rows(goqu.Record{"principal_id": principal.Id, "policy_id": policyId}).ToSQL()
+		principalPolicy := dbPrincipalPolicy{
+			PrincipalId: principal.Id,
+			PolicyId:    policyId,
+		}
 
-		_, err = tx.ExecContext(ctx, query)
+		err = tx.Create(&principalPolicy).Error
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
 	}
 
-	err = tx.Commit()
+	err = tx.Commit().Error
 	if err != nil {
 		return err
 	}
@@ -430,45 +473,32 @@ func (st SqlStore) CreatePrincipal(ctx context.Context, principal *Principal) er
 }
 
 func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
-	}
+	tx := st.gdb.Begin()
 
 	defer func() {
-		if p := recover(); p != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after panic: %v", rbErr, p)
-			}
-		} else if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
 	}()
 
-	query, _, _ := goqu.Delete("principal_policies").Where(goqu.C("principal_id").Eq(id)).ToSQL()
-
-	_, err = tx.ExecContext(ctx, query)
-	if err != nil {
+	// Delete associated policies
+	if err := tx.Where("principal_id = ?", id).Delete(&dbPrincipalPolicy{}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	query, _, _ = goqu.Delete("principals").Where(goqu.C("username").Eq(id)).ToSQL()
+	// Delete the principal
+	if err := tx.Where("username = ?", id).Delete(&dbPrincipal{}).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &NotFoundError{"principal", id}
+		}
+		tx.Rollback()
+		return err
+	}
 
-	result, err := tx.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
-		return &NotFoundError{"principal", id}
-	}
-	err = tx.Commit()
-	if err != nil {
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -476,29 +506,26 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 }
 
 func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, error) {
-	var id, effect string
-	var actions []string
-	var resources []string
+	var dbPolicy dbPolicy
 
-	policy := Policy{}
-	found, err := st.db.From("policies").Select("id", "effect", "actions", "resources").Where(goqu.C("id").Eq(policyId)).ScanStructContext(ctx, &policy)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || !found {
+	if err := st.gdb.Where("id = ?", policyId).First(&dbPolicy).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &NotFoundError{"policy", policyId}
 		}
 		return nil, err
 	}
 
-	actionList := make([]PolicyAction, len(actions))
-	for i, action := range actions {
-		actionList[i] = PolicyAction(action)
+	// Convert pq.StringArray to []PolicyAction
+	actions := make([]PolicyAction, len(dbPolicy.Actions))
+	for i, action := range dbPolicy.Actions {
+		actions[i] = PolicyAction(action)
 	}
 
 	p := Policy{
-		Name:      id,
-		Effect:    PolicyEffect(effect),
-		Actions:   actionList,
-		Resources: resources,
+		Name:      dbPolicy.Id,
+		Effect:    PolicyEffect(dbPolicy.Effect),
+		Actions:   actions,
+		Resources: dbPolicy.Resources,
 	}
 	return &p, nil
 }
@@ -507,72 +534,57 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 	if len(policyIds) == 0 {
 		return []*Policy{}, nil
 	}
-	query, _, _ := goqu.From("policies").Select("id", "effect", "actions", "resources").Where(goqu.C("id").In(policyIds)).ToSQL()
 
-	rows, err := st.db.QueryContext(ctx, query)
-	if err != nil {
+	var dbPolicies []dbPolicy
+	if err := st.gdb.Where("id IN ?", policyIds).Find(&dbPolicies).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	policies := make([]*Policy, 0)
-	for rows.Next() {
-		var id, effect string
-		var actions []string
-		var resources []string
-
-		err = rows.Scan(&id, &effect, pq.Array(&actions), pq.Array(&resources))
-		if err != nil {
-			return nil, err
+	policies := make([]*Policy, len(dbPolicies))
+	for i, dbPolicy := range dbPolicies {
+		// Convert pq.StringArray to []PolicyAction
+		actions := make([]PolicyAction, len(dbPolicy.Actions))
+		for i, action := range dbPolicy.Actions {
+			actions[i] = PolicyAction(action)
 		}
-
-		actionList := make([]PolicyAction, len(actions))
-		for i, action := range actions {
-			actionList[i] = PolicyAction(action)
+		policies[i] = &Policy{
+			Name:      dbPolicy.Id,
+			Effect:    PolicyEffect(dbPolicy.Effect),
+			Actions:   actions,
+			Resources: dbPolicy.Resources,
 		}
-
-		policies = append(policies, &Policy{
-			Name:      id,
-			Effect:    PolicyEffect(effect),
-			Actions:   actionList,
-			Resources: resources,
-		})
 	}
 
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
 	return policies, nil
 }
 
 func (st SqlStore) CreatePolicy(ctx context.Context, p *Policy) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
-	}
+	tx := st.gdb.Begin()
 
 	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
 	}()
 
-	query, _, _ := goqu.Insert("policies").Rows(goqu.Record{"id": p.Id, "effect": string(p.Effect), "actions": pq.Array(p.Actions), "resources": pq.Array(p.Resources)}).ToSQL()
+	// Convert []PolicyAction to pq.StringArray
+	actions := make(pq.StringArray, len(p.Actions))
+	for i, action := range p.Actions {
+		actions[i] = string(action)
+	}
+	dbPolicy := dbPolicy{
+		Id:        p.Id,
+		Effect:    string(p.Effect),
+		Actions:   actions,
+		Resources: p.Resources,
+	}
 
-	_, err = tx.ExecContext(ctx, query)
-	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == "23505" { // unique_violation
-				return &ConflictError{p.Id}
-			}
-		}
+	if err := tx.Create(&dbPolicy).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	err = tx.Commit()
-	if err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
@@ -580,43 +592,33 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p *Policy) error {
 }
 
 func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
-	tx, err := st.db.Begin()
-	if err != nil {
-		return err
-	}
+	tx := st.gdb.Begin()
+
 	defer func() {
-		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				err = fmt.Errorf("rollback failed: %v, after error: %v", rbErr, err)
-			}
+		if r := recover(); r != nil {
+			tx.Rollback()
 		}
 	}()
 
-	query, _, _ := goqu.Delete("policies").Where(goqu.C("id").Eq(policyID)).ToSQL()
+	// Attempt to delete the policy
+	result := tx.Delete(&dbPolicy{Id: policyID})
+	if result.Error != nil {
+		tx.Rollback()
+		return result.Error
+	}
 
-	result, err := tx.ExecContext(ctx, query)
-	if err != nil {
-		return err
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	// If no rows were affected, the policy did not exist
+	if result.RowsAffected == 0 {
+		tx.Rollback()
 		return &NotFoundError{"policy", policyID}
 	}
 
-	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
-	db.DeleteFrom("principal_policies").Where(db.Equal("policy_id", policyID))
-	query, args := db.Build()
-
-	_, err = tx.ExecContext(ctx, query, args...)
-	if err != nil {
+	if err := tx.Where("policy_id = ?", policyID).Delete(&dbPrincipalPolicy{}).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	err = tx.Commit()
-	if err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return err
 	}
 
@@ -624,61 +626,36 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 }
 
 func (st SqlStore) CreateToken(ctx context.Context, tokenId string, value string) error {
-	ib := sqlbuilder.PostgreSQL.NewInsertBuilder()
-	ib.InsertInto("tokens").Cols("id", "value").Values(tokenId, value)
-	query, args := ib.Build()
-	_, err := st.db.ExecContext(ctx, query, args...)
+	dbToken := dbToken{
+		Id:    tokenId,
+		Value: value,
+	}
+	err := st.gdb.Create(&dbToken).Error
 	return err
 }
 
 func (st SqlStore) DeleteToken(ctx context.Context, tokenId string) error {
-	db := sqlbuilder.PostgreSQL.NewDeleteBuilder()
-	db.DeleteFrom("tokens").Where(db.Equal("id", tokenId))
-	query, args := db.Build()
-	_, err := st.db.ExecContext(ctx, query, args...)
+	err := st.gdb.Where("id = ?", tokenId).Delete(&dbToken{}).Error
 	return err
 }
 
 func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, error) {
-	var value string
-	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select("value").From("tokens").Where(sb.Equal("id", tokenId))
-	query, args := sb.Build()
-	err := st.db.QueryRowContext(ctx, query, args...).Scan(&value)
-	return value, err
+	var dbToken dbToken
+	err := st.gdb.Where("id = ?", tokenId).First(&dbToken).Error
+	return dbToken.Value, err
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
 	// Drop all tables
-	tables := []string{}
-	sb := sqlbuilder.PostgreSQL.NewSelectBuilder()
-	sb.Select("tablename").From("pg_tables").Where(sb.Equal("schemaname", "public"))
-	query, args := sb.Build()
-	rows, err := st.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var table string
-		if err := rows.Scan(&table); err != nil {
-			return err
-		}
-		tables = append(tables, table)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
+	tables, err := st.gdb.Migrator().GetTables()
 	for _, table := range tables {
-		query = fmt.Sprintf("DROP TABLE IF EXISTS %s;", table)
-		_, err = st.db.ExecContext(ctx, query)
-		if err != nil {
+		if err := st.gdb.Migrator().DropTable(table); err != nil {
 			return err
 		}
 	}
-	err = st.CreateSchemas()
 	if err != nil {
 		return err
 	}
+	st.CreateSchemas()
 	return nil
 }
