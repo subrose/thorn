@@ -38,7 +38,6 @@ func NewSqlStore(dsn string) (*SqlStore, error) {
 	return store, nil
 }
 
-// Define your models
 type dbPolicy struct {
 	Id          string `gorm:"primaryKey"`
 	Name        string
@@ -141,20 +140,17 @@ func validateInput(input string) bool {
 }
 
 func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
-	// Start a new transaction
 	tx := st.db.Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	// Create a CollectionMetadata
 	collectionMetadata := dbCollectionMetadata{
 		Id:          c.Id,
 		Name:        c.Name,
 		FieldSchema: c.Fields,
 	}
 
-	// Insert the new collection metadata into the database
 	result := tx.Create(&collectionMetadata)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
@@ -164,13 +160,11 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		}
 	}
 
-	// Use validateInput function to sanitize inputs
 	if !validateInput(c.Name) {
 		return &ValueError{Msg: fmt.Sprintf("collection name '%s' is not alphanumeric", c.Name)}
 	}
 	tableName := "collection_" + c.Name
 
-	// Create a new table for the collection
 	query := `CREATE TABLE IF NOT EXISTS ` + tableName + ` (id TEXT PRIMARY KEY`
 	for fieldName := range c.Fields {
 		if !validateInput(fieldName) {
@@ -180,13 +174,11 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	}
 	query += `)`
 
-	// Execute the query
 	result = tx.Exec(query)
 	if result.Error != nil {
 		return result.Error
 	}
 
-	// Commit the transaction
 	tx.Commit()
 	if tx.Error != nil {
 		return tx.Error
@@ -276,7 +268,6 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 		return "", err
 	}
 
-	// Validate that the record matches the schema and all required fields are present
 	recordId := GenerateId("rec")
 	newRecord := make(map[string]interface{})
 	newRecord["id"] = recordId
@@ -287,14 +278,12 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 			newRecord[fieldName] = fieldValue
 		}
 	}
-	// Check if any field is missing in the record, this can be expanded to check if the field type is required
 	for fieldName := range record {
 		if _, ok := fields[fieldName]; !ok {
 			return "", &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
 		}
 	}
 
-	// Use gorm's Create method with the map
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
 	if result.Error != nil {
 		return "", result.Error
@@ -373,7 +362,6 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 		return err
 	}
 
-	// Validate that the record matches the schema and all required fields are present
 	newRecord := make(map[string]interface{})
 	newRecord["id"] = recordID
 	for fieldName := range fields {
@@ -383,14 +371,13 @@ func (st SqlStore) UpdateRecord(ctx context.Context, collectionName string, reco
 			newRecord[fieldName] = fieldValue
 		}
 	}
-	// Check if any field is missing in the record, this can be expanded to check if the field type is required
+
 	for fieldName := range record {
 		if _, ok := fields[fieldName]; !ok {
 			return &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
 		}
 	}
 
-	// Use gorm's Update method with the map
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Where("id = ?", recordID).Updates(newRecord)
 	if result.Error != nil {
 		return result.Error
@@ -502,13 +489,11 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 		}
 	}()
 
-	// Delete associated policies
 	if err := tx.Where("principal_id = ?", id).Delete(&dbPrincipalPolicy{}).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Delete the principal
 	if err := tx.Where("username = ?", id).Delete(&dbPrincipal{}).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &NotFoundError{"principal", id}
@@ -517,7 +502,6 @@ func (st SqlStore) DeletePrincipal(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		tx.Rollback()
 		return err
@@ -536,7 +520,6 @@ func (st SqlStore) GetPolicy(ctx context.Context, policyId string) (*Policy, err
 		return nil, err
 	}
 
-	// Convert pq.StringArray to []PolicyAction
 	actions := make([]PolicyAction, len(dbPolicy.Actions))
 	for i, action := range dbPolicy.Actions {
 		actions[i] = PolicyAction(action)
@@ -563,7 +546,6 @@ func (st SqlStore) GetPolicies(ctx context.Context, policyIds []string) ([]*Poli
 
 	policies := make([]*Policy, len(dbPolicies))
 	for i, dbPolicy := range dbPolicies {
-		// Convert pq.StringArray to []PolicyAction
 		actions := make([]PolicyAction, len(dbPolicy.Actions))
 		for i, action := range dbPolicy.Actions {
 			actions[i] = PolicyAction(action)
@@ -588,7 +570,6 @@ func (st SqlStore) CreatePolicy(ctx context.Context, p *Policy) error {
 		}
 	}()
 
-	// Convert []PolicyAction to pq.StringArray
 	actions := make(pq.StringArray, len(p.Actions))
 	for i, action := range p.Actions {
 		actions[i] = string(action)
@@ -621,7 +602,6 @@ func (st SqlStore) DeletePolicy(ctx context.Context, policyID string) error {
 		}
 	}()
 
-	// Attempt to delete the policy
 	result := tx.Delete(&dbPolicy{Id: policyID})
 	if result.Error != nil {
 		tx.Rollback()
@@ -667,7 +647,6 @@ func (st SqlStore) GetTokenValue(ctx context.Context, tokenId string) (string, e
 }
 
 func (st SqlStore) Flush(ctx context.Context) error {
-	// Drop all tables
 	tables, err := st.db.Migrator().GetTables()
 	for _, table := range tables {
 		if err := st.db.Migrator().DropTable(table); err != nil {
