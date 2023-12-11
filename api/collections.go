@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -72,7 +73,7 @@ func (core *Core) CreateRecord(c *fiber.Ctx) error {
 
 	recordId, err := core.vault.CreateRecord(c.Context(), principal, collectionName, *record)
 	if err != nil {
-		core.logger.Error("An error occurred creating a record")
+		core.logger.Error(fmt.Sprintf("An error occurred creating a record: %s", err))
 		return err
 	}
 	return c.Status(http.StatusCreated).JSON(recordId)

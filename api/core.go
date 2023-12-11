@@ -24,7 +24,7 @@ type CoreConfig struct {
 	API_HOST          string
 	API_PORT          int
 	LOG_LEVEL         string
-	LOG_HANDLER       string
+	LOG_FORMAT        string
 	LOG_SINK          string
 	DEV_MODE          bool
 }
@@ -49,7 +49,7 @@ func ReadConfigs() (*CoreConfig, error) {
 		apiPortKey          = prefix + "API_PORT"
 		logLevelKey         = prefix + "LOG_LEVEL"
 		logSinkKey          = prefix + "LOG_SINK"
-		logHandlerKey       = prefix + "LOG_HANDLER"
+		logFormatKey        = prefix + "LOG_FORMAT"
 		devModeKey          = prefix + "DEV_MODE"
 		databaseURLKey      = prefix + "DATABASE_URL"
 		encryptionKeyKey    = prefix + "ENCRYPTION_KEY"
@@ -61,12 +61,12 @@ func ReadConfigs() (*CoreConfig, error) {
 
 	// Set default values
 	err := k.Load(confmap.Provider(map[string]interface{}{
-		apiHostKey:    "0.0.0.0",
-		apiPortKey:    3000,
-		logLevelKey:   "info",
-		logSinkKey:    "stdout",
-		logHandlerKey: "json",
-		devModeKey:    false,
+		apiHostKey:   "0.0.0.0",
+		apiPortKey:   3000,
+		logLevelKey:  "info",
+		logSinkKey:   "stdout",
+		logFormatKey: "json",
+		devModeKey:   false,
 	}, "_"), nil)
 
 	if err != nil {
@@ -89,7 +89,7 @@ func ReadConfigs() (*CoreConfig, error) {
 	conf.API_HOST = k.String(apiHostKey)
 	conf.API_PORT = k.Int(apiPortKey)
 	conf.LOG_LEVEL = k.String(logLevelKey)
-	conf.LOG_HANDLER = k.String(logHandlerKey)
+	conf.LOG_FORMAT = k.String(logFormatKey)
 	conf.LOG_SINK = k.String(logSinkKey)
 	conf.DEV_MODE = k.Bool(devModeKey)
 
@@ -110,7 +110,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	c.conf = conf
 
 	// Logger
-	apiLogger, err := _logger.NewLogger("API", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
+	apiLogger, err := _logger.NewLogger("API", conf.LOG_SINK, conf.LOG_FORMAT, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_SINK, conf.LOG_HANDLER, conf.LOG_LEVEL, conf.DEV_MODE)
+	vaultLogger, err := _logger.NewLogger("VAULT", conf.LOG_SINK, conf.LOG_FORMAT, conf.LOG_LEVEL, conf.DEV_MODE)
 	vault := _vault.Vault{
 		Db:        db,
 		Priv:      priv,
