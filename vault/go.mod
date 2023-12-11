@@ -13,9 +13,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/doug-martin/goqu v5.0.0+incompatible // indirect
-	github.com/doug-martin/goqu/v9 v9.19.0 // indirect
-	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/huandu/go-sqlbuilder v1.24.0 // indirect
