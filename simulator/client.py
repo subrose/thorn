@@ -193,3 +193,20 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         return response.json()
+
+    def create_subject(self, eid: str, expected_statuses: Optional[list[int]] = None):
+        response = requests.post(
+            f"{self.vault_url}/subjects",
+            auth=(self.username, self.password),
+            json={"eid": eid},
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
+    def get_subject(self, sid: str, expected_statuses: Optional[list[int]] = None):
+        response = requests.get(
+            f"{self.vault_url}/subjects/{sid}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()

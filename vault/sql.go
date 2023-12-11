@@ -124,9 +124,21 @@ func (dbCollectionMetadata) TableName() string {
 	return "collections_metadata"
 }
 
+type dbSubject struct {
+	Id        string `gorm:"primaryKey"`
+	Sid       string `gorm:"unique"`
+	Metadata  string `gorm:"type:json"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (dbSubject) TableName() string {
+	return "subjects"
+}
+
 func (st *SqlStore) CreateSchemas() error {
 	// Use GORM's automigrate to create tables
-	err := st.db.AutoMigrate(&dbPrincipal{}, &dbPolicy{}, &dbPrincipalPolicy{}, &dbToken{}, &dbCollectionMetadata{})
+	err := st.db.AutoMigrate(&dbPrincipal{}, &dbPolicy{}, &dbPrincipalPolicy{}, &dbToken{}, &dbCollectionMetadata{}, &dbSubject{})
 	if err != nil {
 		return err
 	}
@@ -172,13 +184,11 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		}
 		query += `, ` + fieldName + ` TEXT`
 	}
-	query += `)`
-
+	query += `, sid TEXT, CONSTRAINT fk_sid FOREIGN KEY (sid) REFERENCES subjects(id) ON DELETE CASCADE)`
 	result = tx.Exec(query)
 	if result.Error != nil {
 		return result.Error
 	}
-
 	tx.Commit()
 	if tx.Error != nil {
 		return tx.Error
@@ -662,4 +672,40 @@ func (st SqlStore) Flush(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (st SqlStore) CreateSubject(ctx context.Context, subject *Subject) error {
+	dbSubject := dbSubject{
+		Id:       subject.Id,
+		Sid:      subject.Eid,
+		Metadata: subject.Metadata,
+	}
+	err := st.db.Create(&dbSubject).Error
+	return err
+}
+
+func (st SqlStore) GetSubject(ctx context.Context, subjectId string) (*Subject, error) {
+	var dbSubject dbSubject
+	err := st.db.Where("id = ?", subjectId).First(&dbSubject).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &NotFoundError{"subject", subjectId}
+		}
+		return nil, err
+	}
+
+	subject := Subject{
+		Id:        dbSubject.Id,
+		Eid:       dbSubject.Sid,
+		Metadata:  dbSubject.Metadata,
+		CreatedAt: dbSubject.CreatedAt.String(),
+		UpdatedAt: dbSubject.UpdatedAt.String(),
+	}
+
+	return &subject, nil
+}
+
+func (st SqlStore) DeleteSubject(ctx context.Context, subjectId string) error {
+	err := st.db.Where("id = ?", subjectId).Delete(&dbSubject{}).Error
+	return err
 }
