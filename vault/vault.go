@@ -25,11 +25,11 @@ type Collection struct {
 }
 
 type Subject struct {
-	Id        string `json:"id"`
-	Eid       string `json:"eid" validate:"required"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
-	Metadata  string `json:"metadata"`
+	Id        string            `json:"id"`
+	Eid       string            `json:"eid" validate:"required"`
+	CreatedAt string            `json:"created_at"`
+	UpdatedAt string            `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata"`
 }
 
 type Record map[string]string // field name -> value
@@ -244,10 +244,26 @@ func (vault Vault) CreateRecord(
 		return "", err
 	}
 
+	// Ensure all fields are present
+	for fieldName := range collection.Fields {
+		if _, ok := record[fieldName]; !ok {
+			return "", &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
+		}
+	}
+
 	encryptedRecord := make(Record)
 	for fieldName, fieldValue := range record {
 		// Ensure field exists on collection
-		if _, ok := collection.Fields[fieldName]; !ok {
+		if fieldName == "" {
+			return "", &ValueError{Msg: "field name must not be empty"}
+		}
+
+		if fieldName == "id" {
+			return "", &ValueError{Msg: "field name cannot be 'id'"}
+		}
+
+		// Ensure field exists on collection
+		if _, ok := collection.Fields[fieldName]; !ok && fieldName != "sid" {
 			return "", &ValueError{fmt.Sprintf("Field %s not found on collection %s", fieldName, collectionName)}
 		}
 
@@ -256,13 +272,21 @@ func (vault Vault) CreateRecord(
 		if err != nil {
 			return "", err
 		}
-		// Encrypt field value
-		encryptedValue, err := vault.Priv.Encrypt(fieldValue)
-		if err != nil {
-			return "", err
+
+		encryptedRecord["id"] = GenerateId("rec")
+
+		if fieldName == "sid" {
+			encryptedRecord[fieldName] = fieldValue
+			continue
+		} else {
+			encryptedValue, err := vault.Priv.Encrypt(fieldValue)
+			if err != nil {
+				return "", err
+			}
+			encryptedRecord[fieldName] = encryptedValue
 		}
-		encryptedRecord[fieldName] = encryptedValue
 	}
+
 	return vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
 }
 

@@ -210,3 +210,11 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         return response.json()
+
+    def delete_subject(self, sid: str, expected_statuses: Optional[list[int]] = None):
+        response = requests.delete(
+            f"{self.vault_url}/subjects/{sid}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return

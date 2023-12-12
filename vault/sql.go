@@ -125,9 +125,9 @@ func (dbCollectionMetadata) TableName() string {
 }
 
 type dbSubject struct {
-	Id        string `gorm:"primaryKey"`
-	Sid       string `gorm:"unique"`
-	Metadata  string `gorm:"type:json"`
+	Id        string            `gorm:"primaryKey"`
+	Sid       string            `gorm:"unique"`
+	Metadata  map[string]string `gorm:"type:json"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -273,25 +273,9 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 		return "", &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
-	fields, err := getCollectionFields(ctx, st.db, collectionName)
-	if err != nil {
-		return "", err
-	}
-
-	recordId := GenerateId("rec")
 	newRecord := make(map[string]interface{})
-	newRecord["id"] = recordId
-	for fieldName := range fields {
-		if fieldValue, ok := record[fieldName]; !ok {
-			return "", &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
-		} else {
-			newRecord[fieldName] = fieldValue
-		}
-	}
 	for fieldName := range record {
-		if _, ok := fields[fieldName]; !ok {
-			return "", &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
-		}
+		newRecord[fieldName] = record[fieldName]
 	}
 
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
@@ -299,7 +283,7 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 		return "", result.Error
 	}
 
-	return recordId, nil
+	return record["id"], nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {

@@ -29,7 +29,7 @@ func ApiLogger(core *Core) fiber.Handler {
 			ctx.Get("User-Agent"),
 			ctx.Get("X-Trace-Id"),
 			dt,
-			ctx.Response().StatusCode(),
+			ctx.Context().Response.StatusCode(), // This will now log the final status code
 		)
 		return err
 	}
@@ -133,8 +133,8 @@ func SetupApi(core *Core) *fiber.App {
 		ErrorHandler:          core.customErrorHandler,
 	})
 	app.Use(helmet.New())
-	app.Use(ApiLogger(core))
 	app.Use(recover.New())
+	app.Use(ApiLogger(core))
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(http.StatusOK).SendString("OK")
@@ -143,7 +143,7 @@ func SetupApi(core *Core) *fiber.App {
 	principalGroup := app.Group("/principals")
 	principalGroup.Use(authGuard(core))
 	principalGroup.Get(":username", core.GetPrincipal)
-	principalGroup.Post("", core.CreatePrincipal)
+	principalGroup.Post("", JSONOnlyMiddleware, core.CreatePrincipal)
 	principalGroup.Delete(":username", core.DeletePrincipal)
 
 	collectionsGroup := app.Group("/collections")
@@ -151,8 +151,8 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Get("", core.GetCollections)
 	collectionsGroup.Get("/:name", core.GetCollection)
 	collectionsGroup.Delete("/:name", core.DeleteCollection)
-	collectionsGroup.Post("", core.CreateCollection)
-	collectionsGroup.Post("/:name/records", core.CreateRecord)
+	collectionsGroup.Post("", JSONOnlyMiddleware, core.CreateCollection)
+	collectionsGroup.Post("/:name/records", JSONOnlyMiddleware, core.CreateRecord)
 	collectionsGroup.Get("/:name/records", core.GetRecords)
 	collectionsGroup.Get("/:name/records/:id", core.GetRecord)
 	collectionsGroup.Put("/:name/records/:id", core.UpdateRecord)
@@ -168,12 +168,12 @@ func SetupApi(core *Core) *fiber.App {
 	tokensGroup := app.Group("/tokens")
 	tokensGroup.Use(authGuard(core))
 	tokensGroup.Get(":tokenId", core.GetTokenById)
-	tokensGroup.Post("", core.CreateToken)
+	tokensGroup.Post("", JSONOnlyMiddleware, core.CreateToken)
 
 	subjectsGroup := app.Group("/subjects")
 	subjectsGroup.Use(authGuard(core))
 	subjectsGroup.Get(":subjectId", core.GetSubject)
-	subjectsGroup.Post("", core.CreateSubject)
+	subjectsGroup.Post("", JSONOnlyMiddleware, core.CreateSubject)
 	subjectsGroup.Delete(":subjectId", core.DeleteSubject)
 
 	app.Use(func(c *fiber.Ctx) error {
