@@ -172,7 +172,7 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		}
 		query += `, ` + fieldName + ` TEXT`
 	}
-	query += `)`
+	query += `, created_at TIMESTAMP WITH TIME ZONE, updated_at TIMESTAMP WITH TIME ZONE)`
 
 	result = tx.Exec(query)
 	if result.Error != nil {
@@ -201,11 +201,26 @@ func getCollectionFields(ctx context.Context, db *gorm.DB, collectionName string
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
-	fields, err := getCollectionFields(ctx, st.db, name)
-	if err != nil {
-		return nil, err
+	if !validateInput(name) {
+		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", name)}
 	}
-	return &Collection{Name: name, Fields: fields}, nil
+
+	dbCollectionMetadata := dbCollectionMetadata{}
+	result := st.db.Where("name = ?", name).First(&dbCollectionMetadata)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, &NotFoundError{"collection", name}
+		}
+		return nil, result.Error
+	}
+
+	return &Collection{
+		Id:        dbCollectionMetadata.Id,
+		Name:      dbCollectionMetadata.Name,
+		Fields:    dbCollectionMetadata.FieldSchema,
+		CreatedAt: dbCollectionMetadata.CreatedAt,
+		UpdatedAt: dbCollectionMetadata.UpdatedAt,
+	}, nil
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
@@ -258,38 +273,22 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 	return nil
 }
 
-func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) (string, error) {
+func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) error {
 	if !validateInput(collectionName) {
-		return "", &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+		return &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
-	fields, err := getCollectionFields(ctx, st.db, collectionName)
-	if err != nil {
-		return "", err
-	}
-
-	recordId := GenerateId("rec")
 	newRecord := make(map[string]interface{})
-	newRecord["id"] = recordId
-	for fieldName := range fields {
-		if fieldValue, ok := record[fieldName]; !ok {
-			return "", &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
-		} else {
-			newRecord[fieldName] = fieldValue
-		}
-	}
 	for fieldName := range record {
-		if _, ok := fields[fieldName]; !ok {
-			return "", &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
-		}
+		newRecord[fieldName] = record[fieldName]
 	}
 
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
 	if result.Error != nil {
-		return "", result.Error
+		return result.Error
 	}
 
-	return recordId, nil
+	return nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {
@@ -347,8 +346,27 @@ func (st SqlStore) GetRecord(ctx context.Context, collectionName string, recordI
 	return record, nil
 }
 
-func (st SqlStore) GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error) {
-	panic("not implemented") // TODO: Implement}
+func (st SqlStore) SearchRecords(ctx context.Context, collectionName string, filters map[string]string) ([]string, error) {
+	if !validateInput(collectionName) {
+		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+	}
+
+	for fieldName := range filters {
+		if !validateInput(fieldName) {
+			return nil, &ValueError{Msg: fmt.Sprintf("Invalid field name %s", fieldName)}
+		}
+		if fieldName == "id" || fieldName == "created_at" || fieldName == "updated_at" {
+			return nil, &ValueError{Msg: fmt.Sprintf("Invalid field name %s, searching is not allowed on metadata fields", fieldName)}
+		}
+	}
+
+	var recordIds []string
+	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Where(filters).Pluck("id", &recordIds)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return recordIds, nil
 
 }
 

@@ -132,6 +132,20 @@ class Actor:
         check_expected_status(response, expected_statuses)
         return response.json()
 
+    def search_records(
+        self,
+        collection: str,
+        filters: dict[str, str],
+        expected_statuses: Optional[list[int]] = None,
+    ):
+        response = requests.post(
+            f"{self.vault_url}/collections/{collection}/records/search",
+            json=filters,
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return response.json()
+
     def create_policy(
         self, policy: Policy, expected_statuses: Optional[list[int]] = None
     ) -> dict[str, str]:

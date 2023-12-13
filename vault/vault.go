@@ -18,10 +18,10 @@ type Field struct {
 type Collection struct {
 	Id          string           `json:"id"`
 	Name        string           `json:"name" validate:"required,min=3,max=32"`
-	Fields      map[string]Field `json:"fields" validate:"required"`
-	CreatedAt   string           `json:"created_at"`
-	UpdatedAt   string           `json:"updated_at"`
 	Description string           `json:"description"`
+	Fields      map[string]Field `json:"fields" validate:"required"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
 }
 
 type Record map[string]string // field name -> value
@@ -65,18 +65,18 @@ type Policy struct {
 	Effect      PolicyEffect   `json:"effect" validate:"required"`
 	Actions     []PolicyAction `json:"actions" validate:"required"`
 	Resources   []string       `json:"resources" validate:"required"`
-	CreatedAt   string         `json:"created_at"`
-	UpdatedAt   string         `json:"updated_at"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
 type Principal struct {
-	Id          string   `json:"id" db:"id"`
-	Username    string   `json:"username" validate:"required,min=3,max=32" db:"username"`
-	Password    string   `json:"password" validate:"required,min=3" db:"password"` // This is to limit the size of the password hash.
-	Description string   `json:"description" db:"description"`
-	CreatedAt   string   `json:"created_at" db:"created_at"`
-	UpdatedAt   string   `json:"updated_at" db:"updated_at"`
-	Policies    []string `json:"policies" db:"-"`
+	Id          string    `json:"id" db:"id"`
+	Username    string    `json:"username" validate:"required,min=3,max=32" db:"username"`
+	Password    string    `json:"password" validate:"required,min=3" db:"password"` // This is to limit the size of the password hash.
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	Policies    []string  `json:"policies" db:"-"`
 }
 
 type Request struct {
@@ -105,10 +105,10 @@ type VaultDB interface {
 	GetCollections(ctx context.Context) ([]string, error)
 	CreateCollection(ctx context.Context, col *Collection) error
 	DeleteCollection(ctx context.Context, name string) error
-	CreateRecord(ctx context.Context, collectionName string, record Record) (string, error)
+	CreateRecord(ctx context.Context, collectionName string, record Record) error
 	GetRecords(ctx context.Context, collectionName string) ([]string, error)
 	GetRecord(ctx context.Context, collectionName string, recordId string) (Record, error)
-	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
+	SearchRecords(ctx context.Context, collectionName string, filters map[string]string) ([]string, error)
 	UpdateRecord(ctx context.Context, collectionName string, recordID string, record Record) error
 	DeleteRecord(ctx context.Context, collectionName string, recordID string) error
 	GetPrincipal(ctx context.Context, username string) (*Principal, error)
@@ -232,8 +232,20 @@ func (vault Vault) CreateRecord(
 		return "", err
 	}
 
+	// Ensure all fields are present
+	for fieldName := range collection.Fields {
+		if _, ok := record[fieldName]; !ok {
+			return "", &ValueError{Msg: fmt.Sprintf("Field %s is missing from the record", fieldName)}
+		}
+	}
+
 	encryptedRecord := make(Record)
 	for fieldName, fieldValue := range record {
+		// Ensure field name is allowed
+		if fieldName == "" || fieldName == "id" || fieldName == "created_at" || fieldName == "updated_at" {
+			return "", &ValueError{Msg: fmt.Sprintf("Invalid field name: %s", fieldName)}
+		}
+
 		// Ensure field exists on collection
 		if _, ok := collection.Fields[fieldName]; !ok {
 			return "", &ValueError{fmt.Sprintf("Field %s not found on collection %s", fieldName, collectionName)}
@@ -251,7 +263,15 @@ func (vault Vault) CreateRecord(
 		}
 		encryptedRecord[fieldName] = encryptedValue
 	}
-	return vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
+	encryptedRecord["id"] = GenerateId("rec")
+	encryptedRecord["created_at"] = time.Now().Format(time.RFC3339)
+	encryptedRecord["updated_at"] = time.Now().Format(time.RFC3339)
+
+	err = vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
+	if err != nil {
+		return "", err
+	}
+	return encryptedRecord["id"], nil
 }
 
 func (vault Vault) GetRecords(
@@ -331,22 +351,43 @@ func (vault Vault) GetRecord(
 	return decryptedRecord, nil
 }
 
-// func (vault Vault) GetRecordsFilter(
-// 	ctx context.Context,
-// 	principal Principal,
-// 	collectionName string,
-// 	fieldName string,
-// 	value string,
-// 	returnFormats map[string]string,
-// ) (map[string]Record, error) {
-// 	val, _ := vault.Priv.Encrypt(value)
-// 	recordIds, err := vault.Db.GetRecordsFilter(ctx, collectionName, fieldName, val)
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (vault Vault) SearchRecords(
+	ctx context.Context,
+	principal Principal,
+	collectionName string,
+	filters map[string]string,
+) ([]string, error) {
 
-// 	return vault.GetRecords(ctx, principal, collectionName, recordIds, returnFormats)
-// }
+	if len(filters) == 0 {
+		return nil, &ValueError{Msg: "filters must not be empty"}
+	}
+
+	encryptedFilters := make(map[string]string)
+	for field, value := range filters {
+		// To search records we need to have read access to all records and the field we are searching on in plain format as this leak information about the record.
+		request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, "*", field, "plain")}
+		allowed, err := vault.ValidateAction(ctx, request)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, &ForbiddenError{request}
+		}
+
+		val, err := vault.Priv.Encrypt(value)
+		if err != nil {
+			return nil, err
+		}
+		encryptedFilters[field] = val
+	}
+
+	recordIds, err := vault.Db.SearchRecords(ctx, collectionName, encryptedFilters)
+	if err != nil {
+		return nil, err
+	}
+
+	return recordIds, nil
+}
 
 func (vault Vault) UpdateRecord(
 	ctx context.Context,
@@ -436,7 +477,8 @@ func (vault Vault) CreatePrincipal(
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(principal.Password), bcrypt.DefaultCost)
 	principal.Password = string(hashedPassword)
 	principal.Id = GenerateId("prin")
-	principal.CreatedAt = time.Now().Format(time.RFC3339)
+	principal.CreatedAt = time.Now()
+	principal.UpdatedAt = time.Now()
 
 	if err := vault.Validate(principal); err != nil {
 		return err
@@ -637,7 +679,6 @@ func (vault Vault) GetTokenValue(ctx context.Context, principal Principal, token
 	}
 
 	return record, nil
-
 }
 
 func (vault *Vault) Validate(payload interface{}) error {

@@ -29,8 +29,8 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		Effect:      EffectAllow,
 		Actions:     []PolicyAction{PolicyActionRead, PolicyActionWrite},
 		Resources:   []string{"*"},
-		CreatedAt:   time.Now().String(),
-		UpdatedAt:   time.Now().String(),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	})
 	_ = db.CreatePolicy(ctx, &Policy{
 		Id:          "read-all-customers",
@@ -39,8 +39,8 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		Effect:      EffectAllow,
 		Actions:     []PolicyAction{PolicyActionRead},
 		Resources:   []string{"/collections/customers*"},
-		CreatedAt:   time.Now().String(),
-		UpdatedAt:   time.Now().String(),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	})
 	vaultLogger, _ := _logger.NewLogger("TEST_VAULT", "none", "text", "debug", true)
 	vault := Vault{Db: db, Priv: priv, Logger: vaultLogger, Signer: signer, Validator: NewValidator()}

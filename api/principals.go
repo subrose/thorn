@@ -2,25 +2,19 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	_vault "github.com/subrose/vault"
 )
 
-// type NewPrincipal struct {
-// 	Username    string   `json:"username" validate:"required,min=1,max=32"`
-// 	Password    string   `json:"password" validate:"required,min=4,max=32"` // This is to limit the size of the password hash.
-// 	Description string   `json:"description"`
-// 	Policies    []string `json:"policies"`
-// }
-
 type PrincipalResponse struct {
-	Id          string   `json:"id"`
-	Username    string   `json:"username" validate:"required,min=3,max=32"`
-	Description string   `json:"description"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Policies    []string `json:"policies"`
+	Id          string    `json:"id"`
+	Username    string    `json:"username" validate:"required,min=3,max=32"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Policies    []string  `json:"policies"`
 }
 
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {

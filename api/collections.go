@@ -203,3 +203,27 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	)
 	return c.Status(http.StatusOK).JSON(record)
 }
+
+func (core *Core) SearchRecords(c *fiber.Ctx) error {
+	principal := GetSessionPrincipal(c)
+	collectionName := c.Params("name")
+
+	if collectionName == "" {
+		return &fiber.Error{
+			Code:    http.StatusBadRequest,
+			Message: "collection name is required",
+		}
+	}
+
+	filters := new(map[string]string)
+	if err := core.ParseJsonBody(c.Body(), &filters); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
+	}
+
+	records, err := core.vault.SearchRecords(c.Context(), principal, collectionName, *filters)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(http.StatusOK).JSON(records)
+}
