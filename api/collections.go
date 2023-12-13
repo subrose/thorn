@@ -9,6 +9,8 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
+// TODO: Extract and share the collection name validation logic
+
 func (core *Core) GetCollection(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	principal := GetSessionPrincipal(c)
@@ -35,6 +37,10 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	collection := new(_vault.Collection)
 	if err := core.ParseJsonBody(c.Body(), collection); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
+	}
+
+	if collection.Type == "" {
+		collection.Type = "data"
 	}
 
 	err := core.vault.CreateCollection(c.Context(), principal, collection)
@@ -137,9 +143,7 @@ func (core *Core) GetRecords(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-
 	return c.Status(http.StatusOK).JSON(records)
-
 }
 
 func (core *Core) GetRecord(c *fiber.Ctx) error {

@@ -125,8 +125,8 @@ func (dbCollectionMetadata) TableName() string {
 }
 
 type dbSubject struct {
-	Id        string            `gorm:"primaryKey"`
-	Sid       string            `gorm:"unique"`
+	Id        string `gorm:"primaryKey"`
+	Eid       string
 	Metadata  map[string]string `gorm:"type:json"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -661,7 +661,7 @@ func (st SqlStore) Flush(ctx context.Context) error {
 func (st SqlStore) CreateSubject(ctx context.Context, subject *Subject) error {
 	dbSubject := dbSubject{
 		Id:       subject.Id,
-		Sid:      subject.Eid,
+		Eid:      subject.Eid,
 		Metadata: subject.Metadata,
 	}
 	err := st.db.Create(&dbSubject).Error
@@ -680,7 +680,7 @@ func (st SqlStore) GetSubject(ctx context.Context, subjectId string) (*Subject, 
 
 	subject := Subject{
 		Id:        dbSubject.Id,
-		Eid:       dbSubject.Sid,
+		Eid:       dbSubject.Eid,
 		Metadata:  dbSubject.Metadata,
 		CreatedAt: dbSubject.CreatedAt.String(),
 		UpdatedAt: dbSubject.UpdatedAt.String(),

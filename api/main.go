@@ -87,6 +87,8 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(code).SendString(err.Error())
 	}
 
+	core.logger.Error(err.Error())
+
 	// Handle custom errors from the vault package
 	var ve *_vault.ValueError
 	var fe *_vault.ForbiddenError

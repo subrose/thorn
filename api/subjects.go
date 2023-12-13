@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,8 +12,6 @@ func (core *Core) CreateSubject(c *fiber.Ctx) error {
 	if err := core.ParseJsonBody(c.Body(), subject); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(err)
 	}
-
-	fmt.Println(subject)
 
 	sessionPrincipal := GetSessionPrincipal(c)
 	err := core.vault.CreateSubject(c.Context(), sessionPrincipal, subject)

@@ -15,9 +15,17 @@ type Field struct {
 	IsIndexed bool   `json:"indexed" validate:"required,boolean"`
 }
 
+type CollectionType string
+
+const (
+	CollectionTypeSubject CollectionType = "subject"
+	CollectionTypeRecord  CollectionType = "data"
+)
+
 type Collection struct {
 	Id          string           `json:"id"`
 	Name        string           `json:"name" validate:"required,min=3,max=32"`
+	Type        CollectionType   `json:"type" validate:"oneof=subject data"` // Type can be one of "subject" or "record", default is "record"
 	Fields      map[string]Field `json:"fields" validate:"required"`
 	CreatedAt   string           `json:"created_at"`
 	UpdatedAt   string           `json:"updated_at"`
@@ -70,8 +78,8 @@ type Policy struct {
 	Id          string         `json:"id"`
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
-	Effect      PolicyEffect   `json:"effect" validate:"required"`
-	Actions     []PolicyAction `json:"actions" validate:"required"`
+	Effect      PolicyEffect   `json:"effect" validate:"required,oneof=allow deny"`
+	Actions     []PolicyAction `json:"actions" validate:"dive,required,oneof=read write"`
 	Resources   []string       `json:"resources" validate:"required"`
 	CreatedAt   string         `json:"created_at"`
 	UpdatedAt   string         `json:"updated_at"`

@@ -115,7 +115,6 @@ func TestVault(t *testing.T) {
 		}
 
 		// Check if input and output records match
-
 		for k, v := range inputRecord {
 			val := v
 			if val != vaultRecord[k] {
