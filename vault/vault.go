@@ -19,17 +19,18 @@ type CollectionType string
 
 const (
 	CollectionTypeSubject CollectionType = "subject"
-	CollectionTypeRecord  CollectionType = "data"
+	CollectionTypeData    CollectionType = "data"
 )
 
 type Collection struct {
 	Id          string           `json:"id"`
 	Name        string           `json:"name" validate:"required,min=3,max=32"`
-	Type        CollectionType   `json:"type" validate:"oneof=subject data"` // Type can be one of "subject" or "record", default is "record"
-	Fields      map[string]Field `json:"fields" validate:"required"`
-	CreatedAt   string           `json:"created_at"`
-	UpdatedAt   string           `json:"updated_at"`
 	Description string           `json:"description"`
+	Type        CollectionType   `json:"type" validate:"oneof=subject data"` // Type can be one of "subject" or "record", default is "record"
+	Parent      string           `json:"parent"`
+	Fields      map[string]Field `json:"fields" validate:"required"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
 }
 
 type Subject struct {
@@ -122,7 +123,7 @@ type VaultDB interface {
 	GetCollections(ctx context.Context) ([]string, error)
 	CreateCollection(ctx context.Context, col *Collection) error
 	DeleteCollection(ctx context.Context, name string) error
-	CreateRecord(ctx context.Context, collectionName string, record Record) (string, error)
+	CreateRecord(ctx context.Context, collectionName string, record Record) error
 	GetRecords(ctx context.Context, collectionName string) ([]string, error)
 	GetRecord(ctx context.Context, collectionName string, recordId string) (Record, error)
 	GetRecordsFilter(ctx context.Context, collectionName string, fieldName string, value string) ([]string, error)
@@ -138,9 +139,6 @@ type VaultDB interface {
 	CreateToken(ctx context.Context, tokenId string, value string) error
 	DeleteToken(ctx context.Context, tokenId string) error
 	GetTokenValue(ctx context.Context, tokenId string) (string, error)
-	CreateSubject(ctx context.Context, subject *Subject) error
-	GetSubject(ctx context.Context, subjectId string) (*Subject, error)
-	DeleteSubject(ctx context.Context, subjectId string) error
 	Flush(ctx context.Context) error
 }
 
@@ -202,6 +200,13 @@ func (vault Vault) CreateCollection(
 	if err := vault.Validate(col); err != nil {
 		return err
 	}
+	if col.Type == CollectionTypeData && col.Parent == "" {
+		return &ValueError{Msg: "parent collection must be provided for data collections"}
+	}
+	if col.Type == CollectionTypeSubject && col.Parent != "" {
+		return &ValueError{Msg: "parent collection must not be provided for subject collections"}
+	}
+
 	col.Id = GenerateId("col")
 
 	err = vault.Db.CreateCollection(ctx, col)
@@ -259,15 +264,25 @@ func (vault Vault) CreateRecord(
 		}
 	}
 
+	_, sidProvided := record["sid"]
+	var prefix string // Is this a good idea?
+	if collection.Type == CollectionTypeSubject {
+		if sidProvided {
+			return "", &ValueError{Msg: "sid cannot be provided for subject collections"}
+		}
+		prefix = "sub"
+	} else if collection.Type == CollectionTypeData {
+		if !sidProvided || record["sid"] == "" {
+			return "", &ValueError{Msg: "sid must be provided for data collections"}
+		}
+		prefix = "dat"
+	}
+
 	encryptedRecord := make(Record)
 	for fieldName, fieldValue := range record {
 		// Ensure field exists on collection
-		if fieldName == "" {
-			return "", &ValueError{Msg: "field name must not be empty"}
-		}
-
-		if fieldName == "id" {
-			return "", &ValueError{Msg: "field name cannot be 'id'"}
+		if fieldName == "" || fieldName == "id" || fieldName == "created_at" || fieldName == "updated_at" {
+			return "", &ValueError{Msg: fmt.Sprintf("Invalid field name: %s", fieldName)}
 		}
 
 		// Ensure field exists on collection
@@ -281,21 +296,23 @@ func (vault Vault) CreateRecord(
 			return "", err
 		}
 
-		encryptedRecord["id"] = GenerateId("rec")
-
-		if fieldName == "sid" {
-			encryptedRecord[fieldName] = fieldValue
-			continue
-		} else {
-			encryptedValue, err := vault.Priv.Encrypt(fieldValue)
-			if err != nil {
-				return "", err
-			}
-			encryptedRecord[fieldName] = encryptedValue
+		encryptedValue, err := vault.Priv.Encrypt(fieldValue)
+		if err != nil {
+			return "", err
 		}
+		encryptedRecord[fieldName] = encryptedValue
 	}
 
-	return vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
+	fmt.Println(prefix, collection.Type)
+	encryptedRecord["id"] = GenerateId(prefix)
+	encryptedRecord["created_at"] = time.Now().Format(time.RFC3339)
+	encryptedRecord["updated_at"] = time.Now().Format(time.RFC3339)
+
+	err = vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
+	if err != nil {
+		return "", err
+	}
+	return encryptedRecord["id"], nil
 }
 
 func (vault Vault) GetRecords(
@@ -706,57 +723,4 @@ func (vault *Vault) Validate(payload interface{}) error {
 		return nil
 	}
 	return ValidationErrors{errors}
-}
-
-func (vault *Vault) CreateSubject(ctx context.Context, actor Principal, subject *Subject) error {
-	request := Request{actor, PolicyActionWrite, SUBJECTS_PPATH}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-	subject.Id = GenerateId("sub")
-	subject.CreatedAt = time.Now().Format(time.RFC3339)
-
-	if err := vault.Validate(subject); err != nil {
-		return err
-	}
-
-	err = vault.Db.CreateSubject(ctx, subject)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (vault *Vault) GetSubject(ctx context.Context, actor Principal, subjectId string) (*Subject, error) {
-	request := Request{actor, PolicyActionRead, fmt.Sprintf("%s/%s", SUBJECTS_PPATH, subjectId)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
-	}
-
-	return vault.Db.GetSubject(ctx, subjectId)
-}
-
-func (vault *Vault) DeleteSubject(ctx context.Context, actor Principal, subjectId string) error {
-	request := Request{actor, PolicyActionWrite, fmt.Sprintf("%s/%s", SUBJECTS_PPATH, subjectId)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-
-	err = vault.Db.DeleteSubject(ctx, subjectId)
-	if err != nil {
-		return err
-	}
-	return nil
 }

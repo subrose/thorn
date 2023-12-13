@@ -113,8 +113,10 @@ func (f FieldSchemaMap) Value() (driver.Value, error) {
 }
 
 type dbCollectionMetadata struct {
-	Id          string         `gorm:"primaryKey"`
-	Name        string         `gorm:"unique"`
+	Id          string `gorm:"primaryKey"`
+	Name        string `gorm:"unique"`
+	Description string
+	Type        string
 	FieldSchema FieldSchemaMap `gorm:"type:json"` // Ensures JSON storage
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -124,21 +126,9 @@ func (dbCollectionMetadata) TableName() string {
 	return "collections_metadata"
 }
 
-type dbSubject struct {
-	Id        string `gorm:"primaryKey"`
-	Eid       string
-	Metadata  map[string]string `gorm:"type:json"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-func (dbSubject) TableName() string {
-	return "subjects"
-}
-
 func (st *SqlStore) CreateSchemas() error {
 	// Use GORM's automigrate to create tables
-	err := st.db.AutoMigrate(&dbPrincipal{}, &dbPolicy{}, &dbPrincipalPolicy{}, &dbToken{}, &dbCollectionMetadata{}, &dbSubject{})
+	err := st.db.AutoMigrate(&dbPrincipal{}, &dbPolicy{}, &dbPrincipalPolicy{}, &dbToken{}, &dbCollectionMetadata{})
 	if err != nil {
 		return err
 	}
@@ -160,6 +150,7 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	collectionMetadata := dbCollectionMetadata{
 		Id:          c.Id,
 		Name:        c.Name,
+		Type:        string(c.Type),
 		FieldSchema: c.Fields,
 	}
 
@@ -184,7 +175,10 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		}
 		query += `, ` + fieldName + ` TEXT`
 	}
-	query += `, sid TEXT, CONSTRAINT fk_sid FOREIGN KEY (sid) REFERENCES subjects(id) ON DELETE CASCADE)`
+	if c.Type == CollectionTypeData {
+		query += `, subject_id TEXT`
+	}
+	query += `, created_at TIMESTAMP, updated_at TIMESTAMP)`
 	result = tx.Exec(query)
 	if result.Error != nil {
 		return result.Error
@@ -211,11 +205,27 @@ func getCollectionFields(ctx context.Context, db *gorm.DB, collectionName string
 }
 
 func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection, error) {
-	fields, err := getCollectionFields(ctx, st.db, name)
-	if err != nil {
-		return nil, err
+	if !validateInput(name) {
+		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", name)}
 	}
-	return &Collection{Name: name, Fields: fields}, nil
+
+	dbCollectionMetadata := dbCollectionMetadata{}
+	result := st.db.Where("name = ?", name).First(&dbCollectionMetadata)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, &NotFoundError{"collection", name}
+		}
+		return nil, result.Error
+	}
+	return &Collection{
+		Id:          dbCollectionMetadata.Id,
+		Name:        dbCollectionMetadata.Name,
+		Description: dbCollectionMetadata.Description,
+		Type:        CollectionType(dbCollectionMetadata.Type),
+		Fields:      dbCollectionMetadata.FieldSchema,
+		CreatedAt:   dbCollectionMetadata.CreatedAt,
+		UpdatedAt:   dbCollectionMetadata.UpdatedAt,
+	}, nil
 }
 
 func (st SqlStore) GetCollections(ctx context.Context) ([]string, error) {
@@ -268,9 +278,9 @@ func (st SqlStore) DeleteCollection(ctx context.Context, name string) error {
 	return nil
 }
 
-func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) (string, error) {
+func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, record Record) error {
 	if !validateInput(collectionName) {
-		return "", &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
+		return &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
 	newRecord := make(map[string]interface{})
@@ -280,10 +290,10 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
 	if result.Error != nil {
-		return "", result.Error
+		return result.Error
 	}
 
-	return record["id"], nil
+	return nil
 }
 
 func (st SqlStore) GetRecords(ctx context.Context, collectionName string) ([]string, error) {
@@ -656,40 +666,4 @@ func (st SqlStore) Flush(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (st SqlStore) CreateSubject(ctx context.Context, subject *Subject) error {
-	dbSubject := dbSubject{
-		Id:       subject.Id,
-		Eid:      subject.Eid,
-		Metadata: subject.Metadata,
-	}
-	err := st.db.Create(&dbSubject).Error
-	return err
-}
-
-func (st SqlStore) GetSubject(ctx context.Context, subjectId string) (*Subject, error) {
-	var dbSubject dbSubject
-	err := st.db.Where("id = ?", subjectId).First(&dbSubject).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &NotFoundError{"subject", subjectId}
-		}
-		return nil, err
-	}
-
-	subject := Subject{
-		Id:        dbSubject.Id,
-		Eid:       dbSubject.Eid,
-		Metadata:  dbSubject.Metadata,
-		CreatedAt: dbSubject.CreatedAt.String(),
-		UpdatedAt: dbSubject.UpdatedAt.String(),
-	}
-
-	return &subject, nil
-}
-
-func (st SqlStore) DeleteSubject(ctx context.Context, subjectId string) error {
-	err := st.db.Where("id = ?", subjectId).Delete(&dbSubject{}).Error
-	return err
 }

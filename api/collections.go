@@ -40,7 +40,7 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	}
 
 	if collection.Type == "" {
-		collection.Type = "data"
+		collection.Type = _vault.CollectionTypeSubject
 	}
 
 	err := core.vault.CreateCollection(c.Context(), principal, collection)
