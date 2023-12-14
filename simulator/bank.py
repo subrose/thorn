@@ -82,7 +82,6 @@ for employee in employees:
         expected_statuses=[201, 409],
     )
 
-
 # Now we can search for employees by their SOEID or GEID
 search_ids_1 = admin.search_records(
     collection="employees",
@@ -117,6 +116,7 @@ profile_ids = admin.search_records(
     },
     expected_statuses=[200],
 )
+
 profile_id = profile_ids[0]
 
 profile = admin.get_record(
@@ -125,7 +125,6 @@ profile = admin.get_record(
     return_formats="name.plain",
     expected_statuses=[200],
 )
-
 
 admin.delete_record(
     collection="employees",
