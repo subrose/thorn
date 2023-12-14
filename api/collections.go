@@ -41,7 +41,6 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 			Errors:  []string{err.Error()},
 		})
 	}
-	fmt.Printf("Collection: %v\n", collection)
 
 	err := core.vault.CreateCollection(c.Context(), principal, collection)
 	if err != nil {

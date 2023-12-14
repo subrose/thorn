@@ -111,10 +111,8 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{co.Error(), nil})
 	case errors.As(err, &va):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{va.Error(), nil})
-
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
-		fmt.Printf("Unknown error of type %T: %s\n", err, err.Error())
 		core.logger.Error(fmt.Sprintf("Unhandled error: %s", err.Error()))
 		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{"Internal Server Error", nil})
 	}
