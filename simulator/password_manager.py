@@ -20,8 +20,14 @@ admin.create_collection(
     schema={
         "name": "alice_passwords",
         "fields": {
-            "service": {"type": "string", "indexed": False},
-            "password": {"type": "string", "indexed": False},
+            "service": {
+                "type": "string",
+                "is_indexed": False,
+            },
+            "password": {
+                "type": "string",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],
@@ -31,8 +37,14 @@ admin.create_collection(
     schema={
         "name": "bob_passwords",
         "fields": {
-            "service": {"type": "string", "indexed": False},
-            "password": {"type": "string", "indexed": False},
+            "service": {
+                "type": "string",
+                "is_indexed": False,
+            },
+            "password": {
+                "type": "string",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],

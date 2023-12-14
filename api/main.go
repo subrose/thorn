@@ -111,8 +111,10 @@ func (core *Core) customErrorHandler(ctx *fiber.Ctx, err error) error {
 		return ctx.Status(http.StatusConflict).JSON(ErrorResponse{co.Error(), nil})
 	case errors.As(err, &va):
 		return ctx.Status(http.StatusBadRequest).JSON(ErrorResponse{va.Error(), nil})
+
 	default:
 		// Handle other types of errors by returning a generic 500 - this should remain obscure as it can leak information
+		fmt.Printf("Unknown error of type %T: %s\n", err, err.Error())
 		core.logger.Error(fmt.Sprintf("Unhandled error: %s", err.Error()))
 		return ctx.Status(http.StatusInternalServerError).JSON(ErrorResponse{"Internal Server Error", nil})
 	}
@@ -155,7 +157,7 @@ func SetupApi(core *Core) *fiber.App {
 	collectionsGroup.Post("/:name/records", core.CreateRecord)
 	collectionsGroup.Get("/:name/records", core.GetRecords)
 	collectionsGroup.Get("/:name/records/:id", core.GetRecord)
-	collectionsGroup.Post("/:name/records/search", core.SearchRecords)
+	collectionsGroup.Post("/:name/records/search", core.SearchRecords) // TODO: Should this be a POST?
 	collectionsGroup.Put("/:name/records/:id", core.UpdateRecord)
 	collectionsGroup.Delete("/:name/records/:id", core.DeleteRecord)
 
@@ -199,5 +201,4 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 }

@@ -7,6 +7,6 @@ func (e *AuthError) Error() string {
 }
 
 type ErrorResponse struct {
-	Message string         `json:"message"`
-	Errors  []*interface{} `json:"errors"`
+	Message string   `json:"message"`
+	Errors  []string `json:"errors"`
 }

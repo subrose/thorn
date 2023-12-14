@@ -15,10 +15,22 @@ admin.create_collection(
     schema={
         "name": "credit_cards",
         "fields": {
-            "name": {"type": "name", "indexed": False},
-            "cc_number": {"type": "cc_number", "indexed": False},
-            "cc_cvv": {"type": "cc_cvv", "indexed": False},
-            "cc_expiry": {"type": "cc_expiry", "indexed": False},
+            "name": {
+                "type": "name",
+                "is_indexed": False,
+            },
+            "cc_number": {
+                "type": "cc_number",
+                "is_indexed": False,
+            },
+            "cc_cvv": {
+                "type": "cc_cvv",
+                "is_indexed": False,
+            },
+            "cc_expiry": {
+                "type": "cc_expiry",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],

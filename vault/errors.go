@@ -32,7 +32,7 @@ type NotFoundError struct {
 }
 
 func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("%s: %s does not exist", e.resourceName, e.resourceName)
+	return fmt.Sprintf("%s: %s does not exist", e.resourceName, e.resourceValue)
 }
 
 type ConflictError struct{ resourceName string }

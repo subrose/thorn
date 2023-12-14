@@ -16,8 +16,14 @@ admin.create_collection(
     schema={
         "name": "secrets",
         "fields": {
-            "name": {"type": "string", "indexed": False},
-            "value": {"type": "string", "indexed": False},
+            "name": {
+                "type": "string",
+                "is_indexed": False,
+            },
+            "value": {
+                "type": "string",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],

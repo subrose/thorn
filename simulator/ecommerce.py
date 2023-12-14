@@ -24,11 +24,26 @@ admin.create_collection(
     schema={
         "name": "customers",
         "fields": {
-            "name": {"type": "name", "indexed": False},
-            "email": {"type": "email", "indexed": True},
-            "phone": {"type": "phone_number", "indexed": False},
-            "credit_card": {"type": "credit_card", "indexed": False},
-            "address": {"type": "address", "indexed": False},
+            "name": {
+                "type": "name",
+                "is_indexed": False,
+            },
+            "email": {
+                "type": "email",
+                "is_indexed": True,
+            },
+            "phone": {
+                "type": "phone_number",
+                "is_indexed": False,
+            },
+            "credit_card": {
+                "type": "credit_card",
+                "is_indexed": False,
+            },
+            "address": {
+                "type": "address",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],
