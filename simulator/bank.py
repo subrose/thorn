@@ -5,7 +5,7 @@ from faker_e164.providers import E164Provider
 vault_url = init_client()
 
 admin = Actor(vault_url, username="admin", password="admin")
-# Create collection
+
 admin.create_collection(
     schema={
         "name": "employees",
