@@ -11,7 +11,6 @@
 
 # Customer service team needs to access to all customer details to process refunds
 
-
 from client import Actor, Policy, init_client
 from faker import Faker
 from faker_e164.providers import E164Provider
@@ -19,7 +18,6 @@ from faker_e164.providers import E164Provider
 vault_url = init_client()
 
 admin = Actor(vault_url, username="admin", password="admin")
-# Create collection
 admin.create_collection(
     schema={
         "name": "customers",
@@ -49,7 +47,6 @@ admin.create_collection(
     expected_statuses=[201, 409],
 )
 
-# Create policies
 # Backend can write customer details
 backend_policy = admin.create_policy(
     policy=Policy(
@@ -115,12 +112,10 @@ admin.create_principal(
     expected_statuses=[201, 409],
 )
 
-# Backend creates some customers
 fake = Faker()
 fake.add_provider(E164Provider)
 
 # We need to create records one by one and build a map with the returned id:
-
 records_map = {}
 for i in range(10):
     record = {

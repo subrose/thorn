@@ -35,7 +35,8 @@ func (core *Core) CreatePolicy(c *fiber.Ctx) error {
 	sessionPrincipal := GetSessionPrincipal(c)
 	var policy _vault.Policy
 	if err := core.ParseJsonBody(c.Body(), &policy); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", []string{err.Error()}})
+
 	}
 
 	err := core.vault.CreatePolicy(c.Context(), sessionPrincipal, &policy)
