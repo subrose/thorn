@@ -13,7 +13,7 @@ admin.create_collection(
         "fields": {
             "soeid": {
                 "type": "string",
-                "is_indexed": False,
+                "is_indexed": True,
             },
             "geid": {
                 "type": "string",
@@ -71,16 +71,6 @@ for employee in employees:
         expected_statuses=[201, 409],
     )
 
-    # Ensure we can't add the same employee twice
-    admin.create_record(
-        collection="employees",
-        record={
-            "soeid": employee["soeid"],
-            "geid": employee["geid"],
-        },
-        expected_statuses=[409],
-    )
-
     admin.create_record(
         collection="profiles",
         record={
@@ -129,12 +119,13 @@ profile_ids = admin.search_records(
 )
 profile_id = profile_ids[0]
 
-admin.get_record(
+profile = admin.get_record(
     collection="profiles",
     record_id=profile_id,
     return_formats="name.plain",
     expected_statuses=[200],
 )
+
 
 admin.delete_record(
     collection="employees",

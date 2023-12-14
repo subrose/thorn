@@ -360,10 +360,15 @@ func (vault Vault) GetRecord(
 	if err != nil {
 		return nil, err
 	}
-	// Ensure requested fields exist on collection
 	for field := range returnFormats {
+		// Ensure requested fields exist on collection
 		if _, ok := col.Fields[field]; !ok {
 			return nil, &NotFoundError{resourceName: fmt.Sprintf("Field %s not found on collection %s", field, collectionName)}
+		}
+
+		// Ensure requested fields are not internal fields
+		if field == "id" || field == "created_at" || field == "updated_at" || field == subject_id_field {
+			return nil, &ValueError{Msg: fmt.Sprintf("reserved field name is not allowed to be returned as a ptype: %s", field)}
 		}
 	}
 
@@ -389,6 +394,13 @@ func (vault Vault) GetRecord(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	decryptedRecord["id"] = recordID
+	decryptedRecord["created_at"] = encryptedRecord["created_at"]
+	decryptedRecord["updated_at"] = encryptedRecord["updated_at"]
+	if col.Type == CollectionTypeData {
+		decryptedRecord[subject_id_field] = encryptedRecord[subject_id_field]
 	}
 
 	return decryptedRecord, nil
