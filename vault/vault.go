@@ -134,20 +134,14 @@ func (vault Vault) GetCollection(
 	principal Principal,
 	name string,
 ) (*Collection, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}); err != nil {
 		return nil, err
-	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
 	}
 
 	col, err := vault.Db.GetCollection(ctx, name)
 	if err != nil {
 		return nil, err
 	}
-
 	return col, nil
 }
 
@@ -155,13 +149,8 @@ func (vault Vault) GetCollections(
 	ctx context.Context,
 	principal Principal,
 ) ([]string, error) {
-	request := Request{principal, PolicyActionRead, COLLECTIONS_PPATH}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, COLLECTIONS_PPATH}); err != nil {
 		return nil, err
-	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
 	}
 
 	cols, err := vault.Db.GetCollections(ctx)
@@ -176,14 +165,10 @@ func (vault Vault) CreateCollection(
 	principal Principal,
 	col *Collection,
 ) error {
-	request := Request{principal, PolicyActionWrite, COLLECTIONS_PPATH}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, COLLECTIONS_PPATH}); err != nil {
 		return err
 	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
+
 	if err := vault.Validate(col); err != nil {
 		return err
 	}
@@ -204,21 +189,11 @@ func (vault Vault) DeleteCollection(
 	principal Principal,
 	name string,
 ) error {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-
-	err = vault.Db.DeleteCollection(ctx, name)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", COLLECTIONS_PPATH, name)}); err != nil {
 		return err
 	}
 
-	return nil
+	return vault.Db.DeleteCollection(ctx, name)
 }
 
 func (vault Vault) CreateRecord(
@@ -227,14 +202,10 @@ func (vault Vault) CreateRecord(
 	collectionName string,
 	record Record,
 ) (string, error) {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}); err != nil {
 		return "", err
 	}
-	if !allowed {
-		return "", &ForbiddenError{request}
-	}
+
 	collection, err := vault.Db.GetCollection(ctx, collectionName)
 	if err != nil {
 		return "", err
@@ -275,8 +246,7 @@ func (vault Vault) CreateRecord(
 		}
 
 		// Validate field PType
-		_, err := GetPType(PTypeName(collection.Fields[fieldName].Type), fieldValue)
-		if err != nil {
+		if _, err := GetPType(PTypeName(collection.Fields[fieldName].Type), fieldValue); err != nil {
 			return "", err
 		}
 
@@ -297,8 +267,7 @@ func (vault Vault) CreateRecord(
 	encryptedRecord["created_at"] = time.Now().Format(time.RFC3339)
 	encryptedRecord["updated_at"] = time.Now().Format(time.RFC3339)
 
-	err = vault.Db.CreateRecord(ctx, collectionName, encryptedRecord)
-	if err != nil {
+	if err := vault.Db.CreateRecord(ctx, collectionName, encryptedRecord); err != nil {
 		return "", err
 	}
 	return encryptedRecord["id"], nil
@@ -309,13 +278,8 @@ func (vault Vault) GetRecords(
 	principal Principal,
 	collectionName string,
 ) ([]string, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}); err != nil {
 		return nil, err
-	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
 	}
 	return vault.Db.GetRecords(ctx, collectionName)
 }
@@ -327,19 +291,14 @@ func (vault Vault) GetRecord(
 	recordID string,
 	returnFormats map[string]string,
 ) (Record, error) {
-
 	if recordID == "" {
 		return nil, &ValueError{Msg: "recordID must not be empty"}
 	}
 
 	for field, format := range returnFormats {
 		_request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, recordID, field, format)}
-		allowed, err := vault.ValidateAction(ctx, _request)
-		if err != nil {
+		if err := vault.ValidateAction(ctx, _request); err != nil {
 			return nil, err
-		}
-		if !allowed {
-			return nil, &ForbiddenError{_request}
 		}
 	}
 
@@ -408,12 +367,8 @@ func (vault Vault) SearchRecords(
 	for field, value := range filters {
 		// To search records we need to have read access to all records and the field we are searching on in plain format as this leak information about the record.
 		request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s%s/%s/%s.%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH, "*", field, "plain")}
-		allowed, err := vault.ValidateAction(ctx, request)
-		if err != nil {
+		if err := vault.ValidateAction(ctx, request); err != nil {
 			return nil, err
-		}
-		if !allowed {
-			return nil, &ForbiddenError{request}
 		}
 
 		if field == subject_id_field {
@@ -443,13 +398,8 @@ func (vault Vault) UpdateRecord(
 	recordID string,
 	record Record,
 ) error {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}); err != nil {
 		return err
-	}
-	if !allowed {
-		return &ForbiddenError{request}
 	}
 
 	encryptedRecord := make(Record)
@@ -461,11 +411,7 @@ func (vault Vault) UpdateRecord(
 		encryptedRecord[recordFieldName] = encryptedValue
 	}
 
-	err = vault.Db.UpdateRecord(ctx, collectionName, recordID, encryptedRecord)
-	if err != nil {
-		return err
-	}
-	return nil
+	return vault.Db.UpdateRecord(ctx, collectionName, recordID, encryptedRecord)
 }
 
 func (vault Vault) DeleteRecord(
@@ -474,20 +420,10 @@ func (vault Vault) DeleteRecord(
 	collectionName string,
 	recordID string,
 ) error {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s%s", COLLECTIONS_PPATH, collectionName, RECORDS_PPATH)}); err != nil {
 		return err
 	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-
-	err = vault.Db.DeleteRecord(ctx, collectionName, recordID)
-	if err != nil {
-		return err
-	}
-	return nil
+	return vault.Db.DeleteRecord(ctx, collectionName, recordID)
 }
 
 func (vault Vault) GetPrincipal(
@@ -495,15 +431,9 @@ func (vault Vault) GetPrincipal(
 	principal Principal,
 	username string,
 ) (*Principal, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}); err != nil {
 		return nil, err
 	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
-	}
-
 	return vault.Db.GetPrincipal(ctx, username)
 }
 
@@ -512,13 +442,8 @@ func (vault Vault) CreatePrincipal(
 	actor Principal,
 	principal *Principal,
 ) error {
-	request := Request{actor, PolicyActionWrite, PRINCIPALS_PPATH}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{actor, PolicyActionWrite, PRINCIPALS_PPATH}); err != nil {
 		return err
-	}
-	if !allowed {
-		return &ForbiddenError{request}
 	}
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(principal.Password), bcrypt.DefaultCost)
@@ -530,12 +455,7 @@ func (vault Vault) CreatePrincipal(
 	if err := vault.Validate(principal); err != nil {
 		return err
 	}
-
-	err = vault.Db.CreatePrincipal(ctx, principal)
-	if err != nil {
-		return err
-	}
-	return nil
+	return vault.Db.CreatePrincipal(ctx, principal)
 }
 
 func (vault Vault) DeletePrincipal(
@@ -543,20 +463,10 @@ func (vault Vault) DeletePrincipal(
 	principal Principal,
 	username string,
 ) error {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s/", PRINCIPALS_PPATH, username)}); err != nil {
 		return err
 	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-
-	err = vault.Db.DeletePrincipal(ctx, username)
-	if err != nil {
-		return err
-	}
-	return nil
+	return vault.Db.DeletePrincipal(ctx, username)
 }
 
 func (vault Vault) Login(
@@ -578,8 +488,7 @@ func (vault Vault) Login(
 		return nil, &ForbiddenError{}
 	}
 
-	compareErr := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password))
-	if compareErr != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password)); err != nil {
 		return nil, &ForbiddenError{}
 	}
 
@@ -591,22 +500,16 @@ func (vault Vault) CreatePolicy(
 	principal Principal,
 	p *Policy,
 ) error {
-	request := Request{principal, PolicyActionWrite, POLICIES_PPATH}
 	// Ensure resource starts with a slash
 	for _, resource := range p.Resources {
 		if !strings.HasPrefix(resource, "/") {
 			return &ValueError{Msg: fmt.Sprintf("resources must start with a slash - '%s' is not a valid resource", resource)}
 		}
 	}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, POLICIES_PPATH}); err != nil {
 		return err
 	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-	err = vault.Validate(p)
-	if err != nil {
+	if err := vault.Validate(p); err != nil {
 		return err
 	}
 	p.Id = GenerateId("pol")
@@ -619,15 +522,9 @@ func (vault Vault) GetPolicy(
 	principal Principal,
 	policyId string,
 ) (*Policy, error) {
-	request := Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}); err != nil {
 		return nil, err
 	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
-	}
-
 	return vault.Db.GetPolicy(ctx, policyId)
 }
 
@@ -636,33 +533,18 @@ func (vault Vault) DeletePolicy(
 	principal Principal,
 	policyId string,
 ) error {
-	request := Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionWrite, fmt.Sprintf("%s/%s", POLICIES_PPATH, policyId)}); err != nil {
 		return err
 	}
-	if !allowed {
-		return &ForbiddenError{request}
-	}
-
-	err = vault.Db.DeletePolicy(ctx, policyId)
-	if err != nil {
-		return err
-	}
-	return nil
+	return vault.Db.DeletePolicy(ctx, policyId)
 }
 
 func (vault Vault) GetPrincipalPolicies(
 	ctx context.Context,
 	principal Principal,
 ) ([]*Policy, error) {
-	request := Request{principal, PolicyActionRead, POLICIES_PPATH}
-	allowed, err := vault.ValidateAction(ctx, request)
-	if err != nil {
+	if err := vault.ValidateAction(ctx, Request{principal, PolicyActionRead, POLICIES_PPATH}); err != nil {
 		return nil, err
-	}
-	if !allowed {
-		return nil, &ForbiddenError{request}
 	}
 
 	policies, err := vault.Db.GetPolicies(ctx, principal.Policies)
@@ -675,18 +557,18 @@ func (vault Vault) GetPrincipalPolicies(
 func (vault Vault) ValidateAction(
 	ctx context.Context,
 	request Request,
-) (bool, error) {
+) error {
 	policies, err := vault.Db.GetPolicies(ctx, request.Actor.Policies)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	allowed := EvaluateRequest(request, policies)
 	if allowed {
-		return true, nil
+		return nil
 	}
 
-	return false, nil
+	return &ForbiddenError{request}
 }
 
 func (vault Vault) CreateToken(ctx context.Context, principal Principal, collectionName string, recordId string, fieldName string, returnFormat string) (string, error) {
