@@ -26,7 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: build
+      target: base
     entrypoint: ["/go/bin/api"]
     ports:
       - 3001:3001
@@ -54,7 +54,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: build
+      target: base
     environment:
       - THORN_DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
       - THORN_ADMIN_USERNAME=admin
