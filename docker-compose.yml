@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: dev
+      target: base
     entrypoint: ["air", ".", "-c", "./.air.toml"]
     ports:
       - 3001:3001

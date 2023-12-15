@@ -1,16 +1,15 @@
-FROM golang:1.21.4-bookworm as dev
+FROM golang:1.21.4-bookworm as base
 
 WORKDIR /app
 RUN go install github.com/cosmtrek/air@latest
-COPY . .
+
+COPY go.* .
+COPY api/go.* ./api/
+COPY vault/go.* ./vault/
+COPY logger/go.* ./logger/
 RUN go mod download
 
-FROM golang:1.21.4-bookworm as build
-
-WORKDIR /app
-RUN go install github.com/cosmtrek/air@latest
 COPY . .
-RUN go mod download
 RUN go build -o /go/bin/api ./api 
 
 ## Simulator
