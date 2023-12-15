@@ -12,10 +12,22 @@ def on_locust_init(environment, **kwargs):
     collection_json = {
         "name": "customers",
         "fields": {
-            "name": {"type": "name", "indexed": False},
-            "email": {"type": "email", "indexed": True},
-            "phone": {"type": "phone_number", "indexed": True},
-            "address": {"type": "address", "indexed": False},
+            "name": {
+                "type": "name",
+                "is_indexed": False,
+            },
+            "email": {
+                "type": "email",
+                "is_indexed": True,
+            },
+            "phone": {
+                "type": "phone_number",
+                "is_indexed": True,
+            },
+            "address": {
+                "type": "address",
+                "is_indexed": False,
+            },
         },
     }
     requests.post(

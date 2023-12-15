@@ -10,8 +10,14 @@ admin.create_collection(
     schema={
         "name": "users",
         "fields": {
-            "email": {"type": "email", "indexed": True},
-            "password": {"type": "phone_number", "indexed": False},
+            "email": {
+                "type": "email",
+                "is_indexed": True,
+            },
+            "password": {
+                "type": "phone_number",
+                "is_indexed": False,
+            },
         },
     },
     expected_statuses=[201, 409],

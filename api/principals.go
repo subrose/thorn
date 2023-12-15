@@ -20,7 +20,7 @@ type PrincipalResponse struct {
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	var principal _vault.Principal
 	if err := core.ParseJsonBody(c.Body(), &principal); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", []string{err.Error()}})
 	}
 
 	sessionPrincipal := GetSessionPrincipal(c)
@@ -28,7 +28,13 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.Status(http.StatusCreated).JSON(PrincipalResponse{Id: principal.Id, Username: principal.Username, Description: principal.Description, Policies: principal.Policies, CreatedAt: principal.CreatedAt, UpdatedAt: principal.UpdatedAt})
+	return c.Status(http.StatusCreated).JSON(PrincipalResponse{Id: principal.Id,
+		Username:    principal.Username,
+		Description: principal.Description,
+		Policies:    principal.Policies,
+		CreatedAt:   principal.CreatedAt,
+		UpdatedAt:   principal.UpdatedAt,
+	})
 }
 
 func (core *Core) GetPrincipal(c *fiber.Ctx) error {

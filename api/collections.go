@@ -32,9 +32,12 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 
 func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
-	collection := new(_vault.Collection)
+	collection := &_vault.Collection{}
 	if err := core.ParseJsonBody(c.Body(), collection); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{"Invalid body", nil})
+		return c.Status(fiber.StatusBadRequest).JSON(&ErrorResponse{
+			Message: "Invalid body",
+			Errors:  []string{err.Error()},
+		})
 	}
 
 	err := core.vault.CreateCollection(c.Context(), principal, collection)

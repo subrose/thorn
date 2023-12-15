@@ -81,7 +81,9 @@ class Actor:
         return
 
     def create_collection(
-        self, schema: dict[str, Any], expected_statuses: Optional[list[int]] = None
+        self,
+        schema: dict[str, Any],
+        expected_statuses: Optional[list[int]] = None,
     ) -> None:
         response = requests.post(
             f"{self.vault_url}/collections",
@@ -145,6 +147,19 @@ class Actor:
         )
         check_expected_status(response, expected_statuses)
         return response.json()
+
+    def delete_record(
+        self,
+        collection: str,
+        record_id: str,
+        expected_statuses: Optional[list[int]] = None,
+    ) -> None:
+        response = requests.delete(
+            f"{self.vault_url}/collections/{collection}/records/{record_id}",
+            auth=(self.username, self.password),
+        )
+        check_expected_status(response, expected_statuses)
+        return
 
     def create_policy(
         self, policy: Policy, expected_statuses: Optional[list[int]] = None

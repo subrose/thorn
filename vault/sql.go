@@ -113,8 +113,10 @@ func (f FieldSchemaMap) Value() (driver.Value, error) {
 }
 
 type dbCollectionMetadata struct {
-	Id          string         `gorm:"primaryKey"`
-	Name        string         `gorm:"unique"`
+	Id          string `gorm:"primaryKey"`
+	Name        string `gorm:"unique"`
+	Description string
+	Parent      string
 	FieldSchema FieldSchemaMap `gorm:"type:json"` // Ensures JSON storage
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -148,6 +150,8 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	collectionMetadata := dbCollectionMetadata{
 		Id:          c.Id,
 		Name:        c.Name,
+		Description: c.Description,
+		Parent:      c.Parent,
 		FieldSchema: c.Fields,
 	}
 
@@ -165,17 +169,37 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	}
 	tableName := "collection_" + c.Name
 
+	indexQueries := ""
+
 	query := `CREATE TABLE IF NOT EXISTS ` + tableName + ` (id TEXT PRIMARY KEY`
+	if c.Parent != "" {
+		query += `, subject_id TEXT NOT NULL REFERENCES collection_` + c.Parent + `(id) ON DELETE CASCADE`
+		indexQueries += `CREATE INDEX IF NOT EXISTS subject_id_index ON ` + tableName + ` (subject_id);`
+	}
 	for fieldName := range c.Fields {
 		if !validateInput(fieldName) {
 			return &ValueError{Msg: fmt.Sprintf("field name '%s' is not alphanumeric", fieldName)}
 		}
+
+		if fieldName == subject_id_field {
+			// Already handled above
+			continue
+		}
+
 		query += `, ` + fieldName + ` TEXT`
+		if c.Fields[fieldName].IsIndexed {
+			indexQueries += `CREATE INDEX IF NOT EXISTS ` + fieldName + `_index ON ` + tableName + ` (` + fieldName + `);`
+		}
+
 	}
 	query += `, created_at TIMESTAMP WITH TIME ZONE, updated_at TIMESTAMP WITH TIME ZONE)`
+	query += `;` + indexQueries
 
 	result = tx.Exec(query)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+			return &ConflictError{c.Name}
+		}
 		return result.Error
 	}
 
@@ -215,11 +239,13 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 	}
 
 	return &Collection{
-		Id:        dbCollectionMetadata.Id,
-		Name:      dbCollectionMetadata.Name,
-		Fields:    dbCollectionMetadata.FieldSchema,
-		CreatedAt: dbCollectionMetadata.CreatedAt,
-		UpdatedAt: dbCollectionMetadata.UpdatedAt,
+		Id:          dbCollectionMetadata.Id,
+		Name:        dbCollectionMetadata.Name,
+		Description: dbCollectionMetadata.Description,
+		Parent:      dbCollectionMetadata.Parent,
+		Fields:      dbCollectionMetadata.FieldSchema,
+		CreatedAt:   dbCollectionMetadata.CreatedAt,
+		UpdatedAt:   dbCollectionMetadata.UpdatedAt,
 	}, nil
 }
 
@@ -285,6 +311,9 @@ func (st SqlStore) CreateRecord(ctx context.Context, collectionName string, reco
 
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Create(&newRecord)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrForeignKeyViolated) {
+			return &NotFoundError{"subject record", record["subject_id"]}
+		}
 		return result.Error
 	}
 
@@ -351,6 +380,11 @@ func (st SqlStore) SearchRecords(ctx context.Context, collectionName string, fil
 		return nil, &ValueError{Msg: fmt.Sprintf("Invalid collection name %s", collectionName)}
 	}
 
+	collectionFields, err := getCollectionFields(ctx, st.db, collectionName)
+	if err != nil {
+		return nil, err
+	}
+
 	for fieldName := range filters {
 		if !validateInput(fieldName) {
 			return nil, &ValueError{Msg: fmt.Sprintf("Invalid field name %s", fieldName)}
@@ -358,11 +392,15 @@ func (st SqlStore) SearchRecords(ctx context.Context, collectionName string, fil
 		if fieldName == "id" || fieldName == "created_at" || fieldName == "updated_at" {
 			return nil, &ValueError{Msg: fmt.Sprintf("Invalid field name %s, searching is not allowed on metadata fields", fieldName)}
 		}
+		if _, ok := collectionFields[fieldName]; !ok {
+			return nil, &ValueError{Msg: fmt.Sprintf("Field %s is not existent in the schema", fieldName)}
+		}
 	}
 
 	var recordIds []string
 	result := st.db.Table(fmt.Sprintf("collection_%s", collectionName)).Where(filters).Pluck("id", &recordIds)
 	if result.Error != nil {
+		// TODO: better error handling here, we should check fields and collection existence
 		return nil, result.Error
 	}
 

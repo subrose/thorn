@@ -103,13 +103,11 @@ func ValidateCoreConfig(cc *CoreConfig) error {
 
 func CreateCore(conf *CoreConfig) (*Core, error) {
 	c := &Core{}
-	// confing
 	if err := ValidateCoreConfig(conf); err != nil {
 		return nil, err
 	}
 	c.conf = conf
 
-	// Logger
 	apiLogger, err := _logger.NewLogger("API", conf.LOG_SINK, conf.LOG_FORMAT, conf.LOG_LEVEL, conf.DEV_MODE)
 	if err != nil {
 		return nil, err
