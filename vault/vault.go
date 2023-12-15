@@ -177,7 +177,7 @@ func (vault Vault) CreateCollection(
 	if col.Parent != "" {
 		col.Fields["subject_id"] = Field{Type: "string", IsIndexed: true}
 	}
-	err = vault.Db.CreateCollection(ctx, col)
+	err := vault.Db.CreateCollection(ctx, col)
 	if err != nil {
 		return err
 	}
