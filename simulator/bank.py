@@ -9,7 +9,6 @@ admin = Actor(vault_url, username="admin", password="admin")
 admin.create_collection(
     schema={
         "name": "employees",
-        "type": "subject",
         "fields": {
             "soeid": {
                 "type": "string",
@@ -27,7 +26,6 @@ admin.create_collection(
 admin.create_collection(
     schema={
         "name": "profiles",
-        "type": "data",
         "parent": "employees",
         "fields": {
             "name": {
@@ -138,3 +136,5 @@ admin.get_record(
     return_formats="name.plain",
     expected_statuses=[404],
 )
+
+print("Banking usecase ok!")

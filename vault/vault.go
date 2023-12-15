@@ -17,16 +17,10 @@ type Field struct {
 
 type CollectionType string
 
-const (
-	CollectionTypeSubject CollectionType = "subject"
-	CollectionTypeData    CollectionType = "data"
-)
-
 type Collection struct {
 	Id          string           `json:"id"`
 	Name        string           `json:"name" validate:"required,min=3,max=32"`
 	Description string           `json:"description"`
-	Type        CollectionType   `json:"type" validate:"omitempty,oneof=subject data"`
 	Parent      string           `json:"parent" validate:"omitempty,min=3,max=32"`
 	Fields      map[string]Field `json:"fields" validate:"dive,required"`
 	CreatedAt   time.Time        `json:"created_at"`
@@ -194,15 +188,8 @@ func (vault Vault) CreateCollection(
 		return err
 	}
 
-	if col.Type == CollectionTypeData && col.Parent == "" {
-		return &ValueError{Msg: "parent collection must be provided for data collections"}
-	}
-	if col.Type == CollectionTypeSubject && col.Parent != "" {
-		return &ValueError{Msg: "parent collection must not be provided for subject collections"}
-	}
-
 	col.Id = GenerateId("col")
-	if col.Type == CollectionTypeData {
+	if col.Parent != "" {
 		col.Fields["subject_id"] = Field{Type: "string", IsIndexed: true}
 	}
 	err = vault.Db.CreateCollection(ctx, col)
@@ -261,7 +248,7 @@ func (vault Vault) CreateRecord(
 	}
 
 	// Validate parent relationship
-	if collection.Type == CollectionTypeData {
+	if collection.Parent != "" {
 		if _, ok := record[subject_id_field]; !ok {
 			return "", &ValueError{Msg: "subject record must be provided for data collections as field: subject_id"}
 		}
@@ -280,7 +267,7 @@ func (vault Vault) CreateRecord(
 
 		// Ensure passed in field exists on collection
 		if _, ok := collection.Fields[fieldName]; !ok {
-			if collection.Type == CollectionTypeData && fieldName == subject_id_field {
+			if collection.Parent != "" && fieldName == subject_id_field {
 				encryptedRecord[subject_id_field] = fieldValue
 				continue
 			}
@@ -399,7 +386,7 @@ func (vault Vault) GetRecord(
 	decryptedRecord["id"] = recordID
 	decryptedRecord["created_at"] = encryptedRecord["created_at"]
 	decryptedRecord["updated_at"] = encryptedRecord["updated_at"]
-	if col.Type == CollectionTypeData {
+	if col.Parent != "" {
 		decryptedRecord[subject_id_field] = encryptedRecord[subject_id_field]
 	}
 

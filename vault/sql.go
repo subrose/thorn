@@ -116,7 +116,6 @@ type dbCollectionMetadata struct {
 	Id          string `gorm:"primaryKey"`
 	Name        string `gorm:"unique"`
 	Description string
-	Type        string
 	Parent      string
 	FieldSchema FieldSchemaMap `gorm:"type:json"` // Ensures JSON storage
 	CreatedAt   time.Time
@@ -152,7 +151,6 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 		Id:          c.Id,
 		Name:        c.Name,
 		Description: c.Description,
-		Type:        string(c.Type),
 		Parent:      c.Parent,
 		FieldSchema: c.Fields,
 	}
@@ -174,7 +172,7 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	indexQueries := ""
 
 	query := `CREATE TABLE IF NOT EXISTS ` + tableName + ` (id TEXT PRIMARY KEY`
-	if c.Type == CollectionTypeData {
+	if c.Parent != "" {
 		query += `, subject_id TEXT NOT NULL REFERENCES collection_` + c.Parent + `(id) ON DELETE CASCADE`
 		indexQueries += `CREATE INDEX IF NOT EXISTS subject_id_index ON ` + tableName + ` (subject_id);`
 	}
@@ -244,7 +242,6 @@ func (st SqlStore) GetCollection(ctx context.Context, name string) (*Collection,
 		Id:          dbCollectionMetadata.Id,
 		Name:        dbCollectionMetadata.Name,
 		Description: dbCollectionMetadata.Description,
-		Type:        CollectionType(dbCollectionMetadata.Type),
 		Parent:      dbCollectionMetadata.Parent,
 		Fields:      dbCollectionMetadata.FieldSchema,
 		CreatedAt:   dbCollectionMetadata.CreatedAt,
