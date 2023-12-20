@@ -23,6 +23,6 @@ COPY simulator/ ./
 FROM gcr.io/distroless/base-debian12 as deploy
 
 WORKDIR /
-COPY --from=build /go/bin/api ./api
+COPY --from=base /go/bin/api ./api
 EXPOSE 3001
 USER nonroot:nonroot

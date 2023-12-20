@@ -15,5 +15,10 @@ vendor/
 
 # Exclude assets
 website
+archive
+docker-compose*.yml
+railway.toml
+**.env
+makefile
 img
 *.md
