@@ -8,6 +8,11 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 1s
+      timeout: 1s
+      retries: 120
   api:
     profiles: ["simulations"]
     environment:
@@ -32,6 +37,11 @@ services:
       - 3001:3001
     depends_on:
       - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3001/health || exit 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 60
     volumes:
       - "./:/app"
   simulations:

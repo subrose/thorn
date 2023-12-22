@@ -167,8 +167,13 @@ func (st *SqlStore) CreateCollection(ctx context.Context, c *Collection) error {
 	if !validateInput(c.Name) {
 		return &ValueError{Msg: fmt.Sprintf("collection name '%s' is not alphanumeric", c.Name)}
 	}
-	if c.Parent != "" && !validateInput(c.Parent) {
-		return &ValueError{Msg: fmt.Sprintf("collection name '%s' is not alphanumeric", c.Parent)}
+	if c.Parent != "" {
+		if !validateInput(c.Parent) {
+			return &ValueError{Msg: fmt.Sprintf("collection name '%s' is not alphanumeric", c.Parent)}
+		}
+		if !st.db.Migrator().HasTable("collection_" + c.Parent) {
+			return &NotFoundError{"collection", c.Parent}
+		}
 	}
 	tableName := "collection_" + c.Name
 

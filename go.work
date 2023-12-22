@@ -2,7 +2,6 @@ go 1.21.0
 
 use (
 	./api
-	./archive/sql
 	./logger
 	./vault
 )
