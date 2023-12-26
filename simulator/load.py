@@ -7,22 +7,25 @@ from tabulate import tabulate
 from statistics import stdev
 
 N_RECORDS = 1000
+CONCURRENCY_LIMIT = 10  # Set your desired concurrency limit
 
 
-async def create_record_async(session, collection, record):
-    start_time = time.time()
-    async with session.post(
-        f"{admin.vault_url}/collections/{collection}/records",
-        json=record,
-        auth=BasicAuth(admin.username, admin.password),
-    ) as response:
-        end_time = time.time()
-        insert_times.append((end_time - start_time))
-        return await response.json()
+async def create_record_async(session, collection, record, semaphore):
+    async with semaphore:
+        start_time = time.time()
+        async with session.post(
+            f"{admin.vault_url}/collections/{collection}/records",
+            json=record,
+            auth=BasicAuth(admin.username, admin.password),
+        ) as response:
+            end_time = time.time()
+            insert_times.append((end_time - start_time))
+            return await response.json()
 
 
 async def load_test_writes():
     async with ClientSession() as session:
+        semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
         tasks = []
         for i in range(N_RECORDS):
             record = {
@@ -30,28 +33,34 @@ async def load_test_writes():
                 "dob": f"dob{i}",
                 "gender": f"gender{i}",
             }
-            task = asyncio.ensure_future(create_record_async(session, "load", record))
+            task = asyncio.ensure_future(
+                create_record_async(session, "load", record, semaphore)
+            )
             tasks.append(task)
         records.extend(await asyncio.gather(*tasks))
 
 
-async def get_record_async(session, collection, record_id):
-    start_time = time.time()
-    async with session.get(
-        f"{admin.vault_url}/collections/{collection}/records/{record_id}",
-        params={"formats": "name.plain,dob.plain,gender.plain"},
-        auth=BasicAuth(admin.username, admin.password),
-    ) as response:
-        end_time = time.time()
-        read_times.append((end_time - start_time))
-        return await response.json()
+async def get_record_async(session, collection, record_id, semaphore):
+    async with semaphore:
+        start_time = time.time()
+        async with session.get(
+            f"{admin.vault_url}/collections/{collection}/records/{record_id}",
+            params={"formats": "name.plain,dob.plain,gender.plain"},
+            auth=BasicAuth(admin.username, admin.password),
+        ) as response:
+            end_time = time.time()
+            read_times.append((end_time - start_time))
+            return await response.json()
 
 
 async def load_test_reads():
     async with ClientSession() as session:
+        semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
         tasks = []
         for record in records:
-            task = asyncio.ensure_future(get_record_async(session, "load", record))
+            task = asyncio.ensure_future(
+                get_record_async(session, "load", record, semaphore)
+            )
             tasks.append(task)
         await asyncio.gather(*tasks)
 
