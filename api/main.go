@@ -196,6 +196,7 @@ func main() {
 	listenAddr := fmt.Sprintf("%s:%v", coreConfig.API_HOST, coreConfig.API_PORT)
 	core.logger.Info(fmt.Sprintf("Listening on %s", listenAddr))
 	err = app.Listen(listenAddr)
+
 	if err != nil {
 		panic(err)
 	}

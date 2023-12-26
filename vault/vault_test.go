@@ -20,7 +20,7 @@ func initVault(t *testing.T) (Vault, VaultDB, Privatiser) {
 		panic(err)
 	}
 	db.Flush(ctx)
-	priv := NewAESPrivatiser([]byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}, "abc&1*~#^2^#s0^=)^^7%b34")
+	priv, _ := NewAESPrivatiser("abc&1*~#^2^#s0^=)^^7%b34")
 	signer, _ := NewHMACSigner([]byte("testkey"))
 	_ = db.CreatePolicy(ctx, &Policy{
 		Id:          "root",
