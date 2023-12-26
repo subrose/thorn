@@ -99,7 +99,7 @@ if __name__ == "__main__":
     read_times = []
     records = []
     asyncio.run(load_test_writes())
-    # asyncio.run(load_test_reads())
+    asyncio.run(load_test_reads())
 
     insert_stats = calculate_stats(insert_times)
     get_stats = calculate_stats(read_times)
