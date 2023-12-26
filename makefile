@@ -1,4 +1,4 @@
-.PHONY: run-gosec check-formatting lint-vault lint-api checks
+.PHONY: run-gosec check-formatting lint-vault lint-api checks profile e2e ci
 
 dev:
 	docker-compose -f docker-compose.yml up
@@ -18,6 +18,9 @@ lint-vault:
 
 lint-api:
 	cd api && golangci-lint run
+
+profile:
+	go tool pprof http://localhost:6060/debug/pprof/profile
 
 checks: 
 	@echo "Running checks..."

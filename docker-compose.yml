@@ -21,6 +21,7 @@ services:
     entrypoint: ["air", ".", "-c", "./.air.toml"]
     ports:
       - 3001:3001
+      - 6060:6060
     depends_on:
       postgres:
         condition: service_healthy

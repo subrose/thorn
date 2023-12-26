@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // this is required for the profiler
 	"strings"
 	"time"
 
@@ -190,6 +191,16 @@ func main() {
 	initError := core.Init()
 	if err != nil {
 		panic(initError)
+	}
+
+	if coreConfig.DEV_MODE {
+		go func() {
+			core.logger.Info("Starting profiler on localhost:6060")
+			err := http.ListenAndServe(fmt.Sprintf("%s:6060", coreConfig.API_HOST), nil)
+			if err != nil {
+				panic(err)
+			}
+		}()
 	}
 
 	app := SetupApi(core)
