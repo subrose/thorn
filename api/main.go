@@ -196,7 +196,11 @@ func main() {
 	if coreConfig.DEV_MODE {
 		go func() {
 			core.logger.Info("Starting profiler on localhost:6060")
-			err := http.ListenAndServe(fmt.Sprintf("%s:6060", coreConfig.API_HOST), nil)
+			server := &http.Server{
+				Addr:              fmt.Sprintf("%s:6060", coreConfig.API_HOST),
+				ReadHeaderTimeout: 3 * time.Second,
+			}
+			err := server.ListenAndServe()
 			if err != nil {
 				panic(err)
 			}
