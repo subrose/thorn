@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type Field struct {
@@ -257,6 +256,7 @@ func (vault Vault) CreateRecord(
 
 		// Encrypt field value
 		encryptedValue, err := vault.Priv.Encrypt(fieldValue)
+
 		if err != nil {
 			return "", err
 		}
@@ -446,7 +446,8 @@ func (vault Vault) CreatePrincipal(
 		return err
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(principal.Password), bcrypt.DefaultCost)
+	// hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(principal.Password), bcrypt.DefaultCost)
+	hashedPassword, _ := vault.Priv.Encrypt(principal.Password)
 	principal.Password = string(hashedPassword)
 	principal.Id = GenerateId("prin")
 	principal.CreatedAt = time.Now()
@@ -488,7 +489,12 @@ func (vault Vault) Login(
 		return nil, &ForbiddenError{}
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(dbPrincipal.Password), []byte(password)); err != nil {
+	decryptedPassword, err := vault.Priv.Decrypt(dbPrincipal.Password)
+	if err != nil {
+		vault.Logger.Error(fmt.Sprintf("Error decrypting password: %s", err.Error()))
+		return nil, &ForbiddenError{}
+	}
+	if decryptedPassword != password {
 		return nil, &ForbiddenError{}
 	}
 

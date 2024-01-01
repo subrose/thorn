@@ -16,7 +16,6 @@ import (
 // CoreConfig is used to parameterize a core
 type CoreConfig struct {
 	DATABASE_URL      string
-	ENCRYPTION_KEY    string
 	ENCRYPTION_SECRET string
 	SIGNING_KEY       string
 	ADMIN_USERNAME    string
@@ -81,7 +80,6 @@ func ReadConfigs() (*CoreConfig, error) {
 	}
 
 	conf.DATABASE_URL = k.String(databaseURLKey)
-	conf.ENCRYPTION_KEY = k.String(encryptionKeyKey)
 	conf.ENCRYPTION_SECRET = k.String(encryptionSecretKey)
 	conf.SIGNING_KEY = k.String(signingKeyKey)
 	conf.ADMIN_USERNAME = k.String(adminUsernameKey)
@@ -119,7 +117,10 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		panic(err)
 	}
 
-	priv := _vault.NewAESPrivatiser([]byte(conf.ENCRYPTION_KEY), conf.ENCRYPTION_SECRET)
+	priv, err := _vault.NewAESPrivatiser(conf.ENCRYPTION_SECRET)
+	if err != nil {
+		panic(err)
+	}
 	signer, err := _vault.NewHMACSigner([]byte(conf.SIGNING_KEY))
 	if err != nil {
 		panic(err)

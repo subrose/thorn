@@ -4,10 +4,12 @@ import "testing"
 
 func TestEncrypt(t *testing.T) {
 	t.Run("Can encrypt and decrypt", func(t *testing.T) {
-		bytes := []byte{35, 46, 57, 24, 85, 35, 24, 74, 87, 35, 88, 98, 66, 32, 14, 05}
 		secret := "abc&1*~#^2^#s0^=)^^7%b34"
 		val := "hello world!"
-		p := NewAESPrivatiser(bytes, secret)
+		p, err := NewAESPrivatiser(secret)
+		if err != nil {
+			t.Errorf("Error creating privatiser: %v", err)
+		}
 		encrypted, err := p.Encrypt(val)
 		if err != nil {
 			t.Errorf("Error encrypting: %v", err)

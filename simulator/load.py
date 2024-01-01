@@ -32,6 +32,8 @@ async def load_test_writes():
                 "name": f"name{i}",
                 "dob": f"dob{i}",
                 "gender": f"gender{i}",
+                "address": f"address{i}",
+                "email": f"email{i}",
             }
             task = asyncio.ensure_future(
                 create_record_async(session, "load", record, semaphore)
@@ -45,7 +47,9 @@ async def get_record_async(session, collection, record_id, semaphore):
         start_time = time.time()
         async with session.get(
             f"{admin.vault_url}/collections/{collection}/records/{record_id}",
-            params={"formats": "name.plain,dob.plain,gender.plain"},
+            params={
+                "formats": "name.plain,dob.plain,gender.plain,address.plain,email.plain"
+            },
             auth=BasicAuth(admin.username, admin.password),
         ) as response:
             end_time = time.time()
@@ -95,6 +99,14 @@ if __name__ == "__main__":
                     "is_indexed": False,
                 },
                 "gender": {
+                    "type": "string",
+                    "is_indexed": False,
+                },
+                "address": {
+                    "type": "string",
+                    "is_indexed": False,
+                },
+                "email": {
                     "type": "string",
                     "is_indexed": False,
                 },
