@@ -9,6 +9,15 @@ import (
 	_vault "github.com/subrose/vault"
 )
 
+// GetCollection godoc
+// @Summary Get a Collection by name
+// @Description Returns a Collection given a name
+// @Tags collections
+// @Accept */*
+// @Produce json
+// @Success 200 {object} _vault.Collection
+// @Router /collections/{name} [get]
+// @Param name path string true "Collection Name"
 func (core *Core) GetCollection(c *fiber.Ctx) error {
 	collectionName := c.Params("name")
 	principal := GetSessionPrincipal(c)
@@ -21,6 +30,14 @@ func (core *Core) GetCollection(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(collection)
 }
 
+// GetCollections godoc
+// @Summary Get all Collections
+// @Description Returns all Collections
+// @Tags collections
+// @Accept */*
+// @Produce json
+// @Success 200 {array} _vault.Collection
+// @Router /collections [get]
 func (core *Core) GetCollections(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collections, err := core.vault.GetCollections(c.Context(), principal)
@@ -30,6 +47,14 @@ func (core *Core) GetCollections(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(collections)
 }
 
+// CreateCollection godoc
+// @Summary Create a Collection
+// @Description Creates a Collection
+// @Tags collections
+// @Accept */*
+// @Produce json
+// @Success 201 {object} _vault.Collection
+// @Router /collections [post]
 func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collection := &_vault.Collection{}
@@ -47,6 +72,15 @@ func (core *Core) CreateCollection(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(collection)
 }
 
+// DeleteCollection godoc
+// @Summary Delete a Collection by name
+// @Description Deletes a Collection given a name
+// @Tags collections
+// @Accept */*
+// @Produce json
+// @Success 200 {string} string
+// @Router /collections/{name} [delete]
+// @Param name path string true "Collection Name"
 func (core *Core) DeleteCollection(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -59,6 +93,15 @@ func (core *Core) DeleteCollection(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).SendString("Collection deleted")
 }
 
+// CreateRecord godoc
+// @Summary Create a Record
+// @Description Creates a Record
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 201 {string} string
+// @Router /collections/{name}/records [post]
+// @Param name path string true "Collection Name"
 func (core *Core) CreateRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -82,6 +125,16 @@ func (core *Core) CreateRecord(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(recordId)
 }
 
+// UpdateRecord godoc
+// @Summary Update a Record
+// @Description Updates a Record
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 200 {string} string
+// @Router /collections/{name}/records/{id} [put]
+// @Param name path string true "Collection Name"
+// @Param id path string true "Record Id"
 func (core *Core) UpdateRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -99,6 +152,16 @@ func (core *Core) UpdateRecord(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).SendString("Record updated")
 }
 
+// DeleteRecord godoc
+// @Summary Delete a Record
+// @Description Deletes a Record
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 200 {string} string
+// @Router /collections/{name}/records/{id} [delete]
+// @Param name path string true "Collection Name"
+// @Param id path string true "Record Id"
 func (core *Core) DeleteRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -125,6 +188,15 @@ func parseFieldsQuery(fieldsQuery string) map[string]string {
 	return fieldFormats
 }
 
+// GetRecords godoc
+// @Summary Get all Records
+// @Description Returns all Records
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 200 {array} _vault.Record
+// @Router /collections/{name}/records [get]
+// @Param name path string true "Collection Name"
 func (core *Core) GetRecords(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -145,6 +217,17 @@ func (core *Core) GetRecords(c *fiber.Ctx) error {
 
 }
 
+// GetRecord godoc
+// @Summary Get a Record by id
+// @Description Returns a Record given an id
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 200 {object} _vault.Record
+// @Router /collections/{name}/records/{id} [get]
+// @Param name path string true "Collection Name"
+// @Param id path string true "Record Id"
+// @Param formats query string true "Record formats"
 func (core *Core) GetRecord(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
@@ -207,6 +290,16 @@ func (core *Core) GetRecord(c *fiber.Ctx) error {
 	return c.Status(http.StatusOK).JSON(record)
 }
 
+// SearchRecords godoc
+// @Summary Search Records
+// @Description Searches for Records
+// @Tags records
+// @Accept */*
+// @Produce json
+// @Success 200 {array} _vault.Record
+// @Router /collections/{name}/records/search [post]
+// @Param name path string true "Collection Name"
+// @Param filters body string true "Search filters"
 func (core *Core) SearchRecords(c *fiber.Ctx) error {
 	principal := GetSessionPrincipal(c)
 	collectionName := c.Params("name")
