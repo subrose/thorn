@@ -37,6 +37,14 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	})
 }
 
+// GetPrincipal godoc
+// @Summary Something....
+// @Description Something...
+// @Tags root
+// @Accept */*
+// @Produce json
+// @Success 200 {object} PrincipalResponse
+// @Router /principals/:username [get]
 func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 	username := c.Params("username")
 	sessionPrincipal := GetSessionPrincipal(c)

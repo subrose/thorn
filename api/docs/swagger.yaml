@@ -1,0 +1,52 @@
+basePath: /
+definitions:
+  main.PrincipalResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      policies:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+      username:
+        maxLength: 32
+        minLength: 3
+        type: string
+    required:
+    - username
+    type: object
+host: localhost:3001
+info:
+  contact:
+    email: fiber@swagger.io
+    name: API Support
+  description: This is a sample swagger for Fiber
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Fiber Example API
+  version: "1.0"
+paths:
+  /principals/:username:
+    get:
+      consumes:
+      - '*/*'
+      description: Something...
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PrincipalResponse'
+      summary: Something....
+      tags:
+      - root
+swagger: "2.0"
