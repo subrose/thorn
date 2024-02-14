@@ -1,0 +1,508 @@
+basePath: /
+definitions:
+  main.PrincipalResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      policies:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+      username:
+        maxLength: 32
+        minLength: 3
+        type: string
+    required:
+    - username
+    type: object
+  vault.Collection:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      fields:
+        additionalProperties:
+          $ref: '#/definitions/vault.Field'
+        type: object
+      id:
+        type: string
+      name:
+        maxLength: 32
+        minLength: 3
+        type: string
+      parent:
+        maxLength: 32
+        minLength: 3
+        type: string
+      updated_at:
+        type: string
+    required:
+    - fields
+    - name
+    type: object
+  vault.Field:
+    properties:
+      is_indexed:
+        type: boolean
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  vault.Policy:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/vault.PolicyAction'
+        type: array
+      created_at:
+        type: string
+      description:
+        type: string
+      effect:
+        allOf:
+        - $ref: '#/definitions/vault.PolicyEffect'
+        enum:
+        - allow
+        - deny
+      id:
+        type: string
+      name:
+        type: string
+      resources:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: string
+    required:
+    - actions
+    - effect
+    - resources
+    type: object
+  vault.PolicyAction:
+    enum:
+    - read
+    - write
+    type: string
+    x-enum-varnames:
+    - PolicyActionRead
+    - PolicyActionWrite
+  vault.PolicyEffect:
+    enum:
+    - deny
+    - allow
+    type: string
+    x-enum-varnames:
+    - EffectDeny
+    - EffectAllow
+  vault.Record:
+    additionalProperties:
+      type: string
+    type: object
+host: localhost:3001
+info:
+  contact:
+    email: fiber@swagger.io
+    name: API Support
+  description: This is a sample swagger for Fiber
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Fiber Example API
+  version: "1.0"
+paths:
+  /collections:
+    get:
+      consumes:
+      - '*/*'
+      description: Returns all Collections
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vault.Collection'
+            type: array
+      summary: Get all Collections
+      tags:
+      - collections
+    post:
+      consumes:
+      - '*/*'
+      description: Creates a Collection
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/vault.Collection'
+      summary: Create a Collection
+      tags:
+      - collections
+  /collections/{name}:
+    delete:
+      consumes:
+      - '*/*'
+      description: Deletes a Collection given a name
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Delete a Collection by name
+      tags:
+      - collections
+    get:
+      consumes:
+      - '*/*'
+      description: Returns a Collection given a name
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vault.Collection'
+      summary: Get a Collection by name
+      tags:
+      - collections
+  /collections/{name}/records:
+    get:
+      consumes:
+      - '*/*'
+      description: Returns all Records
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vault.Record'
+            type: array
+      summary: Get all Records
+      tags:
+      - records
+    post:
+      consumes:
+      - '*/*'
+      description: Creates a Record
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: string
+      summary: Create a Record
+      tags:
+      - records
+  /collections/{name}/records/{id}:
+    delete:
+      consumes:
+      - '*/*'
+      description: Deletes a Record
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Record Id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Delete a Record
+      tags:
+      - records
+    get:
+      consumes:
+      - '*/*'
+      description: Returns a Record given an id
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Record Id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Record formats
+        in: query
+        name: formats
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vault.Record'
+      summary: Get a Record by id
+      tags:
+      - records
+    put:
+      consumes:
+      - '*/*'
+      description: Updates a Record
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Record Id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Update a Record
+      tags:
+      - records
+  /collections/{name}/records/search:
+    post:
+      consumes:
+      - '*/*'
+      description: Searches for Records
+      parameters:
+      - description: Collection Name
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: Search filters
+        in: body
+        name: filters
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vault.Record'
+            type: array
+      summary: Search Records
+      tags:
+      - records
+  /policies:
+    get:
+      consumes:
+      - '*/*'
+      description: Returns all Policies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vault.Policy'
+            type: array
+      summary: Get all Policies
+      tags:
+      - policies
+    post:
+      consumes:
+      - '*/*'
+      description: Creates a Policy
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/vault.Policy'
+      summary: Create a Policy
+      tags:
+      - policies
+  /policies/{policyId}:
+    delete:
+      consumes:
+      - '*/*'
+      description: Deletes a Policy given an id
+      parameters:
+      - description: Policy Id
+        in: path
+        name: policyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a Policy by id
+      tags:
+      - policies
+    get:
+      consumes:
+      - '*/*'
+      description: Returns a Policy given an id
+      parameters:
+      - description: Policy Id
+        in: path
+        name: policyId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/vault.Policy'
+      summary: Get a Policy by id
+      tags:
+      - policies
+  /principals:
+    delete:
+      consumes:
+      - '*/*'
+      description: Deletes a Principal given an id
+      parameters:
+      - description: Username
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a Principal by id
+      tags:
+      - principals
+    post:
+      consumes:
+      - '*/*'
+      description: Creates a Principal
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/main.PrincipalResponse'
+      summary: Create a Principal
+      tags:
+      - principals
+  /principals/{username}:
+    get:
+      consumes:
+      - '*/*'
+      description: Returns a Principal given an id
+      parameters:
+      - description: Username
+        in: path
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PrincipalResponse'
+      summary: Get a Prinicipal by id
+      tags:
+      - principals
+  /tokens:
+    post:
+      consumes:
+      - '*/*'
+      description: Creates a Token
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: string
+      summary: Create a Token
+      tags:
+      - tokens
+  /tokens/{tokenId}:
+    get:
+      consumes:
+      - '*/*'
+      description: Returns a Token given an id
+      parameters:
+      - description: Token Id
+        in: path
+        name: tokenId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Get a Token by id
+      tags:
+      - tokens
+swagger: "2.0"

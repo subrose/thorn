@@ -12,6 +12,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/swagger"
+
+	_ "github.com/subrose/api/docs" // This will be replaced with the actual path to the docs package
 	_vault "github.com/subrose/vault"
 )
 
@@ -128,6 +131,23 @@ func JSONOnlyMiddleware(c *fiber.Ctx) error {
 	return c.Next()
 }
 
+func setupSwagger(app *fiber.App) {
+	app.Get("/swagger/*", swagger.HandlerDefault)
+	// app.Get("/swagger/*", swagger.New(swagger.Config{ // custom
+	// 	URL:         "http://example.com/doc.json",
+	// 	DeepLinking: false,
+	// 	// Expand ("list") or Collapse ("none") tag groups by default
+	// 	DocExpansion: "none",
+	// 	// Prefill OAuth ClientId on Authorize popup
+	// 	// OAuth: &swagger.OAuthConfig{
+	// 	// 	AppName:  "OAuth Provider",
+	// 	// 	ClientId: "21bb4edc-05a7-4afc-86f1-2e151e4ba6e2",
+	// 	// },
+	// 	// Ability to change OAuth2 redirect uri location
+	// 	// OAuth2RedirectUrl: "http://localhost:8080/swagger/oauth2-redirect.html",
+	// }))
+}
+
 func SetupApi(core *Core) *fiber.App {
 	app := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
@@ -137,6 +157,7 @@ func SetupApi(core *Core) *fiber.App {
 	app.Use(ApiLogger(core))
 	app.Use(recover.New())
 
+	setupSwagger(app)
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(http.StatusOK).SendString("OK")
 	})
@@ -179,6 +200,16 @@ func SetupApi(core *Core) *fiber.App {
 	return app
 }
 
+// @title Fiber Example API
+// @version 1.0
+// @description This is a sample swagger for Fiber
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.email fiber@swagger.io
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @host localhost:3001
+// @BasePath /
 func main() {
 	coreConfig, err := ReadConfigs()
 	if err != nil {

@@ -17,6 +17,14 @@ type PrincipalResponse struct {
 	Policies    []string  `json:"policies"`
 }
 
+// CreatePrincipal godoc
+// @Summary Create a Principal
+// @Description Creates a Principal
+// @Tags principals
+// @Accept */*
+// @Produce json
+// @Success 201 {object} PrincipalResponse
+// @Router /principals [post]
 func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	var principal _vault.Principal
 	if err := core.ParseJsonBody(c.Body(), &principal); err != nil {
@@ -37,6 +45,15 @@ func (core *Core) CreatePrincipal(c *fiber.Ctx) error {
 	})
 }
 
+// GetPrincipal godoc
+// @Summary Get a Prinicipal by id
+// @Description Returns a Principal given an id
+// @Tags principals
+// @Accept */*
+// @Produce json
+// @Success 200 {object} PrincipalResponse
+// @Router /principals/{username} [get]
+// @Param username path string true "Username"
 func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 	username := c.Params("username")
 	sessionPrincipal := GetSessionPrincipal(c)
@@ -52,6 +69,15 @@ func (core *Core) GetPrincipal(c *fiber.Ctx) error {
 	})
 }
 
+// DeletePrincipal godoc
+// @Summary Delete a Principal by id
+// @Description Deletes a Principal given an id
+// @Tags principals
+// @Accept */*
+// @Produce json
+// @Success 204
+// @Router /principals [delete]
+// @Param username path string true "Username"
 func (core *Core) DeletePrincipal(c *fiber.Ctx) error {
 	username := c.Params("username")
 	sessionPrincipal := GetSessionPrincipal(c)
